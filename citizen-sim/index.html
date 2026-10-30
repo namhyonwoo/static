@@ -87,6 +87,21 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
 }
 .btn[aria-pressed="true"]{ border-color:var(--ink); font-weight:600; }
 .help{ color:var(--muted); font-size:.82rem; line-height:1.6; margin:.8rem 0 0; }
+.share{ border:1px solid var(--line); border-radius:10px; padding:.7rem .8rem .8rem; margin-top:.9rem; }
+.share h2{ margin:0 0 .5rem; }
+.share .help{ margin-top:.5rem; }
+.linkrow{ display:flex; gap:.4rem; }
+.linkrow input{
+  flex:1; min-width:0; font:inherit; font-size:.82rem; color:var(--ink); background:var(--bg); border:1px solid var(--line);
+  border-radius:8px; padding:.4rem .55rem;
+}
+.netpill{
+  position:absolute; top:.8rem; right:.8rem; background:var(--panel); color:var(--ink); border:1px solid var(--line);
+  border-radius:999px; padding:.4rem .85rem; box-shadow:0 4px 14px rgba(20,30,50,.1); font-size:.85rem;
+}
+.netpill .dot{ display:inline-block; width:.55rem; height:.55rem; border-radius:50%; background:var(--mid); margin-right:.4rem; vertical-align:middle; }
+.netpill.on .dot{ background:var(--good); }
+.netpill.off .dot{ background:var(--bad); }
 .meta{ color:var(--muted); margin-top:-.3rem; }
 [hidden]{ display:none !important; }
 :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
@@ -103,6 +118,7 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
 } }
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
 </head>
 <body>
 <main class="stage">
@@ -114,6 +130,7 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
     <button type="button" data-view="park">공원</button>
   </div>
   <div class="toast" id="toast" role="status"></div>
+  <div class="netpill" id="netPill" hidden><span class="dot"></span><span id="netPillText">연결 중…</span></div>
 </main>
 
 <aside class="panel" aria-label="시뮬레이션 정보">
@@ -124,6 +141,19 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
     <button type="button" data-s="3" aria-pressed="false">3×</button>
     <button type="button" data-s="8" aria-pressed="false">8×</button>
   </div>
+
+  <section class="share" id="share" aria-label="함께 보기">
+    <h2>함께 보기</h2>
+    <div id="shareSolo">
+      <button class="btn" id="hostBtn" type="button">방 열기</button>
+      <p class="help">방을 열면 링크가 생겨요. 링크를 받은 사람은 이 화면을 그대로 보면서 명령도 내릴 수 있어요.</p>
+    </div>
+    <div id="shareHost" hidden>
+      <div class="linkrow"><input id="shareLink" readonly aria-label="공유 링크"><button class="btn" id="copyBtn" type="button">복사</button></div>
+      <p class="help" id="viewerCount">관전자 0명 · 이 탭을 닫으면 방이 사라져요.</p>
+    </div>
+    <p class="help" id="netStatus" hidden></p>
+  </section>
 
   <h2>시민</h2>
   <ul class="list" id="people"></ul>
@@ -498,20 +528,28 @@ const PET_NEEDS = [["hunger","배부름"],["energy","에너지"],["love","애정
 const DECAY = { hunger:.32, energy:.2, fun:.4, hygiene:.22, social:.3 };
 const citizens = [], pets = [];
 
+let nextId = 1;
 class Citizen {
-  constructor(x, z, gender){
+  constructor(x, z, gender, def){
     this.gender = gender;
-    const list = NAMES[gender]; const n = nameCount[gender]++;
-    this.name = list[n % list.length] + (n >= list.length ? Math.floor(n / list.length) + 1 : "");
     const F = gender === "f";
-    this.look = {
-      shirt: pick(F ? LOOKS.shirtsF : LOOKS.shirtsM), pants: pick(LOOKS.pants), skin: pick(LOOKS.skins), hair: pick(LOOKS.hair),
-      shoes: pick(["#2B2B2E","#6B4A33","#EDEDED"]),
-      skirt: F && Math.random() < .55 ? pick(LOOKS.skirts) : null,
-      hairStyle: pick(["long","bob","pony"]),
-    };
+    if(def){
+      // 관전자: 호스트가 보내준 정의 그대로 사용
+      this.id = def.id; this.name = def.name; this.look = def.look;
+    } else {
+      this.id = nextId++;
+      const list = NAMES[gender]; const n = nameCount[gender]++;
+      this.name = list[n % list.length] + (n >= list.length ? Math.floor(n / list.length) + 1 : "");
+      this.look = {
+        shirt: pick(F ? LOOKS.shirtsF : LOOKS.shirtsM), pants: pick(LOOKS.pants), skin: pick(LOOKS.skins), hair: pick(LOOKS.hair),
+        shoes: pick(["#2B2B2E","#6B4A33","#EDEDED"]),
+        skirt: F && Math.random() < .55 ? pick(LOOKS.skirts) : null,
+        hairStyle: pick(["long","bob","pony"]),
+      };
+    }
     this.p = buildPerson(this.look, gender);
     this.root = this.p.root; this.root.position.set(x, 0.05, z);
+    this.netTarget = this.root.position.clone();
     this.root.rotation.y = rand(-Math.PI, Math.PI);
     this.root.traverse(m => { if(m.isMesh && m !== this.p.orb) m.userData.citizen = this; });
     scene.add(this.root);
@@ -696,6 +734,10 @@ class Citizen {
         else this.finish();
       }
     }
+    this.present(dt);
+  }
+  /* 화면 표현만 담당(회전·포즈·기분 구슬). 호스트와 관전자 모두 사용 */
+  present(dt){
     this.root.rotation.y = lerpAngle(this.root.rotation.y, this.face, 1 - Math.exp(-dt * 8));
     this.animate(dt);
     const m = this.mood(), orb = this.p.orb;
@@ -703,6 +745,26 @@ class Citizen {
     orb.material.color.set(col); orb.material.emissive.set(col);
     orb.position.y = (this.sleeping() ? 1.25 : 2.1) + Math.sin(this.t * 2) * 0.04;
     this.tag.position.y = orb.position.y + 0.28;
+  }
+  /* --- 네트워크 동기화 --- */
+  netState(){
+    const r = v => Math.round(v * 1000) / 1000;
+    return { i:this.id, x:r(this.pos.x), z:r(this.pos.z), f:r(this.face), s:this.state, a:this.act,
+      n:NEED_KEYS.map(([k]) => Math.round(this.needs[k])), pt:this.petTarget ? this.petTarget.id : 0 };
+  }
+  applyNet(m){
+    this.netTarget.set(m.x, 0.05, m.z); this.face = m.f;
+    const changed = this.state !== m.s || this.act !== m.a;
+    this.state = m.s; this.act = m.a;
+    NEED_KEYS.forEach(([k], i) => this.needs[k] = m.n[i]);
+    this.petTarget = m.pt ? pets.find(p => p.id === m.pt) || null : null;
+    if(changed) this.updateTag();
+  }
+  presentViewer(dt){
+    this.t += dt;
+    this.pos.lerp(this.netTarget, 1 - Math.exp(-dt * 14));
+    if(this.state === "walk") this.walkPhase += dt * speed * 7.2;
+    this.present(dt);
   }
   animate(dt){
     const P = this.p, t = this.t;
@@ -820,18 +882,25 @@ function buildParrot(color){
 }
 
 class Pet {
-  constructor(kind, x, z, owner){
+  constructor(kind, x, z, owner, def){
     this.kind = kind; this.owner = owner;
     const info = PET_INFO[kind];
-    const n = petCount[kind]++;
-    this.name = info.names[n % info.names.length] + (n >= info.names.length ? Math.floor(n / info.names.length) + 1 : "");
-    this.color = pick(info.colors);
+    let n;
+    if(def){ this.id = def.id; this.name = def.name; this.color = def.color; n = def.idx; }
+    else {
+      this.id = nextId++;
+      n = petCount[kind]++;
+      this.name = info.names[n % info.names.length] + (n >= info.names.length ? Math.floor(n / info.names.length) + 1 : "");
+      this.color = pick(info.colors);
+    }
     this.m = kind === "dog" ? buildDog(this.color) : kind === "cat" ? buildCat(this.color) : buildParrot(this.color);
     this.root = this.m.root;
     this.root.traverse(o => { if(o.isMesh) o.userData.pet = this; });
     this.idx = n;
     this.root.position.set(x, kind === "parrot" ? PET_HOME.perch.y : 0.05, z);
     if(kind === "parrot") this.root.position.copy(this.perchPos());
+    if(def) this.root.position.set(def.x, def.y, def.z);
+    this.netTarget = this.root.position.clone();
     scene.add(this.root);
     this.needs = { hunger:rand(55, 90), energy:rand(55, 90), love:rand(40, 80) };
     this.state = kind === "parrot" ? "perch" : "idle";
@@ -1001,8 +1070,30 @@ class Pet {
     if(this.state === "follow" || this.state === "shoulder") n.love += .9 * sdt;
     for(const k in n) n[k] = clamp(n[k], 0, 100);
     if(this.kind === "parrot") this.updateBird(dt, sdt, hour); else this.updateWalker(dt, sdt, hour);
+    this.present(dt);
+  }
+  present(dt){
     this.root.rotation.y = lerpAngle(this.root.rotation.y, this.face, 1 - Math.exp(-dt * 8));
     this.animate(dt);
+  }
+  /* --- 네트워크 동기화 --- */
+  netState(){
+    const r = v => Math.round(v * 1000) / 1000;
+    return { i:this.id, x:r(this.pos.x), y:r(this.pos.y), z:r(this.pos.z), f:r(this.face), s:this.state, nx:this.next || null,
+      mv:this.moving, n:[Math.round(this.needs.hunger), Math.round(this.needs.energy), Math.round(this.needs.love)] };
+  }
+  applyNet(m){
+    this.netTarget.set(m.x, m.y, m.z); this.face = m.f;
+    const changed = this.state !== m.s || this.next !== m.nx;
+    this.state = m.s; this.next = m.nx; this.moving = m.mv;
+    this.needs.hunger = m.n[0]; this.needs.energy = m.n[1]; this.needs.love = m.n[2];
+    if(changed) this.updateTag();
+  }
+  presentViewer(dt){
+    this.t += dt;
+    this.pos.lerp(this.netTarget, 1 - Math.exp(-dt * 14));
+    if(this.moving) this.phase += dt * speed * (this.kind === "cat" ? 12 : 13.5);
+    this.present(dt);
   }
   animate(dt){
     const m = this.m, t = this.t, k = 1 - Math.exp(-dt * 10);
@@ -1131,24 +1222,53 @@ function toast(msg){
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 1900);
 }
 document.getElementById("followBtn").addEventListener("click", e => { follow = !follow; e.currentTarget.setAttribute("aria-pressed", follow); camAnim = null; });
-document.getElementById("stopBtn").addEventListener("click", () => { if(selected){ selected.finish(); toast(selected.name + " 님이 하던 일을 멈췄어요"); } });
-function addCitizen(g){
-  const c = new Citizen(rand(-1, 1), rand(5, 6.5), g); citizens.push(c); renderLists(); selectCitizen(c);
-  toast(`${c.name} 님이 이사 왔어요`);
+document.getElementById("stopBtn").addEventListener("click", () => {
+  if(!selected) return;
+  if(net.role === "viewer"){ sendCmd({ k:"stop", cid:selected.id }); return; }
+  toast(stopResult(selected));
+});
+function stopResult(c){ c.finish(); return c.name + " 님이 하던 일을 멈췄어요"; }
+/* 명령 실행 함수: 결과 메시지를 돌려준다. 호스트 자신의 클릭과 관전자의 원격 명령이 함께 쓴다 */
+function orderResult(c, obj){
+  if(!obj.act || !obj.spots.length) return obj.name + "은(는) 직접 쓸 수 없어요";
+  const res = c.order(obj);
+  if(res === "ok") return `${c.name}: ${obj.name}(으)로 가요`;
+  if(res === "night") return "밤에는 공원 시설을 쓰지 않아요";
+  return obj.name + "에 빈자리가 없어요";
 }
-document.getElementById("addM").addEventListener("click", () => addCitizen("m"));
-document.getElementById("addF").addEventListener("click", () => addCitizen("f"));
+function petResult(c, p){
+  if(!p.pettable()) return `${p.name}은(는) 지금 ${p.stateLabel()}이라 놀 수 없어요`;
+  c.startPet(p); return `${c.name}: ${p.name}와(과) 놀러 가요`;
+}
+function addCitizen(g, select = true){
+  const c = new Citizen(rand(-1, 1), rand(5, 6.5), g); citizens.push(c); renderLists();
+  if(select) selectCitizen(c);
+  hostBroadcastInit();
+  return `${c.name} 님이 이사 왔어요`;
+}
+function addPet(kind, owner, select = true){
+  owner = owner || pick(citizens);
+  const p = new Pet(kind, rand(-2, 2), rand(3, 5), owner);
+  pets.push(p); renderLists();
+  if(select) selectPet(p);
+  hostBroadcastInit();
+  return `${owner.name} 님이 ${PET_INFO[p.kind].label} ${p.name}을(를) 데려왔어요`;
+}
+document.getElementById("addM").addEventListener("click", () => net.role === "viewer" ? sendCmd({ k:"addC", g:"m" }) : toast(addCitizen("m")));
+document.getElementById("addF").addEventListener("click", () => net.role === "viewer" ? sendCmd({ k:"addC", g:"f" }) : toast(addCitizen("f")));
 document.querySelectorAll("[data-addpet]").forEach(b => b.addEventListener("click", () => {
-  const owner = selected || pick(citizens);
-  const p = new Pet(b.dataset.addpet, rand(-2, 2), rand(3, 5), owner);
-  pets.push(p); renderLists(); selectPet(p);
-  toast(`${owner.name} 님이 ${PET_INFO[p.kind].label} ${p.name}을(를) 데려왔어요`);
+  if(net.role === "viewer"){ sendCmd({ k:"addP", kind:b.dataset.addpet, owner:selected ? selected.id : 0 }); return; }
+  toast(addPet(b.dataset.addpet, selected));
 }));
 document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => goView(b.dataset.view)));
 let speed = 1;
+function setSpeed(s){
+  speed = s;
+  document.querySelectorAll(".speed button").forEach(x => x.setAttribute("aria-pressed", +x.dataset.s === s));
+}
 document.querySelectorAll(".speed button").forEach(b => b.addEventListener("click", () => {
-  speed = +b.dataset.s;
-  document.querySelectorAll(".speed button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  if(net.role === "viewer"){ sendCmd({ k:"speed", s:+b.dataset.s }); return; }
+  setSpeed(+b.dataset.s);
 }));
 addEventListener("keydown", e => { if(e.key === "Escape") clearSelection(); });
 
@@ -1170,21 +1290,19 @@ canvas.addEventListener("pointerup", e => {
   if(u.citizen){ selectCitizen(u.citizen); return; }
   if(u.pet){
     if(selected){
-      const p = u.pet;
-      if(!p.pettable()){ toast(`${p.name}은(는) 지금 ${p.stateLabel()}이라 놀 수 없어요`); return; }
-      selected.startPet(p); toast(`${selected.name}: ${p.name}와(과) 놀러 가요`);
+      if(net.role === "viewer") sendCmd({ k:"pet", cid:selected.id, pid:u.pet.id });
+      else toast(petResult(selected, u.pet));
     } else selectPet(u.pet);
     return;
   }
   if(!selected) return;
   if(u.obj){
-    if(!u.obj.act || !u.obj.spots.length){ toast(u.obj.name + "은(는) 직접 쓸 수 없어요"); return; }
-    const res = selected.order(u.obj);
-    if(res === "ok") toast(`${selected.name}: ${u.obj.name}(으)로 가요`);
-    else if(res === "night") toast("밤에는 공원 시설을 쓰지 않아요");
-    else toast(u.obj.name + "에 빈자리가 없어요");
+    if(net.role === "viewer") sendCmd({ k:"order", cid:selected.id, obj:objects.indexOf(u.obj) });
+    else toast(orderResult(selected, u.obj));
   } else if(u.ground){
-    const p = hit.point; selected.orderMove(clamp(p.x, -14, 32), clamp(p.z, -5.5, 16));
+    const p = hit.point, x = clamp(p.x, -14, 32), z = clamp(p.z, -5.5, 16);
+    if(net.role === "viewer") sendCmd({ k:"move", cid:selected.id, x, z });
+    else selected.orderMove(x, z);
   }
 });
 
@@ -1209,10 +1327,131 @@ function updateSky(){
   return h;
 }
 
+/* ================= Multiplayer: host + viewers (PeerJS / WebRTC) ================= */
+/* 호스트 브라우저가 시뮬레이션을 돌리고, 초당 10번 전체 상태를 관전자에게 보낸다.
+   관전자는 받은 상태로 그리기만 하고, 명령은 호스트에게 보내 호스트가 실행한다. */
+const PEER_PREFIX = "citizen-sim-";
+const ROOM = new URLSearchParams(location.search).get("room");
+const net = { role: ROOM ? "viewer" : "solo", peer:null, conns:[], host:null, code:null };
+const pill = document.getElementById("netPill"), pillText = document.getElementById("netPillText");
+function setPill(text, cls){ pill.hidden = false; pill.className = "netpill " + (cls || ""); pillText.textContent = text; }
+function setStatus(text){ const el = document.getElementById("netStatus"); el.hidden = false; el.textContent = text; }
+
+function roomInit(){
+  return { t:"init", simMin, speed,
+    citizens: citizens.map(c => ({ id:c.id, gender:c.gender, name:c.name, look:c.look, x:c.pos.x, z:c.pos.z })),
+    pets: pets.map(p => ({ id:p.id, kind:p.kind, name:p.name, color:p.color, idx:p.idx, owner:p.owner ? p.owner.id : 0, x:p.pos.x, y:p.pos.y, z:p.pos.z })) };
+}
+function roomState(){ return { t:"state", simMin, speed, c:citizens.map(c => c.netState()), p:pets.map(p => p.netState()) }; }
+function broadcast(msg){ for(const c of net.conns) if(c.open) c.send(msg); }
+function hostBroadcastInit(){ if(net.role === "host") broadcast(roomInit()); }
+function updateViewerCount(){
+  document.getElementById("viewerCount").textContent = `관전자 ${net.conns.length}명 · 이 탭을 닫으면 방이 사라져요.`;
+  setPill(`방 ${net.code} · 관전자 ${net.conns.length}명`, "on");
+}
+/* 관전자가 보낸 명령을 호스트가 검증·실행하고 결과를 돌려준다 */
+function handleCommand(conn, m){
+  if(!m || m.t !== "cmd") return;
+  const c = citizens.find(x => x.id === m.cid);
+  let msg = null;
+  switch(m.k){
+    case "order": { const obj = objects[m.obj]; if(c && obj) msg = orderResult(c, obj); break; }
+    case "move": if(c && Number.isFinite(m.x) && Number.isFinite(m.z)) c.orderMove(clamp(m.x, -14, 32), clamp(m.z, -5.5, 16)); break;
+    case "pet": { const p = pets.find(x => x.id === m.pid); if(c && p) msg = petResult(c, p); break; }
+    case "stop": if(c) msg = stopResult(c); break;
+    case "addC": if(m.g === "m" || m.g === "f"){ msg = addCitizen(m.g, false); toast(msg); } break;
+    case "addP": if(PET_INFO[m.kind]){ msg = addPet(m.kind, citizens.find(x => x.id === m.owner), false); toast(msg); } break;
+    case "speed": if([0, 1, 3, 8].includes(m.s)) setSpeed(m.s); break;
+  }
+  if(msg && conn.open) conn.send({ t:"toast", msg });
+}
+function startHost(){
+  const btn = document.getElementById("hostBtn"); btn.disabled = true; btn.textContent = "여는 중…";
+  const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+  const peer = new Peer(PEER_PREFIX + code);
+  net.peer = peer;
+  peer.on("open", () => {
+    net.role = "host"; net.code = code;
+    const link = location.origin + location.pathname + "?room=" + code;
+    document.getElementById("shareLink").value = link;
+    document.getElementById("shareSolo").hidden = true; document.getElementById("shareHost").hidden = false;
+    updateViewerCount();
+    toast("방을 열었어요. 링크를 공유하세요");
+    setInterval(() => { if(net.conns.length) broadcast(roomState()); }, 100);
+  });
+  peer.on("connection", conn => {
+    conn.on("open", () => { net.conns.push(conn); conn.send(roomInit()); updateViewerCount(); toast("관전자가 들어왔어요"); });
+    conn.on("data", m => handleCommand(conn, m));
+    conn.on("close", () => { net.conns = net.conns.filter(c => c !== conn); updateViewerCount(); });
+    conn.on("error", () => { net.conns = net.conns.filter(c => c !== conn); updateViewerCount(); });
+  });
+  peer.on("error", e => {
+    btn.disabled = false; btn.textContent = "방 열기";
+    toast(e.type === "unavailable-id" ? "방 코드가 겹쳤어요. 다시 눌러 주세요" : "연결 서버 오류: " + e.type);
+  });
+}
+document.getElementById("hostBtn").addEventListener("click", startHost);
+document.getElementById("copyBtn").addEventListener("click", async () => {
+  const input = document.getElementById("shareLink");
+  try { await navigator.clipboard.writeText(input.value); toast("링크를 복사했어요"); }
+  catch { input.select(); toast("주소를 직접 복사해 주세요"); }
+});
+
+function sendCmd(cmd){
+  if(net.host && net.host.open) net.host.send({ t:"cmd", ...cmd });
+  else toast("호스트와 연결되어 있지 않아요");
+}
+function applyInit(m){
+  simMin = m.simMin; setSpeed(m.speed);
+  let changed = false;
+  for(const d of m.citizens){
+    if(citizens.some(c => c.id === d.id)) continue;
+    citizens.push(new Citizen(d.x, d.z, d.gender, d)); changed = true;
+  }
+  for(const d of m.pets){
+    if(pets.some(p => p.id === d.id)) continue;
+    const owner = citizens.find(c => c.id === d.owner) || null;
+    pets.push(new Pet(d.kind, d.x, d.z, owner, d)); changed = true;
+  }
+  if(changed) renderLists();
+}
+function applyState(m){
+  simMin = m.simMin; if(m.speed !== speed) setSpeed(m.speed);
+  for(const s of m.c){ const c = citizens.find(x => x.id === s.i); if(c) c.applyNet(s); }
+  for(const s of m.p){ const p = pets.find(x => x.id === s.i); if(p) p.applyNet(s); }
+}
+function startViewer(){
+  document.getElementById("shareSolo").hidden = true;
+  setStatus(`👀 관전 중 · 방 ${ROOM.toUpperCase()}`); setPill("호스트에 연결 중…");
+  const peer = new Peer(); net.peer = peer;
+  peer.on("open", () => {
+    const conn = peer.connect(PEER_PREFIX + ROOM.toUpperCase(), { reliable:true });
+    net.host = conn;
+    conn.on("open", () => { setPill(`관전 중 · 방 ${ROOM.toUpperCase()}`, "on"); toast("호스트와 연결됐어요"); });
+    conn.on("data", m => {
+      if(!m) return;
+      if(m.t === "init") applyInit(m);
+      else if(m.t === "state") applyState(m);
+      else if(m.t === "toast") toast(m.msg);
+    });
+    conn.on("close", () => { setPill("호스트 연결이 끊겼어요", "off"); toast("호스트가 방을 닫았어요"); });
+  });
+  peer.on("error", e => {
+    setPill(e.type === "peer-unavailable" ? "방을 찾을 수 없어요" : "연결 오류: " + e.type, "off");
+    if(e.type === "peer-unavailable") toast("방을 찾을 수 없어요. 호스트가 방을 연 상태인지 확인하세요");
+  });
+}
+
+addEventListener("beforeunload", () => { if(net.peer) net.peer.destroy(); });
+
 /* ================= Start ================= */
-const c1 = new Citizen(-1, 3, "m"), c2 = new Citizen(1.5, 4.5, "f"), c3 = new Citizen(3, 2, "m"), c4 = new Citizen(-2.5, 5, "f");
-citizens.push(c1, c2, c3, c4);
-pets.push(new Pet("dog", 0, 4, c1), new Pet("cat", -3, 3.5, c2), new Pet("parrot", 0, 0, c3));
+if(net.role === "viewer"){
+  startViewer();
+} else {
+  const c1 = new Citizen(-1, 3, "m"), c2 = new Citizen(1.5, 4.5, "f"), c3 = new Citizen(3, 2, "m"), c4 = new Citizen(-2.5, 5, "f");
+  citizens.push(c1, c2, c3, c4);
+  pets.push(new Pet("dog", 0, 4, c1), new Pet("cat", -3, 3.5, c2), new Pet("parrot", 0, 0, c3));
+}
 renderLists();
 
 function resize(){
@@ -1226,12 +1465,19 @@ const clock = new THREE.Clock();
 let uiT = 0;
 function frame(){
   const dt = Math.min(clock.getDelta(), 0.05);
-  const sdt = dt * speed;
-  simMin += sdt * MIN_PER_SEC;
-  hourNow = updateSky();
   const adt = speed ? dt : 0;
-  for(const c of citizens) c.update(adt, sdt, hourNow);
-  for(const p of pets) p.update(adt, sdt, hourNow);
+  if(net.role === "viewer"){
+    // 관전자: 시간과 상태는 호스트가 보내준 값을 쓰고, 보간·애니메이션만 로컬에서 처리
+    hourNow = updateSky();
+    for(const c of citizens) c.presentViewer(adt);
+    for(const p of pets) p.presentViewer(adt);
+  } else {
+    const sdt = dt * speed;
+    simMin += sdt * MIN_PER_SEC;
+    hourNow = updateSky();
+    for(const c of citizens) c.update(adt, sdt, hourNow);
+    for(const p of pets) p.update(adt, sdt, hourNow);
+  }
   if(spout){ spout.scale.y = 1 + Math.sin(performance.now() / 180) * .12; }
   if(camAnim){
     camAnim.t = Math.min(1, camAnim.t + dt / 1.1);
