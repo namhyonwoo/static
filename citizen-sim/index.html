@@ -38,9 +38,19 @@ body{
 .tag{
   background:rgba(255,255,255,.92); color:#1A212C; border-radius:999px; padding:.15rem .55rem;
   font-size:12px; font-weight:600; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.15);
+  opacity:0; transition:opacity .15s;
 }
+.tag.show{ opacity:1; }
 .tag.pet{ font-size:11px; font-weight:400; padding:.1rem .45rem; background:rgba(255,255,255,.82); }
 .tag.sel{ background:#1A212C; color:#fff; }
+.bubbleWrap{ position:relative; width:0; height:0; }
+.bubble{
+  position:absolute; left:50%; bottom:1.3rem; transform:translateX(-50%); background:#FFFFFF; color:#1A212C;
+  border-radius:12px; padding:.32rem .65rem; font-size:12px; white-space:nowrap; box-shadow:0 2px 10px rgba(0,0,0,.18);
+  opacity:0; transition:opacity .2s;
+}
+.bubble::after{ content:""; position:absolute; left:50%; bottom:-6px; transform:translateX(-50%); border:6px solid transparent; border-top-color:#FFFFFF; border-bottom:0; }
+.bubble.show{ opacity:1; }
 .toast{
   position:absolute; left:50%; bottom:1.2rem; transform:translateX(-50%); background:var(--panel); color:var(--ink);
   border:1px solid var(--line); border-radius:10px; padding:.55rem .9rem; box-shadow:0 8px 24px rgba(0,0,0,.15);
@@ -86,6 +96,11 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
   padding:.45rem .75rem; cursor:pointer; min-height:2.3rem;
 }
 .btn[aria-pressed="true"]{ border-color:var(--ink); font-weight:600; }
+.btn.primary{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:600; }
+.miniform{ display:grid; gap:.45rem; margin-top:.6rem; padding:.7rem .8rem .8rem; border:1px solid var(--line); border-radius:10px; }
+.miniform label{ display:grid; gap:.2rem; font-size:.8rem; color:var(--muted); }
+.miniform input{ font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:.4rem .55rem; min-width:0; }
+.miniform .row-btns{ margin-top:.2rem; }
 .help{ color:var(--muted); font-size:.82rem; line-height:1.6; margin:.8rem 0 0; }
 .share{ border:1px solid var(--line); border-radius:10px; padding:.7rem .8rem .8rem; margin-top:.9rem; }
 .share h2{ margin:0 0 .5rem; }
@@ -161,6 +176,15 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
     <button class="btn" id="addM" type="button">남자 추가</button>
     <button class="btn" id="addF" type="button">여자 추가</button>
   </div>
+  <form class="miniform" id="addForm" hidden>
+    <div class="meta" id="addFormTitle">새 시민</div>
+    <label>이름 <input id="addName" maxlength="12" placeholder="비우면 자동으로 정해요" autocomplete="off"></label>
+    <label>인사말 <input id="addGreet" maxlength="40" autocomplete="off"></label>
+    <div class="row-btns">
+      <button class="btn primary" type="submit">추가</button>
+      <button class="btn" type="button" id="addCancel">취소</button>
+    </div>
+  </form>
 
   <h2>반려동물</h2>
   <ul class="list" id="pets"></ul>
@@ -178,6 +202,11 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
       <button class="btn" id="followBtn" type="button" aria-pressed="false">카메라 따라가기</button>
       <button class="btn" id="stopBtn" type="button">하던 일 멈추기</button>
     </div>
+    <form class="miniform" id="editForm" hidden>
+      <label>이름 <input id="editName" maxlength="12" autocomplete="off"></label>
+      <label>인사말 <input id="editGreet" maxlength="40" autocomplete="off"></label>
+      <div class="row-btns"><button class="btn" type="submit">저장</button></div>
+    </form>
     <p class="help" id="detailHelp"></p>
   </section>
   <p class="help" id="idleHelp">시민이나 반려동물을 클릭하면 상태를 볼 수 있어요. 시민은 욕구에 따라 스스로 할 일을 정하고, 개는 주인이 외출하면 따라나서요.</p>
@@ -522,6 +551,17 @@ function buildPerson(look, gender){
   return P;
 }
 
+/* ================= Selection marker (green arrow above the selected sim) ================= */
+const marker = new THREE.Group();
+{
+  const mg = new THREE.MeshStandardMaterial({ color:"#3DD36F", emissive:"#2FBF5F", emissiveIntensity:.7, roughness:.35 });
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(.22, .4, 16), mg); cone.rotation.x = Math.PI; cone.position.y = .2;
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(.07, .07, .34, 12), mg); shaft.position.y = .57;
+  cone.userData.marker = shaft.userData.marker = true;
+  marker.add(cone, shaft); marker.visible = false; scene.add(marker);
+}
+const GREETINGS = ["안녕!", "좋은 하루야 😊", "오늘 뭐 해?", "반가워!", "밥은 먹었어?", "날씨 좋다~"];
+
 /* ================= Citizens ================= */
 const NEED_KEYS = [["hunger","배부름"],["energy","에너지"],["fun","재미"],["hygiene","청결"],["social","교류"]];
 const PET_NEEDS = [["hunger","배부름"],["energy","에너지"],["love","애정"]];
@@ -533,13 +573,13 @@ class Citizen {
   constructor(x, z, gender, def){
     this.gender = gender;
     const F = gender === "f";
-    if(def){
+    if(def && def.look){
       // 관전자: 호스트가 보내준 정의 그대로 사용
       this.id = def.id; this.name = def.name; this.look = def.look;
     } else {
       this.id = nextId++;
-      const list = NAMES[gender]; const n = nameCount[gender]++;
-      this.name = list[n % list.length] + (n >= list.length ? Math.floor(n / list.length) + 1 : "");
+      if(def && def.name) this.name = def.name;
+      else { const list = NAMES[gender]; const n = nameCount[gender]++; this.name = list[n % list.length] + (n >= list.length ? Math.floor(n / list.length) + 1 : ""); }
       this.look = {
         shirt: pick(F ? LOOKS.shirtsF : LOOKS.shirtsM), pants: pick(LOOKS.pants), skin: pick(LOOKS.skins), hair: pick(LOOKS.hair),
         shoes: pick(["#2B2B2E","#6B4A33","#EDEDED"]),
@@ -557,12 +597,25 @@ class Citizen {
     this.state = "idle"; this.idleT = rand(0.5, 2);
     this.act = null; this.spot = null; this.target = null; this.face = this.root.rotation.y;
     this.timer = 0; this.walkPhase = Math.random()*6; this.partner = null; this.petTarget = null; this.route = null; this.t = Math.random()*10;
+    this.greeting = (def && def.greeting) || pick(GREETINGS);
     const el = document.createElement("div"); el.className = "tag"; this.tagEl = el;
     this.tag = new CSS2DObject(el); this.tag.position.y = 2.38; this.root.add(this.tag);
+    const wrap = document.createElement("div"); wrap.className = "bubbleWrap";
+    this.bubbleEl = document.createElement("div"); this.bubbleEl.className = "bubble"; wrap.appendChild(this.bubbleEl);
+    this.bubble = new CSS2DObject(wrap); this.bubble.position.y = 2.38; this.root.add(this.bubble);
     this.updateTag();
   }
   get pos(){ return this.root.position; }
   get pets(){ return pets.filter(p => p.owner === this); }
+  /* 말풍선. 호스트가 부르면 관전자에게도 같은 말풍선을 띄운다 */
+  say(text, delay = 0){
+    if(net.role === "host") broadcast({ t:"say", cid:this.id, text, delay });
+    clearTimeout(this.sayT1); clearTimeout(this.sayT2);
+    this.sayT1 = setTimeout(() => {
+      this.bubbleEl.textContent = text; this.bubbleEl.classList.add("show");
+      this.sayT2 = setTimeout(() => this.bubbleEl.classList.remove("show"), 3000);
+    }, delay * 1000);
+  }
   mood(){ return NEED_KEYS.reduce((s,[k]) => s + this.needs[k], 0) / NEED_KEYS.length; }
   sleeping(){ return this.state === "act" && this.act === "sleep"; }
   actLabel(){
@@ -583,6 +636,7 @@ class Citizen {
     const e = this.state === "act" ? ACTS[this.act].emoji : this.state === "walk" ? (this.act === "stroll" ? "🌳" : "🚶") : "🙂";
     this.tagEl.textContent = this.name + " " + e;
     this.tagEl.classList.toggle("sel", this === selected);
+    this.tagEl.classList.toggle("show", this === selected || this === hovered);
   }
   release(){
     if(this.spot){ this.spot.occ = null; this.spot = null; }
@@ -707,7 +761,10 @@ class Citizen {
         if(this.act === "wander" || this.act === "go" || this.act === "stroll"){ this.finish(); return; }
         if(this.act === "chat" && !this.partner){ this.finish(); return; }
         this.state = "act"; this.timer = 0;
-        if(this.act === "chat"){ const pp = this.partner.pos; this.face = Math.atan2(pp.x - this.pos.x, pp.z - this.pos.z); this.partner.face = this.face + Math.PI; }
+        if(this.act === "chat"){
+          const pp = this.partner.pos; this.face = Math.atan2(pp.x - this.pos.x, pp.z - this.pos.z); this.partner.face = this.face + Math.PI;
+          this.say(this.greeting); this.partner.say(this.partner.greeting, 1.3);
+        }
         else if(this.act === "pet"){ const pp = this.petTarget.pos; this.face = Math.atan2(pp.x - this.pos.x, pp.z - this.pos.z); }
         else if(this.targetFace != null) this.face = this.targetFace;
         this.updateTag();
@@ -744,7 +801,7 @@ class Citizen {
     const col = m > 62 ? "#3DAA63" : m > 35 ? "#E2B33A" : "#D9533E";
     orb.material.color.set(col); orb.material.emissive.set(col);
     orb.position.y = (this.sleeping() ? 1.25 : 2.1) + Math.sin(this.t * 2) * 0.04;
-    this.tag.position.y = orb.position.y + 0.28;
+    this.tag.position.y = orb.position.y + 0.28; this.bubble.position.y = this.tag.position.y;
   }
   /* --- 네트워크 동기화 --- */
   netState(){
@@ -922,7 +979,11 @@ class Pet {
     if(this.state === "walk" && this.next === "sleep") return "잠자리로 가는 중";
     return PET_STATES[this.state] || "쉬는 중";
   }
-  updateTag(){ this.tagEl.textContent = this.emoji + " " + this.name + (this.state === "sleep" ? " 💤" : ""); this.tagEl.classList.toggle("sel", this === selectedPet); }
+  updateTag(){
+    this.tagEl.textContent = this.emoji + " " + this.name + (this.state === "sleep" ? " 💤" : "");
+    this.tagEl.classList.toggle("sel", this === selectedPet);
+    this.tagEl.classList.toggle("show", this === selectedPet || this === hovered);
+  }
   pettable(){
     if(this.petter) return false;
     if(this.kind === "parrot") return this.state === "perch";
@@ -1135,6 +1196,7 @@ class Pet {
 
 /* ================= UI ================= */
 let selected = null, selectedPet = null, follow = false, hourNow = 8;
+let hovered = null; // 마우스를 올린 시민·반려동물: 이름표는 이때와 선택됐을 때만 보인다
 const peopleEl = document.getElementById("people"), petsEl = document.getElementById("pets");
 const needsEl = document.getElementById("needs");
 const colorFor = v => v > 62 ? "var(--good)" : v > 35 ? "var(--mid)" : "var(--bad)";
@@ -1194,8 +1256,10 @@ function syncSelectionUI(){
   const subj = selected || selectedPet;
   document.getElementById("detail").hidden = !subj;
   document.getElementById("idleHelp").hidden = !!subj;
+  document.getElementById("editForm").hidden = !selected;
   if(selected){
     document.getElementById("dName").textContent = `${selected.name} (${selected.gender === "f" ? "여" : "남"})`;
+    document.getElementById("editName").value = selected.name; document.getElementById("editGreet").value = selected.greeting;
     const owned = selected.pets.map(p => p.emoji + " " + p.name).join(", ");
     document.getElementById("detailHelp").textContent =
       (owned ? `반려동물: ${owned}. ` : "") + "선택한 상태에서 가구나 반려동물을 클릭하면 그걸 하러 가고, 바닥을 클릭하면 그곳으로 걸어가요. 공원 벤치와 분수도 쓸 수 있어요. Esc로 선택을 풀어요.";
@@ -1240,11 +1304,44 @@ function petResult(c, p){
   if(!p.pettable()) return `${p.name}은(는) 지금 ${p.stateLabel()}이라 놀 수 없어요`;
   c.startPet(p); return `${c.name}: ${p.name}와(과) 놀러 가요`;
 }
-function addCitizen(g, select = true){
-  const c = new Citizen(rand(-1, 1), rand(5, 6.5), g); citizens.push(c); renderLists();
+const cleanName = v => String(v ?? "").trim().slice(0, 12);
+const cleanGreet = v => String(v ?? "").trim().slice(0, 40);
+function addCitizen(g, select = true, name = "", greeting = ""){
+  const c = new Citizen(rand(-1, 1), rand(5, 6.5), g, { name:cleanName(name), greeting:cleanGreet(greeting) }); citizens.push(c); renderLists();
   if(select) selectCitizen(c);
   return announce(`${c.name} 님이 이사 왔어요`);
 }
+function editCitizen(c, name, greeting){
+  name = cleanName(name); greeting = cleanGreet(greeting);
+  if(name) c.name = name;
+  if(greeting) c.greeting = greeting;
+  c.updateTag(); renderLists(); hostBroadcastInit();
+  return `${c.name}: 이름과 인사말을 저장했어요`;
+}
+/* 추가 폼: 이름·인사말을 정하고 추가한다 */
+const addForm = document.getElementById("addForm");
+let addGender = "m";
+function openAddForm(g){
+  addGender = g;
+  document.getElementById("addFormTitle").textContent = g === "f" ? "새 시민 (여)" : "새 시민 (남)";
+  if(addForm.hidden){ document.getElementById("addName").value = ""; document.getElementById("addGreet").value = pick(GREETINGS); }
+  addForm.hidden = false; document.getElementById("addName").focus();
+}
+document.getElementById("addCancel").addEventListener("click", () => { addForm.hidden = true; });
+addForm.addEventListener("submit", e => {
+  e.preventDefault();
+  const name = document.getElementById("addName").value, greet = document.getElementById("addGreet").value;
+  addForm.hidden = true;
+  if(net.role === "viewer") sendCmd({ k:"addC", g:addGender, name, greet });
+  else toast(addCitizen(addGender, true, name, greet));
+});
+document.getElementById("editForm").addEventListener("submit", e => {
+  e.preventDefault();
+  if(!selected) return;
+  const name = document.getElementById("editName").value, greet = document.getElementById("editGreet").value;
+  if(net.role === "viewer") sendCmd({ k:"edit", cid:selected.id, name, greet });
+  else toast(editCitizen(selected, name, greet));
+});
 function addPet(kind, owner, select = true){
   owner = owner || pick(citizens);
   const p = new Pet(kind, rand(-2, 2), rand(3, 5), owner);
@@ -1258,8 +1355,8 @@ function announce(msg){
   if(net.role === "host") broadcast({ t:"toast", msg });
   return msg;
 }
-document.getElementById("addM").addEventListener("click", () => net.role === "viewer" ? sendCmd({ k:"addC", g:"m" }) : toast(addCitizen("m")));
-document.getElementById("addF").addEventListener("click", () => net.role === "viewer" ? sendCmd({ k:"addC", g:"f" }) : toast(addCitizen("f")));
+document.getElementById("addM").addEventListener("click", () => openAddForm("m"));
+document.getElementById("addF").addEventListener("click", () => openAddForm("f"));
 document.querySelectorAll("[data-addpet]").forEach(b => b.addEventListener("click", () => {
   if(net.role === "viewer"){ sendCmd({ k:"addP", kind:b.dataset.addpet, owner:selected ? selected.id : 0 }); return; }
   toast(addPet(b.dataset.addpet, selected));
@@ -1279,18 +1376,33 @@ addEventListener("keydown", e => { if(e.key === "Escape") clearSelection(); });
 /* picking */
 const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
 let downAt = null;
+function pickAt(clientX, clientY){
+  const r = canvas.getBoundingClientRect();
+  ptr.set(((clientX - r.left)/r.width)*2 - 1, -((clientY - r.top)/r.height)*2 + 1);
+  ray.setFromCamera(ptr, camera);
+  const hits = ray.intersectObjects(scene.children, true).filter(h => h.object.isMesh && h.object.visible);
+  return hits.find(h => { const u = h.object.userData; return u.citizen || u.pet || u.obj || u.ground || u.marker; }) || null;
+}
+let hoverT = 0;
+canvas.addEventListener("pointermove", e => {
+  const now = performance.now(); if(now - hoverT < 40) return; hoverT = now;
+  const hit = pickAt(e.clientX, e.clientY);
+  const next = hit ? (hit.object.userData.citizen || hit.object.userData.pet || null) : null;
+  if(next === hovered) return;
+  const prev = hovered; hovered = next;
+  if(prev) prev.updateTag(); if(next) next.updateTag();
+  canvas.style.cursor = next ? "pointer" : "";
+});
+canvas.addEventListener("pointerleave", () => { const prev = hovered; hovered = null; if(prev) prev.updateTag(); canvas.style.cursor = ""; });
 canvas.addEventListener("pointerdown", e => { downAt = [e.clientX, e.clientY]; });
 canvas.addEventListener("pointerup", e => {
   if(!downAt) return;
   const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]); downAt = null;
   if(moved > 6) return;
-  const r = canvas.getBoundingClientRect();
-  ptr.set(((e.clientX - r.left)/r.width)*2 - 1, -((e.clientY - r.top)/r.height)*2 + 1);
-  ray.setFromCamera(ptr, camera);
-  const hits = ray.intersectObjects(scene.children, true).filter(h => h.object.isMesh && h.object.visible);
-  const hit = hits.find(h => { const u = h.object.userData; return u.citizen || u.pet || u.obj || u.ground; });
+  const hit = pickAt(e.clientX, e.clientY);
   if(!hit) return;
   const u = hit.object.userData;
+  if(u.marker) return; // 선택 마커 클릭: 선택 유지
   if(u.citizen){ selectCitizen(u.citizen); return; }
   if(u.pet){
     if(selected){
@@ -1343,7 +1455,7 @@ function setStatus(text){ const el = document.getElementById("netStatus"); el.hi
 
 function roomInit(){
   return { t:"init", simMin, speed,
-    citizens: citizens.map(c => ({ id:c.id, gender:c.gender, name:c.name, look:c.look, x:c.pos.x, z:c.pos.z })),
+    citizens: citizens.map(c => ({ id:c.id, gender:c.gender, name:c.name, greeting:c.greeting, look:c.look, x:c.pos.x, z:c.pos.z })),
     pets: pets.map(p => ({ id:p.id, kind:p.kind, name:p.name, color:p.color, idx:p.idx, owner:p.owner ? p.owner.id : 0, x:p.pos.x, y:p.pos.y, z:p.pos.z })) };
 }
 function roomState(){ return { t:"state", simMin, speed, c:citizens.map(c => c.netState()), p:pets.map(p => p.netState()) }; }
@@ -1363,7 +1475,8 @@ function handleCommand(conn, m){
     case "move": if(c && Number.isFinite(m.x) && Number.isFinite(m.z)) c.orderMove(clamp(m.x, -14, 32), clamp(m.z, -5.5, 16)); break;
     case "pet": { const p = pets.find(x => x.id === m.pid); if(c && p) msg = petResult(c, p); break; }
     case "stop": if(c) msg = stopResult(c); break;
-    case "addC": if(m.g === "m" || m.g === "f") toast(addCitizen(m.g, false)); break;   // 토스트는 announce()가 전원에게 보냄
+    case "addC": if(m.g === "m" || m.g === "f") toast(addCitizen(m.g, false, m.name, m.greet)); break;   // 토스트는 announce()가 전원에게 보냄
+    case "edit": if(c){ msg = editCitizen(c, m.name, m.greet); toast(msg); } break;
     case "addP": if(PET_INFO[m.kind]) toast(addPet(m.kind, citizens.find(x => x.id === m.owner), false)); break;
     case "speed": if([0, 1, 3, 8].includes(m.s)) setSpeed(m.s); break;
   }
@@ -1409,7 +1522,11 @@ function applyInit(m){
   simMin = m.simMin; setSpeed(m.speed);
   let changed = false;
   for(const d of m.citizens){
-    if(citizens.some(c => c.id === d.id)) continue;
+    const c = citizens.find(x => x.id === d.id);
+    if(c){
+      if(c.name !== d.name || c.greeting !== d.greeting){ c.name = d.name; c.greeting = d.greeting; c.updateTag(); changed = true; }
+      continue;
+    }
     citizens.push(new Citizen(d.x, d.z, d.gender, d)); changed = true;
   }
   for(const d of m.pets){
@@ -1437,6 +1554,7 @@ function startViewer(){
       if(m.t === "init") applyInit(m);
       else if(m.t === "state") applyState(m);
       else if(m.t === "toast") toast(m.msg);
+      else if(m.t === "say"){ const c = citizens.find(x => x.id === m.cid); if(c) c.say(String(m.text).slice(0, 40), m.delay || 0); }
     });
     conn.on("close", () => { setPill("호스트 연결이 끊겼어요", "off"); toast("호스트가 방을 닫았어요"); });
   });
@@ -1491,6 +1609,12 @@ function frame(){
     if(camAnim.t >= 1) camAnim = null;
   }
   const subj = selected || selectedPet;
+  marker.visible = !!subj;
+  if(subj){
+    const h = selected ? selected.p.orb.position.y + 0.95 : subj.kind === "dog" ? 1.1 : subj.kind === "cat" ? .85 : .6;
+    marker.position.set(subj.pos.x, subj.pos.y + h + Math.sin(performance.now() / 350) * .06, subj.pos.z);
+    marker.rotation.y += dt * 1.6;
+  }
   if(follow && subj){ orbit.target.lerp(new THREE.Vector3(subj.pos.x, 0.9, subj.pos.z), 1 - Math.exp(-dt * 3)); }
   orbit.update();
   renderer.render(scene, camera);
