@@ -103,6 +103,24 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
   box-shadow:0 2px 8px rgba(0,0,0,.18);
 }
 .gear:hover{ background:#1A212C; color:#fff; }
+/* 소개창: 왼쪽에 심의 확대 뷰 + 남길 말 말풍선 + 이름·인사말·상태 */
+.notewin{
+  position:absolute; left:.8rem; top:3.6rem; width:min(15rem, 46vw); z-index:3;
+  background:transparent; color:var(--ink); border:1px solid var(--line); border-radius:12px; overflow:hidden;
+  box-shadow:0 10px 30px rgba(0,0,0,.2);
+}
+.notewin-head{ display:flex; align-items:center; justify-content:space-between; gap:.4rem; padding:.4rem .5rem .4rem .7rem; font-weight:600; font-size:.9rem; background:var(--panel); }
+.notewin-view{ position:relative; width:100%; aspect-ratio:1 / 1; background:transparent; border-top:1px solid var(--line); }
+.notewin-info{ background:var(--panel); }
+.notebubble{
+  position:absolute; right:.6rem; top:.7rem; max-width:62%; background:#FFFFFF; color:#1A212C; border-radius:12px;
+  padding:.45rem .7rem; font-size:13px; line-height:1.45; box-shadow:0 3px 12px rgba(0,0,0,.2); word-break:break-word;
+}
+.notebubble::after{ content:""; position:absolute; left:.9rem; bottom:-8px; border:8px solid transparent; border-top-color:#FFFFFF; border-bottom:0; border-right-width:4px; }
+.notewin-info{ display:grid; gap:.3rem; padding:.6rem .75rem .75rem; border-top:1px solid var(--line); font-size:.85rem; }
+.notewin-info .row{ display:grid; grid-template-columns:3.2rem 1fr; gap:.4rem; align-items:baseline; }
+.notewin-info .k{ color:var(--muted); font-size:.78rem; }
+.notewin-info .mood{ display:inline-block; width:.6rem; height:.6rem; border-radius:50%; margin-right:.35rem; vertical-align:middle; }
 .need{ display:grid; grid-template-columns:3.2rem 1fr 2.4rem; gap:.6rem; align-items:center; margin:.45rem 0; }
 .need .bar{ height:.55rem; background:var(--track); border-radius:999px; overflow:hidden; }
 .need .fill{ height:100%; border-radius:999px; transition:width .3s, background-color .3s; }
@@ -156,6 +174,14 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
 <main class="stage">
   <canvas id="c" aria-label="3D 동네 화면"></canvas>
   <div id="labels"></div>
+  <section class="notewin" id="noteWin" hidden aria-label="소개창">
+    <div class="notewin-head"><span id="noteWinName">이름</span><button class="btn icon" id="noteWinClose" type="button" aria-label="닫기">✕</button></div>
+    <div class="notewin-view" id="noteView"><div class="notebubble" id="noteBubble"></div></div>
+    <div class="notewin-info">
+      <div class="row"><span class="k">인사말</span><span id="introGreet"></span></div>
+      <div class="row"><span class="k">상태</span><span><span class="mood" id="introMood"></span><span id="introAct"></span></span></div>
+    </div>
+  </section>
   <div class="places" role="group" aria-label="카메라 이동">
     <button type="button" data-view="all">전체</button>
     <button type="button" data-view="house">집</button>
@@ -175,6 +201,7 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
       <form class="miniform" id="editForm" hidden>
         <label>이름 <input id="editName" maxlength="12" autocomplete="off"></label>
         <label>인사말 <input id="editGreet" maxlength="40" autocomplete="off"></label>
+        <label>남길 말 <input id="editNote" maxlength="60" autocomplete="off" placeholder="비우면 남길 말을 없애요"></label>
         <div class="row-btns"><button class="btn" type="submit">저장</button></div>
       </form>
       <p class="help" id="detailHelp"></p>
@@ -606,6 +633,7 @@ class Citizen {
     this.act = null; this.spot = null; this.target = null; this.face = this.root.rotation.y;
     this.timer = 0; this.walkPhase = Math.random()*6; this.partner = null; this.petTarget = null; this.route = null; this.t = Math.random()*10;
     this.greeting = (def && def.greeting) || pick(GREETINGS);
+    this.note = (def && def.note) || "";
     const el = document.createElement("div"); el.className = "tag"; this.tagEl = el;
     this.tag = new CSS2DObject(el); this.tag.position.y = 2.38; this.root.add(this.tag);
     const wrap = document.createElement("div"); wrap.className = "bubbleWrap";
@@ -1278,10 +1306,12 @@ function syncSelectionUI(){
   const subj = selected || selectedPet;
   if(!subj) closeModal();
   gearObj.visible = !!subj;
+  syncNoteWin();
   document.getElementById("editForm").hidden = !selected;
   if(selected){
     document.getElementById("dName").textContent = `${selected.name} (${selected.gender === "f" ? "여" : "남"})`;
     document.getElementById("editName").value = selected.name; document.getElementById("editGreet").value = selected.greeting;
+    document.getElementById("editNote").value = selected.note;
     const owned = selected.pets.map(p => p.emoji + " " + p.name).join(", ");
     document.getElementById("detailHelp").textContent =
       (owned ? `반려동물: ${owned}. ` : "") + "선택한 상태에서 가구나 반려동물을 클릭하면 그걸 하러 가요. 공원 벤치와 분수도 쓸 수 있어요. 배경을 클릭하거나 Esc를 누르면 선택이 풀려요.";
@@ -1295,7 +1325,55 @@ function syncSelectionUI(){
   pets.forEach(x => { x.updateTag(); x.listBtn?.setAttribute("aria-pressed", x === selectedPet); });
   refreshUI();
 }
-function selectCitizen(c){ selected = c; selectedPet = null; buildNeedRows(NEED_KEYS); syncSelectionUI(); }
+function selectCitizen(c){ if(c !== selected) noteWinOpen = true; selected = c; selectedPet = null; buildNeedRows(NEED_KEYS); syncSelectionUI(); }
+/* ----- 남길 말 창 ----- */
+const noteWin = document.getElementById("noteWin"), noteView = document.getElementById("noteView");
+let noteWinOpen = true;
+const noteBtnEl = document.createElement("button"); noteBtnEl.className = "gear"; noteBtnEl.type = "button"; noteBtnEl.textContent = "📇 소개";
+const noteBtnObj = new CSS2DObject(noteBtnEl); noteBtnObj.visible = false; scene.add(noteBtnObj);
+noteBtnEl.addEventListener("pointerdown", e => e.stopPropagation());
+noteBtnEl.addEventListener("click", e => { e.stopPropagation(); noteWinOpen = !noteWinOpen; syncNoteWin(); });
+document.getElementById("noteWinClose").addEventListener("click", () => { noteWinOpen = false; syncNoteWin(); });
+/* 소개창: 선택한 시민의 확대 뷰, 남길 말 말풍선, 이름·인사말·상태를 한곳에 보여 준다 */
+function syncNoteWin(){
+  const has = !!selected;
+  noteBtnObj.visible = has;
+  noteBtnEl.setAttribute("aria-pressed", has && noteWinOpen);
+  const show = has && noteWinOpen;
+  noteWin.hidden = !show;
+  if(show){
+    document.getElementById("noteWinName").textContent = `${selected.name} (${selected.gender === "f" ? "여" : "남"})`;
+    const b = document.getElementById("noteBubble"); b.textContent = selected.note; b.hidden = !selected.note;
+    document.getElementById("introGreet").textContent = `“${selected.greeting}”`;
+    refreshIntro();
+  }
+}
+function refreshIntro(){
+  if(noteWin.hidden || !selected) return;
+  document.getElementById("introAct").textContent = selected.actLabel();
+  document.getElementById("introMood").style.background = colorFor(selected.mood());
+}
+/* 확대 뷰: 같은 장면을 심의 얼굴 앞에 둔 카메라로, 창 영역에만(scissor) 한 번 더 그린다 */
+const portraitCam = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+const _hp = new THREE.Vector3(), _ct = new THREE.Vector3();
+function renderPortrait(c){
+  const cr = canvas.getBoundingClientRect(), vr = noteView.getBoundingClientRect();
+  const w = Math.round(vr.width), h = Math.round(vr.height);
+  if(w < 8 || h < 8) return;
+  const x = Math.round(vr.left - cr.left), y = Math.round(cr.bottom - vr.bottom);
+  c.p.head.getWorldPosition(_hp); _hp.y += 0.17;
+  const ry = c.root.rotation.y, fx = Math.sin(ry), fz = Math.cos(ry);
+  // 카메라는 얼굴 앞 1.6m, 약간 위. 머리가 창의 왼쪽 아래로 오도록 시선을 심의 왼쪽으로 조금 옮긴다
+  portraitCam.position.set(_hp.x + fx * 1.6, _hp.y + 0.25, _hp.z + fz * 1.6);
+  _ct.set(_hp.x + fz * 0.22, _hp.y - 0.02, _hp.z - fx * 0.22);
+  portraitCam.lookAt(_ct);
+  portraitCam.aspect = w / h; portraitCam.updateProjectionMatrix();
+  renderer.setScissorTest(true);
+  renderer.setViewport(x, y, w, h); renderer.setScissor(x, y, w, h);
+  renderer.render(scene, portraitCam);
+  renderer.setScissorTest(false);
+  renderer.setViewport(0, 0, cr.width, cr.height);
+}
 function selectPet(p){ selectedPet = p; selected = null; buildNeedRows(PET_NEEDS); syncSelectionUI(); }
 function clearSelection(){
   selected = null; selectedPet = null; follow = false;
@@ -1333,12 +1411,14 @@ function addCitizen(g, select = true, name = "", greeting = ""){
   if(select) selectCitizen(c);
   return announce(`${c.name} 님이 이사 왔어요`);
 }
-function editCitizen(c, name, greeting){
-  name = cleanName(name); greeting = cleanGreet(greeting);
+const cleanNote = v => String(v ?? "").trim().slice(0, 60);
+function editCitizen(c, name, greeting, note){
+  name = cleanName(name); greeting = cleanGreet(greeting); note = cleanNote(note);
   if(name) c.name = name;
   if(greeting) c.greeting = greeting;
+  if(note !== c.note){ c.note = note; if(c === selected && note) noteWinOpen = true; }
   c.updateTag(); renderLists(); hostBroadcastInit();
-  return `${c.name}: 이름과 인사말을 저장했어요`;
+  return `${c.name}: 정보를 저장했어요`;
 }
 /* 추가 폼: 이름·인사말을 정하고 추가한다 */
 const addForm = document.getElementById("addForm");
@@ -1360,9 +1440,9 @@ addForm.addEventListener("submit", e => {
 document.getElementById("editForm").addEventListener("submit", e => {
   e.preventDefault();
   if(!selected) return;
-  const name = document.getElementById("editName").value, greet = document.getElementById("editGreet").value;
-  if(net.role === "viewer") sendCmd({ k:"edit", cid:selected.id, name, greet });
-  else toast(editCitizen(selected, name, greet));
+  const name = document.getElementById("editName").value, greet = document.getElementById("editGreet").value, note = document.getElementById("editNote").value;
+  if(net.role === "viewer"){ noteWinOpen = true; sendCmd({ k:"edit", cid:selected.id, name, greet, note }); }
+  else toast(editCitizen(selected, name, greet, note));
 });
 function addPet(kind, owner, select = true){
   owner = owner || pick(citizens);
@@ -1483,7 +1563,7 @@ const roomLabel = ROOM === "TOWN" ? "" : ` · 방 ${ROOM}`;
 
 function roomInit(){
   return { t:"init", simMin, speed,
-    citizens: citizens.map(c => ({ id:c.id, gender:c.gender, name:c.name, greeting:c.greeting, look:c.look, x:c.pos.x, z:c.pos.z })),
+    citizens: citizens.map(c => ({ id:c.id, gender:c.gender, name:c.name, greeting:c.greeting, note:c.note, look:c.look, x:c.pos.x, z:c.pos.z })),
     pets: pets.map(p => ({ id:p.id, kind:p.kind, name:p.name, color:p.color, idx:p.idx, owner:p.owner ? p.owner.id : 0, x:p.pos.x, y:p.pos.y, z:p.pos.z })) };
 }
 function roomState(){ return { t:"state", simMin, speed, c:citizens.map(c => c.netState()), p:pets.map(p => p.netState()) }; }
@@ -1505,7 +1585,7 @@ function handleCommand(conn, m){
     case "pet": { const p = pets.find(x => x.id === m.pid); if(c && p) msg = petResult(c, p); break; }
     case "stop": if(c) msg = stopResult(c); break;
     case "addC": if(m.g === "m" || m.g === "f") toast(addCitizen(m.g, false, m.name, m.greet)); break;   // 토스트는 announce()가 전원에게 보냄
-    case "edit": if(c){ msg = editCitizen(c, m.name, m.greet); toast(msg); } break;
+    case "edit": if(c){ msg = editCitizen(c, m.name, m.greet, m.note); toast(msg); } break;
     case "addP": if(PET_INFO[m.kind]) toast(addPet(m.kind, citizens.find(x => x.id === m.owner), false)); break;
     case "speed": if([0, 1, 3, 8].includes(m.s)) setSpeed(m.s); break;
   }
@@ -1579,7 +1659,8 @@ function applyInit(m){
   for(const d of m.citizens){
     const c = citizens.find(x => x.id === d.id);
     if(c){
-      if(c.name !== d.name || c.greeting !== d.greeting){ c.name = d.name; c.greeting = d.greeting; c.updateTag(); changed = true; }
+      const note = d.note || "";
+      if(c.name !== d.name || c.greeting !== d.greeting || c.note !== note){ c.name = d.name; c.greeting = d.greeting; c.note = note; c.updateTag(); changed = true; }
       continue;
     }
     citizens.push(new Citizen(d.x, d.z, d.gender, d)); changed = true;
@@ -1685,12 +1766,14 @@ function frame(){
     marker.rotation.y += dt * 1.6;
     const gh = selected ? 1.25 : subj.kind === "dog" ? .55 : subj.kind === "cat" ? .4 : .25;
     gearObj.position.set(subj.pos.x + 0.7, subj.pos.y + gh, subj.pos.z);
+    noteBtnObj.position.set(subj.pos.x + 0.7, subj.pos.y + gh - 0.58, subj.pos.z);
   }
   if(follow && subj){ orbit.target.lerp(new THREE.Vector3(subj.pos.x, 0.9, subj.pos.z), 1 - Math.exp(-dt * 3)); }
   orbit.update();
   renderer.render(scene, camera);
+  if(!noteWin.hidden && selected) renderPortrait(selected);
   labelRenderer.render(scene, camera);
-  if((uiT += dt) > 0.25){ uiT = 0; refreshUI(); }
+  if((uiT += dt) > 0.25){ uiT = 0; refreshUI(); refreshIntro(); }
   requestAnimationFrame(frame);
 }
 frame();
