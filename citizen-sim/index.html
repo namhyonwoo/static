@@ -99,6 +99,18 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
 .notewin-head h2{ margin:0; font-size:.95rem; }
 .notewin-view{ position:relative; width:100%; aspect-ratio:1 / 1; background:transparent; border-top:1px solid var(--line); }
 .notewin-info{ background:var(--panel); }
+.tabs{ display:flex; gap:.25rem; padding:.4rem .5rem 0; background:var(--panel); border-top:1px solid var(--line); }
+.tabs .tab{
+  flex:1; font:inherit; font-size:.85rem; color:var(--muted); background:none; border:0; border-bottom:2px solid transparent;
+  padding:.4rem 0 .45rem; cursor:pointer;
+}
+.tabs .tab[aria-selected="true"]{ color:var(--ink); font-weight:600; border-bottom-color:var(--accent); }
+.guest{ list-style:none; margin:0 0 .5rem; padding:0; display:grid; gap:.4rem; max-height:14rem; overflow:auto; }
+.guest li{ background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:.45rem .6rem; font-size:.85rem; line-height:1.45; word-break:break-word; }
+.guest .who{ display:flex; justify-content:space-between; gap:.5rem; color:var(--muted); font-size:.76rem; margin-bottom:.15rem; }
+.guest .who b{ color:var(--ink); font-weight:600; }
+.guest-empty{ color:var(--muted); font-size:.82rem; margin:.2rem 0 .6rem; }
+.miniform select{ font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:.4rem .55rem; min-width:0; }
 .notebubble{
   position:absolute; right:.6rem; top:.7rem; max-width:62%; background:#FFFFFF; color:#1A212C; border-radius:12px;
   padding:.45rem .7rem; font-size:13px; line-height:1.45; box-shadow:0 3px 12px rgba(0,0,0,.2); word-break:break-word;
@@ -122,6 +134,7 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
 }
 .btn[aria-pressed="true"]{ border-color:var(--ink); font-weight:600; }
 .btn.primary{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:600; }
+.btn.danger{ color:var(--bad); border-color:var(--bad); }
 .miniform{ display:grid; gap:.45rem; margin-top:.6rem; padding:.7rem .8rem .8rem; border:1px solid var(--line); border-radius:10px; }
 .miniform label{ display:grid; gap:.2rem; font-size:.8rem; color:var(--muted); }
 .miniform input{ font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:.4rem .55rem; min-width:0; }
@@ -166,22 +179,41 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
   <div id="labels"></div>
   <section class="notewin" id="noteWin" hidden aria-label="소개창">
     <div class="notewin-head"><h2 id="dName">이름</h2><button class="btn icon" id="noteWinClose" type="button" aria-label="닫기">✕</button></div>
-    <div class="notewin-view" id="noteView"><div class="notebubble" id="noteBubble"></div></div>
-    <div class="notewin-info">
+    <div class="tabs" role="tablist" id="introTabs">
+      <button class="tab" type="button" role="tab" data-tab="about" aria-selected="true">소개</button>
+      <button class="tab" type="button" role="tab" data-tab="guest" aria-selected="false">방명록</button>
+      <button class="tab" type="button" role="tab" data-tab="edit" aria-selected="false">설정</button>
+    </div>
+    <div class="notewin-view" id="noteView" data-pane="about"><div class="notebubble" id="noteBubble"></div></div>
+    <div class="notewin-info" data-pane="about">
       <div class="row" id="greetRow"><span class="k">인사말</span><span id="introGreet"></span></div>
       <div class="row"><span class="k">상태</span><span><span class="mood" id="introMood"></span><span id="dAct"></span></span></div>
       <div id="needs"></div>
       <div class="row-btns">
         <button class="btn" id="followBtn" type="button" aria-pressed="false">카메라 따라가기</button>
         <button class="btn" id="stopBtn" type="button">하던 일 멈추기</button>
+        <button class="btn danger" id="delPetBtn" type="button" hidden>삭제</button>
       </div>
-      <form class="miniform" id="editForm" hidden>
+      <p class="help" id="detailHelp"></p>
+    </div>
+    <div class="notewin-info" data-pane="guest" hidden>
+      <ul class="guest" id="guestList"></ul>
+      <p class="guest-empty" id="guestEmpty">아직 남긴 글이 없어요. 첫 글을 남겨 보세요.</p>
+      <form class="miniform" id="guestForm">
+        <label>작성자 <select id="guestBy" aria-label="작성자"></select></label>
+        <label>내용 <input id="guestText" maxlength="120" autocomplete="off" placeholder="방명록에 남길 말" required></label>
+        <div class="row-btns"><button class="btn primary" type="submit">남기기</button></div>
+      </form>
+    </div>
+    <div class="notewin-info" data-pane="edit" hidden>
+      <form class="miniform" id="editForm">
         <label>이름 <input id="editName" maxlength="12" autocomplete="off"></label>
         <label>인사말 <input id="editGreet" maxlength="40" autocomplete="off"></label>
         <label>남길 말 <input id="editNote" maxlength="60" autocomplete="off" placeholder="비우면 남길 말을 없애요"></label>
         <div class="row-btns"><button class="btn" type="submit">저장</button></div>
       </form>
-      <p class="help" id="detailHelp"></p>
+      <div class="row-btns"><button class="btn danger" id="delBtn" type="button">이 시민 삭제</button></div>
+      <p class="help">삭제하면 되돌릴 수 없어요. 이 시민의 반려동물은 주인 없이 동네에 남아요.</p>
     </div>
   </section>
   <div class="places" role="group" aria-label="카메라 이동">
@@ -620,6 +652,7 @@ class Citizen {
     this.timer = 0; this.walkPhase = Math.random()*6; this.partner = null; this.petTarget = null; this.route = null; this.t = Math.random()*10;
     this.greeting = (def && def.greeting) || pick(GREETINGS);
     this.note = (def && def.note) || "";
+    this.guestbook = (def && Array.isArray(def.guestbook)) ? def.guestbook : [];
     const el = document.createElement("div"); el.className = "tag"; this.tagEl = el;
     this.tag = new CSS2DObject(el); this.tag.position.y = 2.38; this.root.add(this.tag);
     const wrap = document.createElement("div"); wrap.className = "bubbleWrap";
@@ -1277,7 +1310,6 @@ function refreshUI(){
 }
 function syncSelectionUI(){
   const subj = selected || selectedPet;
-  document.getElementById("editForm").hidden = !selected;
   document.getElementById("greetRow").hidden = !selected;
   if(selected){
     document.getElementById("dName").textContent = `${selected.name} (${selected.gender === "f" ? "여" : "남"})`;
@@ -1286,11 +1318,11 @@ function syncSelectionUI(){
     const owned = selected.pets.map(p => p.emoji + " " + p.name).join(", ");
     document.getElementById("detailHelp").textContent =
       (owned ? `반려동물: ${owned}. ` : "") + "선택한 상태에서 가구나 반려동물을 클릭하면 그걸 하러 가요. 공원 벤치와 분수도 쓸 수 있어요. 배경을 클릭하거나 Esc를 누르면 선택이 풀려요.";
-    document.getElementById("stopBtn").hidden = false;
+    document.getElementById("stopBtn").hidden = false; document.getElementById("delPetBtn").hidden = true;
   } else if(selectedPet){
     document.getElementById("dName").textContent = `${selectedPet.emoji} ${selectedPet.name} (${PET_INFO[selectedPet.kind].label})`;
     document.getElementById("detailHelp").textContent = selectedPet.owner ? `주인: ${selectedPet.owner.name}` + (selectedPet.kind === "dog" ? " · 주인이 산책하거나 외출하면 따라나서요." : selectedPet.kind === "parrot" ? " · 가끔 날아가서 주인 어깨에 앉아요." : " · 마음 내킬 때만 주인을 따라가요.") : "";
-    document.getElementById("stopBtn").hidden = true;
+    document.getElementById("stopBtn").hidden = true; document.getElementById("delPetBtn").hidden = false;
   }
   syncNoteWin();
   citizens.forEach(x => { x.updateTag(); x.listBtn?.setAttribute("aria-pressed", x === selected); });
@@ -1301,15 +1333,64 @@ function selectCitizen(c){ selected = c; selectedPet = null; buildNeedRows(NEED_
 /* ----- 소개창: 선택한 시민·반려동물의 모든 정보와 조작이 한곳에 ----- */
 const noteWin = document.getElementById("noteWin"), noteView = document.getElementById("noteView");
 document.getElementById("noteWinClose").addEventListener("click", clearSelection);
+let introTab = "about", introSubj = null;
+function setIntroTab(t){
+  introTab = t;
+  document.querySelectorAll("#introTabs .tab").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
+  document.querySelectorAll("#noteWin [data-pane]").forEach(el => el.hidden = el.dataset.pane !== t);
+  if(t === "guest") renderGuestbook();
+}
+document.querySelectorAll("#introTabs .tab").forEach(b => b.addEventListener("click", () => setIntroTab(b.dataset.tab)));
 function syncNoteWin(){
   const subj = selected || selectedPet;
   noteWin.hidden = !subj;
   if(!subj) return;
+  if(subj !== introSubj){ introSubj = subj; setIntroTab("about"); noteWin.scrollTop = 0; }
+  document.getElementById("introTabs").hidden = !selected;   // 반려동물은 소개 탭만
+  if(!selected && introTab !== "about") setIntroTab("about");
   const b = document.getElementById("noteBubble");
   b.textContent = selected ? selected.note : ""; b.hidden = !(selected && selected.note);
   if(selected) document.getElementById("introGreet").textContent = `“${selected.greeting}”`;
-  noteWin.scrollTop = 0;
+  if(introTab === "guest") renderGuestbook();
 }
+/* ----- 방명록 ----- */
+const fmtTime = ms => { const d = new Date(ms); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+function renderGuestbook(){
+  if(!selected) return;
+  const list = document.getElementById("guestList"); list.innerHTML = "";
+  for(const g of selected.guestbook){
+    const li = document.createElement("li");
+    const who = document.createElement("div"); who.className = "who";
+    const b = document.createElement("b"); b.textContent = g.name; const t = document.createElement("span"); t.textContent = fmtTime(g.at);
+    who.append(b, t);
+    const body = document.createElement("div"); body.textContent = g.text;
+    li.append(who, body); list.appendChild(li);
+  }
+  document.getElementById("guestEmpty").hidden = selected.guestbook.length > 0;
+  const sel = document.getElementById("guestBy"); const prev = +sel.value;
+  sel.innerHTML = "";
+  for(const c of citizens){ const o = document.createElement("option"); o.value = c.id; o.textContent = c.name + (c === selected ? " (본인)" : ""); sel.appendChild(o); }
+  const keep = citizens.find(c => c.id === prev && c !== selected) || citizens.find(c => c !== selected) || selected;
+  if(keep) sel.value = keep.id;
+}
+const cleanGuest = v => String(v ?? "").trim().slice(0, 120);
+function addGuestEntry(c, byId, text){
+  text = cleanGuest(text); const author = citizens.find(x => x.id === byId);
+  if(!author || !text) return null;
+  c.guestbook.unshift({ by: author.id, name: author.name, text, at: Date.now() });
+  if(c.guestbook.length > 50) c.guestbook.length = 50;
+  if(c === selected) renderGuestbook();
+  return announce(`${author.name} 님이 ${c.name}의 방명록에 글을 남겼어요`);
+}
+document.getElementById("guestForm").addEventListener("submit", e => {
+  e.preventDefault();
+  if(!selected) return;
+  const by = +document.getElementById("guestBy").value, text = document.getElementById("guestText").value;
+  if(!cleanGuest(text)) return;
+  document.getElementById("guestText").value = "";
+  if(net.role === "viewer") sendCmd({ k:"guest", cid:selected.id, by, text });
+  else { const msg = addGuestEntry(selected, by, text); if(msg) toast(msg); }
+});
 /* 확대 뷰: 같은 장면을 심의 얼굴 앞에 둔 카메라로, 창 영역에만(scissor) 한 번 더 그린다 */
 const portraitCam = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
 const _hp = new THREE.Vector3(), _ct = new THREE.Vector3();
@@ -1406,11 +1487,63 @@ document.getElementById("editForm").addEventListener("submit", e => {
 });
 function addPet(kind, owner, select = true){
   owner = owner || pick(citizens);
+  if(!owner) return "반려동물을 데려오려면 시민이 먼저 있어야 해요";
   const p = new Pet(kind, rand(-2, 2), rand(3, 5), owner);
   pets.push(p); renderLists();
   if(select) selectPet(p);
   return announce(`${owner.name} 님이 ${PET_INFO[p.kind].label} ${p.name}을(를) 데려왔어요`);
 }
+/* ----- 삭제 ----- */
+function detachCitizen(c){
+  c.finish();
+  for(const o of citizens){ if(o.partner === c) o.partner = null; }
+  for(const p of pets){ if(p.owner === c) p.owner = null; if(p.petter === c) p.endPetted(); }
+  scene.remove(c.root); c.tagEl.remove(); c.bubbleEl.parentElement?.remove();
+  citizens.splice(citizens.indexOf(c), 1);
+}
+function detachPet(p){
+  for(const c of citizens){ if(c.petTarget === p){ c.petTarget = null; c.finish(); } }
+  scene.remove(p.root); p.tagEl.remove();
+  pets.splice(pets.indexOf(p), 1);
+}
+/* 호스트·혼자 보기에서 실행. 관전자에게는 remove 메시지와 새 정의를 보낸다 */
+function removeCitizen(c){
+  if(!citizens.includes(c)) return null;
+  const name = c.name, orphans = pets.filter(p => p.owner === c).length;
+  if(c === selected) clearSelection();
+  detachCitizen(c);
+  if(net.role === "host") broadcast({ t:"remove", c:[c.id], p:[] });
+  renderLists();
+  return announce(`${name} 님이 동네를 떠났어요` + (orphans ? ` · 반려동물 ${orphans}마리는 주인 없이 남았어요` : ""));
+}
+function removePet(p){
+  if(!pets.includes(p)) return null;
+  const label = `${p.emoji} ${p.name}`;
+  if(p === selectedPet) clearSelection();
+  detachPet(p);
+  if(net.role === "host") broadcast({ t:"remove", c:[], p:[p.id] });
+  renderLists();
+  return announce(`${label}이(가) 동네를 떠났어요`);
+}
+/* 두 번 눌러야 실행되는 삭제 버튼 */
+function armDelete(btn, label, run){
+  let armed = null;
+  btn.addEventListener("click", () => {
+    if(armed){ clearTimeout(armed); armed = null; btn.textContent = label; run(); return; }
+    btn.textContent = "정말 삭제할까요? 다시 누르면 실행";
+    armed = setTimeout(() => { armed = null; btn.textContent = label; }, 4000);
+  });
+}
+armDelete(document.getElementById("delBtn"), "이 시민 삭제", () => {
+  if(!selected) return;
+  if(net.role === "viewer") sendCmd({ k:"delC", cid:selected.id });
+  else { const msg = removeCitizen(selected); if(msg) toast(msg); }
+});
+armDelete(document.getElementById("delPetBtn"), "삭제", () => {
+  if(!selectedPet) return;
+  if(net.role === "viewer") sendCmd({ k:"delP", pid:selectedPet.id });
+  else { const msg = removePet(selectedPet); if(msg) toast(msg); }
+});
 /* 시민·반려동물이 늘어나면 호스트가 새 정의와 안내 토스트를 모든 관전자에게 전파한다 */
 function announce(msg){
   hostBroadcastInit();
@@ -1524,7 +1657,7 @@ const roomLabel = ROOM === "TOWN" ? "" : ` · 방 ${ROOM}`;
 
 function roomInit(){
   return { t:"init", simMin, speed,
-    citizens: citizens.map(c => ({ id:c.id, gender:c.gender, name:c.name, greeting:c.greeting, note:c.note, look:c.look, x:c.pos.x, z:c.pos.z })),
+    citizens: citizens.map(c => ({ id:c.id, gender:c.gender, name:c.name, greeting:c.greeting, note:c.note, guestbook:c.guestbook, look:c.look, x:c.pos.x, z:c.pos.z })),
     pets: pets.map(p => ({ id:p.id, kind:p.kind, name:p.name, color:p.color, idx:p.idx, owner:p.owner ? p.owner.id : 0, x:p.pos.x, y:p.pos.y, z:p.pos.z })) };
 }
 function roomState(){ return { t:"state", simMin, speed, c:citizens.map(c => c.netState()), p:pets.map(p => p.netState()) }; }
@@ -1550,6 +1683,9 @@ function handleCommand(conn, m){
     case "addP": if(PET_INFO[m.kind]) toast(addPet(m.kind, citizens.find(x => x.id === m.owner), false)); break;
     case "speed": if([0, 1, 3, 8].includes(m.s)) setSpeed(m.s); break;
     case "reset": resetTown(); break;
+    case "guest": if(c){ const r = addGuestEntry(c, +m.by, m.text); if(r) toast(r); } break;
+    case "delC": if(c){ const r = removeCitizen(c); if(r) toast(r); } break;
+    case "delP": { const p = pets.find(x => x.id === m.pid); if(p){ const r = removePet(p); if(r) toast(r); } break; }
   }
   if(msg && conn.open) conn.send({ t:"toast", msg });
 }
@@ -1624,8 +1760,10 @@ function applyInit(m){
   for(const d of m.citizens){
     const c = citizens.find(x => x.id === d.id);
     if(c){
-      const note = d.note || "";
-      if(c.name !== d.name || c.greeting !== d.greeting || c.note !== note){ c.name = d.name; c.greeting = d.greeting; c.note = note; c.updateTag(); changed = true; }
+      const note = d.note || "", gb = Array.isArray(d.guestbook) ? d.guestbook : [];
+      if(c.name !== d.name || c.greeting !== d.greeting || c.note !== note || JSON.stringify(c.guestbook) !== JSON.stringify(gb)){
+        c.name = d.name; c.greeting = d.greeting; c.note = note; c.guestbook = gb; c.updateTag(); changed = true;
+      }
       continue;
     }
     citizens.push(new Citizen(d.x, d.z, d.gender, d)); changed = true;
@@ -1673,6 +1811,11 @@ function joinAsViewer(delay){
         else if(m.t === "toast") toast(m.msg);
         else if(m.t === "say"){ const c = citizens.find(x => x.id === m.cid); if(c) c.say(String(m.text).slice(0, 40), m.delay || 0); }
         else if(m.t === "reset"){ clearTown(); toast("동네가 초기화됐어요"); }
+        else if(m.t === "remove"){
+          for(const id of m.c || []){ const c = citizens.find(x => x.id === id); if(c){ if(c === selected) clearSelection(); detachCitizen(c); } }
+          for(const id of m.p || []){ const p = pets.find(x => x.id === id); if(p){ if(p === selectedPet) clearSelection(); detachPet(p); } }
+          renderLists();
+        }
       });
       conn.on("close", () => lost("close"));
       conn.on("error", () => lost("error"));
