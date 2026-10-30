@@ -191,18 +191,7 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
     <button type="button" data-s="8" aria-pressed="false">8×</button>
   </div>
 
-  <section class="share" id="share" aria-label="함께 보기">
-    <h2>함께 보기</h2>
-    <div id="shareSolo">
-      <button class="btn" id="hostBtn" type="button">방 열기</button>
-      <p class="help">방을 열면 링크가 생겨요. 링크를 받은 사람은 이 화면을 그대로 보면서 명령도 내릴 수 있어요.</p>
-    </div>
-    <div id="shareHost" hidden>
-      <div class="linkrow"><input id="shareLink" readonly aria-label="공유 링크"><button class="btn" id="copyBtn" type="button">복사</button></div>
-      <p class="help" id="viewerCount">관전자 0명 · 이 탭을 닫으면 방이 사라져요.</p>
-    </div>
-    <p class="help" id="netStatus" hidden></p>
-  </section>
+  <p class="help" id="netStatus">함께 보기 · 연결 중…</p>
 
   <h2>시민</h2>
   <ul class="list" id="people"></ul>
@@ -1477,15 +1466,20 @@ function updateSky(){
   return h;
 }
 
-/* ================= Multiplayer: host + viewers (PeerJS / WebRTC) ================= */
-/* 호스트 브라우저가 시뮬레이션을 돌리고, 초당 10번 전체 상태를 관전자에게 보낸다.
-   관전자는 받은 상태로 그리기만 하고, 명령은 호스트에게 보내 호스트가 실행한다. */
-const PEER_PREFIX = "citizen-sim-";
-const ROOM = new URLSearchParams(location.search).get("room");
-const net = { role: ROOM ? "viewer" : "solo", peer:null, conns:[], host:null, code:null };
+/* ================= Multiplayer: one shared town (PeerJS / WebRTC) ================= */
+/* 페이지를 여는 사람은 모두 같은 동네를 본다.
+   - 정해진 방 id를 먼저 차지한 브라우저가 호스트가 되어 시뮬레이션을 돌리고, 초당 10번 전체 상태를 보낸다.
+   - 나중에 연 브라우저는 자동으로 관전자가 되어 받은 상태를 그리기만 하고, 명령은 호스트에게 보낸다.
+   - 호스트가 나가면 남은 관전자들이 방 id를 다시 차지하려 시도하고, 성공한 한 명이 마지막 상태에서 이어받는다.
+   - 연결 서버에 닿지 못하면 혼자 보기로 돌아간다. */
+const PEER_PREFIX = "citizen-sim-namhyonwoo-static-";
+const ROOM = (new URLSearchParams(location.search).get("room") || "town").toUpperCase().replace(/[^A-Z0-9_-]/g, "").slice(0, 24) || "TOWN";
+const ROOM_ID = PEER_PREFIX + ROOM;
+const net = { role:"connecting", peer:null, conns:[], host:null, decided:false, tick:null };
 const pill = document.getElementById("netPill"), pillText = document.getElementById("netPillText");
 function setPill(text, cls){ pill.hidden = false; pill.className = "netpill " + (cls || ""); pillText.textContent = text; }
-function setStatus(text){ const el = document.getElementById("netStatus"); el.hidden = false; el.textContent = text; }
+function setStatus(text){ document.getElementById("netStatus").textContent = text; }
+const roomLabel = ROOM === "TOWN" ? "" : ` · 방 ${ROOM}`;
 
 function roomInit(){
   return { t:"init", simMin, speed,
@@ -1496,8 +1490,9 @@ function roomState(){ return { t:"state", simMin, speed, c:citizens.map(c => c.n
 function broadcast(msg){ for(const c of net.conns) if(c.open) c.send(msg); }
 function hostBroadcastInit(){ if(net.role === "host") broadcast(roomInit()); }
 function updateViewerCount(){
-  document.getElementById("viewerCount").textContent = `관전자 ${net.conns.length}명 · 이 탭을 닫으면 방이 사라져요.`;
-  setPill(`방 ${net.code} · 관전자 ${net.conns.length}명`, "on");
+  const n = net.conns.length;
+  setPill(`함께 보기 · 이 화면이 호스트 · 관전 ${n}명`, "on");
+  setStatus(`함께 보기 · 이 화면이 동네를 운영 중이에요${roomLabel}. 지금 ${n}명이 같이 보고 있어요.`);
 }
 /* 관전자가 보낸 명령을 호스트가 검증·실행하고 결과를 돌려준다 */
 function handleCommand(conn, m){
@@ -1516,42 +1511,68 @@ function handleCommand(conn, m){
   }
   if(msg && conn.open) conn.send({ t:"toast", msg });
 }
-function startHost(){
-  const btn = document.getElementById("hostBtn"); btn.disabled = true; btn.textContent = "여는 중…";
-  const code = Math.random().toString(36).slice(2, 8).toUpperCase();
-  const peer = new Peer(PEER_PREFIX + code);
-  net.peer = peer;
-  peer.on("open", () => {
-    net.role = "host"; net.code = code;
-    const link = location.origin + location.pathname + "?room=" + code;
-    document.getElementById("shareLink").value = link;
-    document.getElementById("shareSolo").hidden = true; document.getElementById("shareHost").hidden = false;
-    updateViewerCount();
-    toast("방을 열었어요. 링크를 공유하세요");
-    setInterval(() => { if(net.conns.length) broadcast(roomState()); }, 100);
-  });
-  peer.on("connection", conn => {
-    conn.on("open", () => { net.conns.push(conn); conn.send(roomInit()); updateViewerCount(); toast("관전자가 들어왔어요"); });
-    conn.on("data", m => handleCommand(conn, m));
-    conn.on("close", () => { net.conns = net.conns.filter(c => c !== conn); updateViewerCount(); });
-    conn.on("error", () => { net.conns = net.conns.filter(c => c !== conn); updateViewerCount(); });
-  });
-  peer.on("error", e => {
-    btn.disabled = false; btn.textContent = "방 열기";
-    toast(e.type === "unavailable-id" ? "방 코드가 겹쳤어요. 다시 눌러 주세요" : "연결 서버 오류: " + e.type);
-  });
-}
-document.getElementById("hostBtn").addEventListener("click", startHost);
-document.getElementById("copyBtn").addEventListener("click", async () => {
-  const input = document.getElementById("shareLink");
-  try { await navigator.clipboard.writeText(input.value); toast("링크를 복사했어요"); }
-  catch { input.select(); toast("주소를 직접 복사해 주세요"); }
-});
-
 function sendCmd(cmd){
   if(net.host && net.host.open) net.host.send({ t:"cmd", ...cmd });
   else toast("호스트와 연결되어 있지 않아요");
 }
+
+/* ----- 호스트 ----- */
+function seedTown(){
+  const c1 = new Citizen(-1, 3, "m"), c2 = new Citizen(1.5, 4.5, "f"), c3 = new Citizen(3, 2, "m"), c4 = new Citizen(-2.5, 5, "f");
+  citizens.push(c1, c2, c3, c4);
+  pets.push(new Pet("dog", 0, 4, c1), new Pet("cat", -3, 3.5, c2), new Pet("parrot", 0, 0, c3));
+  renderLists();
+}
+/* 관전하던 상태에서 호스트로 이어받을 때: 보이던 위치·욕구는 유지하고, 내부 행동 상태만 깨끗이 초기화한다 */
+function takeOverState(){
+  nextId = Math.max(0, ...citizens.map(c => c.id), ...pets.map(p => p.id)) + 1;
+  nameCount.m = citizens.filter(c => c.gender === "m").length; nameCount.f = citizens.filter(c => c.gender === "f").length;
+  for(const k in petCount) petCount[k] = pets.filter(p => p.kind === k).length;
+  for(const obj of objects) for(const s of obj.spots) s.occ = null;
+  for(const c of citizens){ c.pos.copy(c.netTarget); c.partner = null; c.petTarget = null; c.spot = null; c.route = null; c.target = null; c.finish(); }
+  for(const p of pets){
+    p.pos.copy(p.netTarget); p.petter = null; p.moving = false; p.route = []; p.next = null; p.target = null;
+    p.state = p.kind === "parrot" ? "perch" : "idle"; p.idleT = rand(1, 4); p.updateTag();
+  }
+}
+function becomeHost(peer, tookOver){
+  net.role = "host"; net.peer = peer; net.host = null; net.conns = [];
+  if(citizens.length === 0) seedTown(); else if(tookOver) takeOverState();
+  peer.on("connection", conn => {
+    conn.on("open", () => { net.conns.push(conn); conn.send(roomInit()); updateViewerCount(); toast("누군가 동네를 보러 왔어요"); });
+    conn.on("data", m => handleCommand(conn, m));
+    const drop = () => { net.conns = net.conns.filter(c => c !== conn); updateViewerCount(); };
+    conn.on("close", drop); conn.on("error", drop);
+  });
+  peer.on("disconnected", () => { if(!peer.destroyed && net.role === "host") setTimeout(() => { if(!peer.destroyed && peer.disconnected) peer.reconnect(); }, 2000); });
+  clearInterval(net.tick);
+  net.tick = setInterval(() => { if(net.conns.length) broadcast(roomState()); }, 100);
+  updateViewerCount();
+  toast(tookOver ? "호스트가 나가서 이 화면이 동네를 이어받았어요" : "함께 보기가 켜졌어요. 같은 주소를 연 사람은 이 동네를 같이 봐요");
+}
+function goSolo(reason){
+  net.role = "solo"; net.host = null; net.conns = []; clearInterval(net.tick);
+  if(citizens.length === 0) seedTown();
+  setPill("혼자 보기 · 연결 안 됨", "off");
+  setStatus(`함께 보기를 켜지 못해 혼자 보기로 열었어요 (${reason}). 새로고침하면 다시 시도해요.`);
+}
+/* 정해진 방 id를 차지해 본다. 성공하면 호스트, 이미 있으면 관전자로 합류 */
+function claimHost(tookOver = false){
+  if(net.peer && !net.peer.destroyed) net.peer.destroy();
+  setPill(tookOver ? "호스트 이어받는 중…" : "함께 보기 연결 중…");
+  const peer = new Peer(ROOM_ID);
+  let settled = false;
+  const timeout = setTimeout(() => { if(!settled){ settled = true; peer.destroy(); tookOver ? joinAsViewer(1500) : goSolo("응답 없음"); } }, 9000);
+  peer.on("open", () => { if(settled) return; settled = true; clearTimeout(timeout); becomeHost(peer, tookOver); });
+  peer.on("error", e => {
+    if(net.role === "host" && peer === net.peer){ if(e.type !== "network") console.warn("peer error", e.type); return; }
+    if(settled) return; settled = true; clearTimeout(timeout); peer.destroy();
+    if(e.type === "unavailable-id") joinAsViewer(0);
+    else if(tookOver) joinAsViewer(1500);
+    else goSolo(e.type);
+  });
+}
+/* ----- 관전자 ----- */
 function applyInit(m){
   simMin = m.simMin; setSpeed(m.speed);
   let changed = false;
@@ -1575,40 +1596,54 @@ function applyState(m){
   for(const s of m.c){ const c = citizens.find(x => x.id === s.i); if(c) c.applyNet(s); }
   for(const s of m.p){ const p = pets.find(x => x.id === s.i); if(p) p.applyNet(s); }
 }
-function startViewer(){
-  document.getElementById("shareSolo").hidden = true;
-  setStatus(`👀 관전 중 · 방 ${ROOM.toUpperCase()}`); setPill("호스트에 연결 중…");
-  const peer = new Peer(); net.peer = peer;
-  peer.on("open", () => {
-    const conn = peer.connect(PEER_PREFIX + ROOM.toUpperCase(), { reliable:true });
-    net.host = conn;
-    conn.on("open", () => { setPill(`관전 중 · 방 ${ROOM.toUpperCase()}`, "on"); toast("호스트와 연결됐어요"); });
-    conn.on("data", m => {
-      if(!m) return;
-      if(m.t === "init") applyInit(m);
-      else if(m.t === "state") applyState(m);
-      else if(m.t === "toast") toast(m.msg);
-      else if(m.t === "say"){ const c = citizens.find(x => x.id === m.cid); if(c) c.say(String(m.text).slice(0, 40), m.delay || 0); }
+let joinAttempts = 0;
+function joinAsViewer(delay){
+  if(net.peer && !net.peer.destroyed) net.peer.destroy();
+  net.role = "viewer"; net.host = null;
+  setPill("동네에 접속 중…");
+  setTimeout(() => {
+    const peer = new Peer(); net.peer = peer;
+    let settled = false;
+    const lost = why => {
+      if(settled) return; settled = true;
+      // 호스트가 사라짐: 잠시 뒤 호스트 자리를 두고 경쟁한다(무작위 지연으로 충돌을 줄임)
+      setPill("호스트가 나갔어요 · 이어받는 중…", "off");
+      if(net.host) net.host = null;
+      setTimeout(() => claimHost(true), 300 + Math.random() * 1500);
+    };
+    peer.on("open", () => {
+      const conn = peer.connect(ROOM_ID, { reliable:true });
+      net.host = conn;
+      conn.on("open", () => {
+        joinAttempts = 0;
+        setPill(`함께 보기 · 관전 중${roomLabel}`, "on");
+        setStatus(`함께 보기 · 다른 사람의 화면이 운영하는 동네를 같이 보고 있어요${roomLabel}. 명령은 그쪽에서 실행돼요.`);
+        toast("동네에 들어왔어요");
+      });
+      conn.on("data", m => {
+        if(!m) return;
+        if(m.t === "init") applyInit(m);
+        else if(m.t === "state") applyState(m);
+        else if(m.t === "toast") toast(m.msg);
+        else if(m.t === "say"){ const c = citizens.find(x => x.id === m.cid); if(c) c.say(String(m.text).slice(0, 40), m.delay || 0); }
+      });
+      conn.on("close", () => lost("close"));
+      conn.on("error", () => lost("error"));
     });
-    conn.on("close", () => { setPill("호스트 연결이 끊겼어요", "off"); toast("호스트가 방을 닫았어요"); });
-  });
-  peer.on("error", e => {
-    setPill(e.type === "peer-unavailable" ? "방을 찾을 수 없어요" : "연결 오류: " + e.type, "off");
-    if(e.type === "peer-unavailable") toast("방을 찾을 수 없어요. 호스트가 방을 연 상태인지 확인하세요");
-  });
+    peer.on("error", e => {
+      if(settled) return;
+      if(e.type === "peer-unavailable"){ settled = true; peer.destroy(); joinAttempts++; joinAttempts < 6 ? claimHost(true) : goSolo("호스트를 찾지 못함"); }
+      else if(e.type !== "network"){ settled = true; peer.destroy(); goSolo(e.type); }
+    });
+  }, delay);
 }
 
 addEventListener("beforeunload", () => { if(net.peer) net.peer.destroy(); });
 
 /* ================= Start ================= */
-if(net.role === "viewer"){
-  startViewer();
-} else {
-  const c1 = new Citizen(-1, 3, "m"), c2 = new Citizen(1.5, 4.5, "f"), c3 = new Citizen(3, 2, "m"), c4 = new Citizen(-2.5, 5, "f");
-  citizens.push(c1, c2, c3, c4);
-  pets.push(new Pet("dog", 0, 4, c1), new Pet("cat", -3, 3.5, c2), new Pet("parrot", 0, 0, c3));
-}
 renderLists();
+if(typeof Peer === "undefined") goSolo("PeerJS 로드 실패");
+else claimHost(false);
 
 function resize(){
   const w = stage.clientWidth, h = stage.clientHeight;
@@ -1622,7 +1657,7 @@ let uiT = 0;
 function frame(){
   const dt = Math.min(clock.getDelta(), 0.05);
   const adt = speed ? dt : 0;
-  if(net.role === "viewer"){
+  if(net.role === "viewer" || net.role === "connecting"){
     // 관전자: 시간과 상태는 호스트가 보내준 값을 쓰고, 보간·애니메이션만 로컬에서 처리
     hourNow = updateSky();
     for(const c of citizens) c.presentViewer(adt);
