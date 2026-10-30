@@ -1295,7 +1295,7 @@ function syncSelectionUI(){
     document.getElementById("editName").value = selected.name; document.getElementById("editGreet").value = selected.greeting;
     const owned = selected.pets.map(p => p.emoji + " " + p.name).join(", ");
     document.getElementById("detailHelp").textContent =
-      (owned ? `반려동물: ${owned}. ` : "") + "선택한 상태에서 가구나 반려동물을 클릭하면 그걸 하러 가고, 바닥을 클릭하면 그곳으로 걸어가요. 공원 벤치와 분수도 쓸 수 있어요. Esc로 창을 닫거나 선택을 풀어요.";
+      (owned ? `반려동물: ${owned}. ` : "") + "선택한 상태에서 가구나 반려동물을 클릭하면 그걸 하러 가요. 공원 벤치와 분수도 쓸 수 있어요. 배경을 클릭하거나 Esc를 누르면 선택이 풀려요.";
     document.getElementById("stopBtn").hidden = false;
   } else if(selectedPet){
     document.getElementById("dName").textContent = `${selectedPet.emoji} ${selectedPet.name} (${PET_INFO[selectedPet.kind].label})`;
@@ -1444,15 +1444,16 @@ canvas.addEventListener("pointerup", e => {
     } else selectPet(u.pet);
     return;
   }
+  if(u.ground){ clearSelection(); return; } // 배경 클릭: 선택(마커) 해제
   if(!selected) return;
   if(u.obj){
     if(net.role === "viewer") sendCmd({ k:"order", cid:selected.id, obj:objects.indexOf(u.obj) });
     else toast(orderResult(selected, u.obj));
-  } else if(u.ground){
-    const p = hit.point, x = clamp(p.x, -14, 32), z = clamp(p.z, -5.5, 16);
-    if(net.role === "viewer") sendCmd({ k:"move", cid:selected.id, x, z });
-    else selected.orderMove(x, z);
   }
+  /* 바닥 클릭 직접 이동(orderMove)은 아직 비공개 기능이라 꺼 두었다.
+     켜려면 위 u.ground 분기를 지우고 아래를 복원:
+     const p = hit.point, x = clamp(p.x, -14, 32), z = clamp(p.z, -5.5, 16);
+     net.role === "viewer" ? sendCmd({ k:"move", cid:selected.id, x, z }) : selected.orderMove(x, z); */
 });
 
 /* ================= Time & lighting ================= */
