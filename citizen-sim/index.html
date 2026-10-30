@@ -11,17 +11,18 @@
 :root{
   --bg:#E4E8EC; --panel:#F7F8FA; --ink:#1A212C; --muted:#5D6776; --line:#CDD4DD;
   --accent:#2F8F5B; --accent-ink:#FFFFFF; --good:#3DAA63; --mid:#E2B33A; --bad:#D9533E; --track:#E2E7ED;
+  --card:#FFFFFF; --card-line:#DDE3EA;
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#121821; --panel:#19212D; --ink:#E6EBF2; --muted:#98A3B4; --line:#2B3546;
-    --accent:#6FD39A; --accent-ink:#0C1A12; --track:#263041; color-scheme:dark;
+    --accent:#6FD39A; --accent-ink:#0C1A12; --track:#263041; --card:#2A3648; --card-line:#3B4A60; color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
   --bg:#121821; --panel:#19212D; --ink:#E6EBF2; --muted:#98A3B4; --line:#2B3546;
-  --accent:#6FD39A; --accent-ink:#0C1A12; --track:#263041; color-scheme:dark;
+  --accent:#6FD39A; --accent-ink:#0C1A12; --track:#263041; --card:#2A3648; --card-line:#3B4A60; color-scheme:dark;
 }
 :root{ box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px); }
 *,*::before,*::after{ box-sizing:inherit; }
@@ -106,9 +107,9 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
 }
 .tabs .tab[aria-selected="true"]{ color:var(--ink); font-weight:600; border-bottom-color:var(--accent); }
 .guest{ list-style:none; margin:0 0 .5rem; padding:0; display:grid; gap:.4rem; max-height:14rem; overflow:auto; }
-.guest li{ background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:.45rem .6rem; font-size:.85rem; line-height:1.45; word-break:break-word; }
-.guest .who{ display:flex; justify-content:space-between; gap:.5rem; color:var(--muted); font-size:.76rem; margin-bottom:.15rem; }
-.guest .who b{ color:var(--ink); font-weight:600; }
+.guest li{ background:var(--card); border:1px solid var(--card-line); border-radius:8px; padding:.5rem .65rem; font-size:.88rem; line-height:1.5; word-break:break-word; color:var(--ink); box-shadow:0 1px 3px rgba(0,0,0,.08); }
+.guest .who{ display:flex; justify-content:space-between; gap:.5rem; color:var(--muted); font-size:.74rem; margin-bottom:.25rem; padding-bottom:.25rem; border-bottom:1px dashed var(--card-line); }
+.guest .who b{ color:var(--accent); font-weight:600; font-size:.8rem; }
 .guest-empty{ color:var(--muted); font-size:.82rem; margin:.2rem 0 .6rem; }
 .miniform select{ font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:.4rem .55rem; min-width:0; }
 .notebubble{
@@ -1647,6 +1648,12 @@ function updateSky(){
    - 호스트가 나가면 남은 관전자들이 방 id를 다시 차지하려 시도하고, 성공한 한 명이 마지막 상태에서 이어받는다.
    - 연결 서버에 닿지 못하면 혼자 보기로 돌아간다. */
 const PEER_PREFIX = "citizen-sim-namhyonwoo-static-";
+/* WebRTC 연결 후보를 찾는 서버. STUN만으로는 휴대폰 통신망처럼 NAT가 엄격한 환경에서 연결이 안 될 수 있다.
+   그런 환경까지 지원하려면 TURN 서버를 추가한다(예: { urls:"turn:호스트:3478", username:"...", credential:"..." }). */
+const ICE = { iceServers: [
+  { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun.cloudflare.com:3478"] },
+] };
+const PEER_OPTS = { config: ICE };
 const ROOM = (new URLSearchParams(location.search).get("room") || "town").toUpperCase().replace(/[^A-Z0-9_-]/g, "").slice(0, 24) || "TOWN";
 const ROOM_ID = PEER_PREFIX + ROOM;
 const net = { role:"connecting", peer:null, conns:[], host:null, decided:false, tick:null };
@@ -1732,16 +1739,20 @@ function becomeHost(peer, tookOver){
     : "함께 보기가 켜졌어요. 같은 주소를 연 사람은 이 동네를 같이 봐요");
 }
 function goSolo(reason){
+  const wasViewer = net.role !== "host";
+  if(net.peer && !net.peer.destroyed) net.peer.destroy();
   net.role = "solo"; net.host = null; net.conns = []; clearInterval(net.tick);
   if(citizens.length === 0){ if(restoreSnapshot()) toast(`저장된 동네를 이어서 시작해요 (${Math.floor(simMin / 1440) + 1}일차)`); else seedTown(); }
+  else if(wasViewer) takeOverState();   // 관전하던 상태를 이어서 혼자 돌린다
   setPill("혼자 보기 · 연결 안 됨", "off");
-  setStatus(`함께 보기를 켜지 못해 혼자 보기로 열었어요 (${reason}). 새로고침하면 다시 시도해요.`);
+  setStatus(`함께 보기를 켜지 못해 혼자 보기로 열었어요 (${reason}). 다른 사람과 같은 동네를 보려면 새로고침해서 다시 시도하세요. 휴대폰 통신망처럼 네트워크가 다르면 연결이 안 될 수 있어요.`);
+  toast("호스트에 연결하지 못해 혼자 보기로 열어요");
 }
 /* 정해진 방 id를 차지해 본다. 성공하면 호스트, 이미 있으면 관전자로 합류 */
 function claimHost(tookOver = false){
   if(net.peer && !net.peer.destroyed) net.peer.destroy();
   setPill(tookOver ? "호스트 이어받는 중…" : "함께 보기 연결 중…");
-  const peer = new Peer(ROOM_ID);
+  const peer = new Peer(ROOM_ID, PEER_OPTS);
   let settled = false;
   const timeout = setTimeout(() => { if(!settled){ settled = true; peer.destroy(); tookOver ? joinAsViewer(1500) : goSolo("응답 없음"); } }, 9000);
   peer.on("open", () => { if(settled) return; settled = true; clearTimeout(timeout); becomeHost(peer, tookOver); });
@@ -1780,26 +1791,35 @@ function applyState(m){
   for(const s of m.c){ const c = citizens.find(x => x.id === s.i); if(c) c.applyNet(s); }
   for(const s of m.p){ const p = pets.find(x => x.id === s.i); if(p) p.applyNet(s); }
 }
-let joinAttempts = 0;
+let joinAttempts = 0, connectFailures = 0;
 function joinAsViewer(delay){
   if(net.peer && !net.peer.destroyed) net.peer.destroy();
   net.role = "viewer"; net.host = null;
   setPill("동네에 접속 중…");
   setTimeout(() => {
-    const peer = new Peer(); net.peer = peer;
-    let settled = false;
+    const peer = new Peer(PEER_OPTS); net.peer = peer;
+    let settled = false, opened = false, openTimer = null;
     const lost = why => {
-      if(settled) return; settled = true;
+      if(settled) return; settled = true; clearTimeout(openTimer);
+      if(net.host) net.host = null;
+      if(!opened){
+        // 호스트는 등록돼 있는데 연결이 열리지 않음(네트워크 제한 가능성). 두 번 실패하면 혼자 보기로 연다
+        connectFailures++;
+        if(connectFailures >= 2){ goSolo("호스트에 연결할 수 없음"); return; }
+        setPill("호스트에 연결이 안 돼요 · 다시 시도 중…", "off");
+        setTimeout(() => claimHost(true), 500 + Math.random() * 1000);
+        return;
+      }
       // 호스트가 사라짐: 잠시 뒤 호스트 자리를 두고 경쟁한다(무작위 지연으로 충돌을 줄임)
       setPill("호스트가 나갔어요 · 이어받는 중…", "off");
-      if(net.host) net.host = null;
       setTimeout(() => claimHost(true), 300 + Math.random() * 1500);
     };
     peer.on("open", () => {
       const conn = peer.connect(ROOM_ID, { reliable:true });
       net.host = conn;
+      openTimer = setTimeout(() => { if(!opened){ try { conn.close(); } catch {} lost("timeout"); } }, 10000);
       conn.on("open", () => {
-        joinAttempts = 0;
+        opened = true; clearTimeout(openTimer); joinAttempts = 0; connectFailures = 0;
         setPill(`함께 보기 · 관전 중${roomLabel}`, "on");
         setStatus(`함께 보기 · 다른 사람의 화면이 운영하는 동네를 같이 보고 있어요${roomLabel}. 명령은 그쪽에서 실행돼요.`);
         toast("동네에 들어왔어요");
