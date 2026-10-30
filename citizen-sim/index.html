@@ -1653,7 +1653,11 @@ const PEER_PREFIX = "citizen-sim-namhyonwoo-static-";
 const TURN_ENDPOINT = "";   // 예: "https://citizen-turn.<계정>.workers.dev"
 /* 고정 자격증명을 주는 TURN(예: Metered)은 여기에 바로 넣는다. HTML에 그대로 노출되므로 무료 한도 안의 데모 용도에만 적합하다.
    예: { urls:["turn:standard.relay.metered.ca:80", "turn:standard.relay.metered.ca:443", "turns:standard.relay.metered.ca:443?transport=tcp"], username:"...", credential:"..." } */
-const TURN_STATIC = [];
+const TURN_STATIC = [
+  { urls:"stun:stun.relay.metered.ca:80" },
+  { urls:["turn:global.relay.metered.ca:80", "turn:global.relay.metered.ca:80?transport=tcp", "turn:global.relay.metered.ca:443", "turns:global.relay.metered.ca:443?transport=tcp"],
+    username:"d3e61fded493bb1da81874d5", credential:"Ux8whtzOaYLi5fwq" },
+];
 const ICE = { iceServers: [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun.cloudflare.com:3478"] },
 ] };
