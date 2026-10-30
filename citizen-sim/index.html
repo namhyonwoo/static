@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>작은 동네 — 시민 생활 시뮬레이션</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#E4E8EC; --panel:#F7F8FA; --ink:#1A212C; --muted:#5D6776; --line:#CDD4DD;
+  --accent:#2F8F5B; --accent-ink:#FFFFFF; --good:#3DAA63; --mid:#E2B33A; --bad:#D9533E; --track:#E2E7ED;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121821; --panel:#19212D; --ink:#E6EBF2; --muted:#98A3B4; --line:#2B3546;
+    --accent:#6FD39A; --accent-ink:#0C1A12; --track:#263041; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121821; --panel:#19212D; --ink:#E6EBF2; --muted:#98A3B4; --line:#2B3546;
+  --accent:#6FD39A; --accent-ink:#0C1A12; --track:#263041; color-scheme:dark;
+}
+:root{ box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px); }
+*,*::before,*::after{ box-sizing:inherit; }
+html,body{ height:100%; margin:0; }
+body{
+  background:var(--bg); color:var(--ink); overflow:hidden;
+  font-family:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif; font-size:14px;
+  display:grid; grid-template-columns:1fr 19.5rem; grid-template-rows:100%;
+}
+.num{ font-family:"Bricolage Grotesque","IBM Plex Sans KR",system-ui,sans-serif; font-variant-numeric:tabular-nums; }
+.stage{ position:relative; min-width:0; overflow:hidden; }
+#c{ display:block; width:100%; height:100%; touch-action:none; }
+#labels{ position:absolute; inset:0; pointer-events:none; }
+.tag{
+  background:rgba(255,255,255,.92); color:#1A212C; border-radius:999px; padding:.15rem .55rem;
+  font-size:12px; font-weight:600; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.15);
+}
+.tag.pet{ font-size:11px; font-weight:400; padding:.1rem .45rem; background:rgba(255,255,255,.82); }
+.tag.sel{ background:#1A212C; color:#fff; }
+.toast{
+  position:absolute; left:50%; bottom:1.2rem; transform:translateX(-50%); background:var(--panel); color:var(--ink);
+  border:1px solid var(--line); border-radius:10px; padding:.55rem .9rem; box-shadow:0 8px 24px rgba(0,0,0,.15);
+  opacity:0; transition:opacity .25s; pointer-events:none; white-space:nowrap;
+}
+.toast.show{ opacity:1; }
+.places{ position:absolute; top:.8rem; left:.8rem; display:flex; gap:.3rem; }
+.places button{
+  font:inherit; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:999px;
+  padding:.4rem .85rem; cursor:pointer; box-shadow:0 4px 14px rgba(20,30,50,.1);
+}
+
+.panel{ background:var(--panel); border-left:1px solid var(--line); overflow-y:auto; padding:1.1rem 1.1rem 2rem; }
+.clock{ display:flex; align-items:baseline; gap:.6rem; margin-bottom:.2rem; }
+.clock .time{ font-size:2.6rem; font-weight:700; line-height:1; letter-spacing:-.02em; }
+.clock .day{ color:var(--muted); }
+.speed{ display:flex; gap:.3rem; margin:.7rem 0 .4rem; }
+.speed button{
+  flex:1; font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px;
+  padding:.45rem 0; cursor:pointer;
+}
+.speed button[aria-pressed="true"]{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:600; }
+h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
+.list{ list-style:none; margin:0; padding:0; display:grid; gap:.2rem; }
+.person{
+  width:100%; display:grid; grid-template-columns:1.5rem 1fr auto; align-items:center; gap:.55rem; text-align:left;
+  font:inherit; color:var(--ink); background:none; border:1px solid transparent; border-radius:8px; padding:.45rem .55rem; cursor:pointer;
+}
+.person:hover{ background:var(--bg); }
+.person[aria-pressed="true"]{ border-color:var(--ink); background:var(--bg); }
+.person .chip{ width:1.5rem; height:1.5rem; border-radius:6px; display:grid; place-items:center; font-size:.72rem; font-weight:600; color:#fff; }
+.person .chip.emoji{ background:none; font-size:1.1rem; }
+.person .sub{ color:var(--muted); font-size:.8rem; }
+.person .mood{ width:.65rem; height:.65rem; border-radius:50%; }
+.detail{ border-top:1px solid var(--line); margin-top:1rem; padding-top:.2rem; }
+.need{ display:grid; grid-template-columns:3.2rem 1fr 2.4rem; gap:.6rem; align-items:center; margin:.45rem 0; }
+.need .bar{ height:.55rem; background:var(--track); border-radius:999px; overflow:hidden; }
+.need .fill{ height:100%; border-radius:999px; transition:width .3s, background-color .3s; }
+.need output{ text-align:right; font-size:.85rem; color:var(--muted); }
+.row-btns{ display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.6rem; }
+.btn{
+  font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px;
+  padding:.45rem .75rem; cursor:pointer; min-height:2.3rem;
+}
+.btn[aria-pressed="true"]{ border-color:var(--ink); font-weight:600; }
+.help{ color:var(--muted); font-size:.82rem; line-height:1.6; margin:.8rem 0 0; }
+.meta{ color:var(--muted); margin-top:-.3rem; }
+[hidden]{ display:none !important; }
+:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+@media (max-width:760px){
+  body{ grid-template-columns:1fr; grid-template-rows:56% 44%; }
+  .panel{ border-left:0; border-top:1px solid var(--line); }
+  .clock .time{ font-size:2rem; }
+}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<main class="stage">
+  <canvas id="c" aria-label="3D 동네 화면"></canvas>
+  <div id="labels"></div>
+  <div class="places" role="group" aria-label="카메라 이동">
+    <button type="button" data-view="all">전체</button>
+    <button type="button" data-view="house">집</button>
+    <button type="button" data-view="park">공원</button>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+</main>
+
+<aside class="panel" aria-label="시뮬레이션 정보">
+  <div class="clock"><span class="time num" id="clockTime">08:00</span><span class="day" id="clockDay">1일차 ☀️</span></div>
+  <div class="speed" role="group" aria-label="시간 속도">
+    <button type="button" data-s="0" aria-pressed="false">정지</button>
+    <button type="button" data-s="1" aria-pressed="true">1×</button>
+    <button type="button" data-s="3" aria-pressed="false">3×</button>
+    <button type="button" data-s="8" aria-pressed="false">8×</button>
+  </div>
+
+  <h2>시민</h2>
+  <ul class="list" id="people"></ul>
+  <div class="row-btns">
+    <button class="btn" id="addM" type="button">남자 추가</button>
+    <button class="btn" id="addF" type="button">여자 추가</button>
+  </div>
+
+  <h2>반려동물</h2>
+  <ul class="list" id="pets"></ul>
+  <div class="row-btns">
+    <button class="btn" data-addpet="dog" type="button">🐶 개</button>
+    <button class="btn" data-addpet="cat" type="button">🐱 고양이</button>
+    <button class="btn" data-addpet="parrot" type="button">🦜 앵무새</button>
+  </div>
+
+  <section class="detail" id="detail" hidden>
+    <h2 id="dName">이름</h2>
+    <div class="meta" id="dAct"></div>
+    <div id="needs"></div>
+    <div class="row-btns">
+      <button class="btn" id="followBtn" type="button" aria-pressed="false">카메라 따라가기</button>
+      <button class="btn" id="stopBtn" type="button">하던 일 멈추기</button>
+    </div>
+    <p class="help" id="detailHelp"></p>
+  </section>
+  <p class="help" id="idleHelp">시민이나 반려동물을 클릭하면 상태를 볼 수 있어요. 시민은 욕구에 따라 스스로 할 일을 정하고, 개는 주인이 외출하면 따라나서요.</p>
+</aside>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+
+/* ================= Renderer & scene ================= */
+const canvas = document.getElementById("c");
+const stage = canvas.parentElement;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const labelRenderer = new CSS2DRenderer({ element: document.getElementById("labels") });
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 300);
+const orbit = new OrbitControls(camera, canvas);
+orbit.enableDamping = true;
+orbit.maxPolarAngle = Math.PI * 0.47; orbit.minDistance = 4; orbit.maxDistance = 70;
+const VIEWS = {
+  all:   { pos:[24, 26, 32], target:[8, 0.5, 2] },
+  house: { pos:[11, 13, 17], target:[0, 0.5, 1.5] },
+  park:  { pos:[29, 14, 18], target:[19, 0.5, 2] },
+};
+let camAnim = null;
+function goView(name){
+  const v = VIEWS[name];
+  camAnim = { t:0, fromP:camera.position.clone(), fromT:orbit.target.clone(), toP:new THREE.Vector3(...v.pos), toT:new THREE.Vector3(...v.target) };
+  follow = false; document.getElementById("followBtn").setAttribute("aria-pressed", "false");
+}
+camera.position.set(...VIEWS.all.pos); orbit.target.set(...VIEWS.all.target);
+
+const hemi = new THREE.HemisphereLight(0xffffff, 0x7d8a6a, 1.2);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff3e0, 2.4);
+sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left:-22, right:22, top:22, bottom:-22, near:1, far:80 });
+sun.shadow.bias = -0.0005;
+scene.add(sun, sun.target);
+sun.target.position.set(8, 0, 2);
+const lamp = new THREE.PointLight(0xffc98a, 0, 0, 1.6); lamp.position.set(0, 3.2, 0); scene.add(lamp);
+const parkLight = new THREE.PointLight(0xffd9a0, 0, 0, 1.4); parkLight.position.set(19, 4, 2); scene.add(parkLight);
+const SKY_DAY = new THREE.Color("#AFCFE8"), SKY_DUSK = new THREE.Color("#E9B48E"), SKY_NIGHT = new THREE.Color("#1A2240");
+scene.background = SKY_DAY.clone();
+
+/* ================= Helpers ================= */
+const matCache = new Map();
+function mat(color, extra){
+  const key = color + (extra ? JSON.stringify(extra) : "");
+  if(!matCache.has(key)) matCache.set(key, new THREE.MeshStandardMaterial({ color, roughness:.7, metalness:0, ...extra }));
+  return matCache.get(key);
+}
+function mesh(geo, color, extra){ const m = new THREE.Mesh(geo, mat(color, extra)); m.castShadow = true; m.receiveShadow = true; return m; }
+function box(parent, w, h, d, color, x, y, z, extra){
+  const m = mesh(new THREE.BoxGeometry(w, h, d), color, extra); m.position.set(x, y, z); parent.add(m); return m;
+}
+function add(parent, m, x, y, z){ m.position.set(x, y, z); parent.add(m); return m; }
+const lerp = THREE.MathUtils.lerp, clamp = THREE.MathUtils.clamp;
+function lerpAngle(a, b, k){ let d = ((b - a + Math.PI) % (Math.PI*2)) - Math.PI; if(d < -Math.PI) d += Math.PI*2; return a + d * k; }
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+const isNight = h => h >= 22 || h < 6;
+
+/* ================= World: house ================= */
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), mat("#8FBF6C"));
+ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; ground.userData.ground = true;
+scene.add(ground);
+const floor = mesh(new THREE.BoxGeometry(16, 0.1, 12), "#C9A57A");
+floor.castShadow = false; floor.userData.ground = true; scene.add(floor);
+for(let i = -7.5; i <= 7.5; i += 1){ box(scene, 0.02, 0.005, 12, "#B8915F", i, 0.052, 0).castShadow = false; }
+box(scene, 16.3, 1.3, 0.25, "#EDE6DA", 0, 0.65, -6.1);
+box(scene, 0.25, 1.3, 12.2, "#EDE6DA", -8.1, 0.65, 0);
+box(scene, 16.3, 0.12, 0.3, "#C9BBA6", 0, 1.33, -6.1);
+box(scene, 0.3, 0.12, 12.2, "#C9BBA6", -8.1, 1.33, 0);
+for(let z = 6.6; z < 8; z += 0.7) box(scene, 1.2, 0.04, 0.5, "#CFC7B8", 0, 0.02, z).castShadow = false;
+box(scene, 3.4, 0.02, 3.2, "#7E9CB8", -5.4, 0.06, 2).castShadow = false;
+function tree(x, z, s = 1){
+  const t = new THREE.Group(); t.position.set(x, 0, z); t.scale.setScalar(s);
+  add(t, mesh(new THREE.CylinderGeometry(.14, .2, 1.4, 10), "#7A5A3C"), 0, .7, 0);
+  add(t, mesh(new THREE.IcosahedronGeometry(1, 1), pick(["#4F9A55","#5AA65E","#47904D"]), { flatShading:true }), 0, 2.1, 0);
+  scene.add(t);
+}
+tree(-11, -8, 1.3); tree(10.5, -10, 1.1); tree(-12, 6, 1); tree(-8, 12, 1.15); tree(5, 13, .9);
+
+/* ================= Activities ================= */
+const ACTS = {
+  sleep:    { label:"자는 중",           emoji:"💤", pose:"sleep",  need:"energy",  gains:{ energy:3.0 },              max:70 },
+  eat:      { label:"밥 먹는 중",        emoji:"🍽️", pose:"eat",    need:"hunger",  gains:{ hunger:6 },                max:18 },
+  tv:       { label:"TV 보는 중",        emoji:"📺", pose:"tv",     need:"fun",     gains:{ fun:4 },                   max:24 },
+  read:     { label:"책 읽는 중",        emoji:"📖", pose:"read",   need:"fun",     gains:{ fun:3.2 },                 max:22 },
+  garden:   { label:"정원 가꾸는 중",    emoji:"🌱", pose:"garden", need:"fun",     gains:{ fun:2.8, hygiene:-0.5 },   max:20 },
+  shower:   { label:"샤워하는 중",       emoji:"🚿", pose:"shower", need:"hygiene", gains:{ hygiene:9 },               max:12 },
+  chat:     { label:"수다 떠는 중",      emoji:"💬", pose:"chat",   need:"social",  gains:{ social:5.5, fun:.8 },      max:14 },
+  bench:    { label:"벤치에서 쉬는 중",  emoji:"🪑", pose:"tv",     need:"fun",     gains:{ fun:2.4, energy:.6 },      max:20, park:true },
+  fountain: { label:"분수 구경하는 중",  emoji:"⛲", pose:"look",   need:"fun",     gains:{ fun:3.2 },                 max:14, park:true },
+  stroll:   { label:"공원 산책 중",      emoji:"🌳", pose:"idle",   need:"fun",     gains:{ fun:2.6, social:.4 },      max:999 },
+  pet:      { label:"반려동물과 노는 중",emoji:"🐾", pose:"pet",    need:"fun",     gains:{ fun:3.2, social:2.5 },     max:10 },
+  wander:   { label:"돌아다니는 중",     emoji:"🚶", pose:"idle",   need:null,      gains:{},                          max:3 },
+  go:       { label:"이동하는 중",       emoji:"👟", pose:"idle",   need:null,      gains:{},                          max:2 },
+};
+const OUTING = new Set(["wander","go","stroll","bench","fountain"]);
+const objects = [], pickables = [];
+function addObject(name, act, spots, build){
+  const g = new THREE.Group(); build(g); scene.add(g);
+  const obj = { name, act, group:g, spots: spots.map(s => ({ x:s[0], z:s[1], face:s[2], occ:null })) };
+  g.traverse(m => { if(m.isMesh){ m.userData.obj = obj; pickables.push(m); } });
+  objects.push(obj); return obj;
+}
+
+/* ----- house furniture ----- */
+[-7.3, -6.0, -4.7, -3.4].forEach((bx, i) => {
+  addObject("침대", "sleep", [[bx, -4.0, 0]], g => {
+    box(g, 1.1, 0.35, 2.1, "#8A6748", bx, 0.25, -4.95);
+    box(g, 1.0, 0.18, 1.95, "#F3F1EC", bx, 0.5, -4.95);
+    box(g, 1.02, 0.06, 1.3, ["#6C8FC7","#C7786C","#7FB08A","#C9A24E"][i], bx, 0.6, -4.55);
+    box(g, 0.7, 0.12, 0.35, "#FFFFFF", bx, 0.64, -5.65);
+    box(g, 1.1, 0.8, 0.12, "#8A6748", bx, 0.5, -5.98);
+  });
+});
+addObject("식탁", "eat", [[3.35, -1.5, Math.PI/2], [5.65, -1.5, -Math.PI/2], [4.5, -0.55, Math.PI]], g => {
+  box(g, 1.6, 0.08, 1.0, "#A47A52", 4.5, 0.76, -1.5);
+  [[-0.7,-0.4],[0.7,-0.4],[-0.7,0.4],[0.7,0.4]].forEach(([dx,dz]) => box(g, 0.08, 0.72, 0.08, "#8A6748", 4.5+dx, 0.38, -1.5+dz));
+  box(g, 0.24, 0.04, 0.24, "#FFFFFF", 4.1, 0.82, -1.5); box(g, 0.24, 0.04, 0.24, "#FFFFFF", 4.9, 0.82, -1.5);
+  [[3.35,-1.5,0],[5.65,-1.5,0],[4.5,-0.55,1]].forEach(([x,z,rot]) => {
+    box(g, 0.5, 0.06, 0.5, "#C29A6B", x, 0.45, z);
+    if(rot) box(g, 0.5, 0.55, 0.06, "#C29A6B", x, 0.75, z+0.24);
+    else box(g, 0.06, 0.55, 0.5, "#C29A6B", x + (x < 4.5 ? -0.24 : 0.24), 0.75, z);
+    box(g, 0.4, 0.42, 0.4, "#9C774F", x, 0.21, z);
+  });
+});
+addObject("부엌", "eat", [], g => {
+  box(g, 3.6, 0.95, 0.7, "#E8E4DC", 4.4, 0.48, -5.6);
+  box(g, 3.6, 0.06, 0.74, "#5F6B78", 4.4, 0.98, -5.6);
+  box(g, 0.85, 1.95, 0.75, "#DDE3EA", 7.2, 0.98, -5.55);
+  box(g, 0.04, 0.5, 0.04, "#8D97A3", 6.9, 1.2, -5.15);
+});
+addObject("소파", "tv", [[-4.75, 1.2, -Math.PI/2], [-4.75, 2.0, -Math.PI/2], [-4.75, 2.8, -Math.PI/2]], g => {
+  box(g, 0.9, 0.45, 2.6, "#5E7FA8", -4.5, 0.25, 2);
+  box(g, 0.25, 0.65, 2.6, "#4F6E95", -4.0, 0.62, 2);
+  box(g, 0.9, 0.55, 0.22, "#4F6E95", -4.5, 0.4, 0.62); box(g, 0.9, 0.55, 0.22, "#4F6E95", -4.5, 0.4, 3.38);
+});
+addObject("TV", "tv", [], g => {
+  box(g, 0.5, 0.55, 2.0, "#4A3B2F", -7.6, 0.3, 2);
+  box(g, 0.08, 0.9, 1.6, "#15181D", -7.55, 1.1, 2);
+  box(g, 0.02, 0.8, 1.5, "#2B4B70", -7.5, 1.1, 2, { emissive:"#2B4B70", emissiveIntensity:.6 });
+});
+addObject("책장", "read", [[0.9, -4.8, Math.PI], [2.1, -4.8, Math.PI]], g => {
+  box(g, 2.4, 2.0, 0.45, "#8A6748", 1.5, 1.0, -5.75);
+  const cols = ["#C7564A","#3F7FBF","#E1B342","#5EA26A","#8E5BD3","#D9822B"];
+  for(let r = 0; r < 4; r++) for(let i = 0; i < 9; i++)
+    box(g, 0.16, rand(.3,.4), 0.3, pick(cols), 0.6 + i*0.23, 0.32 + r*0.47, -5.65).castShadow = false;
+});
+addObject("샤워부스", "shower", [[6.6, 4.6, -Math.PI/2]], g => {
+  box(g, 1.4, 0.1, 1.4, "#DDE6EE", 6.6, 0.06, 4.6);
+  box(g, 0.05, 2.1, 1.4, "#BFD9EC", 5.9, 1.1, 4.6, { transparent:true, opacity:.35 }).castShadow = false;
+  box(g, 1.4, 2.1, 0.05, "#BFD9EC", 6.6, 1.1, 3.9, { transparent:true, opacity:.35 }).castShadow = false;
+  box(g, 0.05, 0.05, 0.5, "#8D97A3", 7.2, 2.15, 4.6);
+  box(g, 0.25, 0.04, 0.25, "#8D97A3", 7.0, 2.12, 4.6);
+});
+addObject("정원", "garden", [[-1.3, 8.4, 0], [1.3, 8.4, 0]], g => {
+  box(g, 5, 0.25, 1.6, "#7A5A3C", 0, 0.12, 9.5);
+  box(g, 4.8, 0.06, 1.4, "#5A3E28", 0, 0.27, 9.5).castShadow = false;
+  const petals = ["#E8566B","#F2C14E","#B97BE0","#FF8E4D","#FFFFFF"];
+  for(let i = 0; i < 16; i++){
+    const x = -2.1 + (i % 8) * 0.6, z = 9.1 + Math.floor(i/8) * 0.7;
+    box(g, 0.03, 0.4, 0.03, "#3E8A45", x, 0.48, z);
+    add(g, mesh(new THREE.SphereGeometry(.1, 10, 8), pick(petals)), x, 0.72, z);
+  }
+});
+
+/* ----- pet furniture ----- */
+const PET_HOME = {
+  dogBed:   new THREE.Vector3(-1.7, 0.05, -5.0),
+  catBed:   new THREE.Vector3(-6.6, 0.05, 4.9),
+  dogBowl:  new THREE.Vector3(7.0, 0.05, -3.6),
+  catBowl:  new THREE.Vector3(7.0, 0.05, -2.8),
+  perch:    new THREE.Vector3(2.6, 1.5, 4.6),
+};
+addObject("개 방석", null, [], g => {
+  add(g, mesh(new THREE.CylinderGeometry(.6, .62, .14, 24), "#B5574B"), -1.7, .1, -5.0);
+  add(g, mesh(new THREE.TorusGeometry(.55, .1, 10, 24), "#9C4A40"), -1.7, .16, -5.0).rotation.x = Math.PI/2;
+});
+addObject("고양이 쿠션", null, [], g => {
+  add(g, mesh(new THREE.CylinderGeometry(.42, .44, .12, 24), "#8A7BC4"), -6.6, .1, 4.9);
+});
+addObject("밥그릇", null, [], g => {
+  for(const z of [-3.6, -2.8]){
+    add(g, mesh(new THREE.CylinderGeometry(.16, .12, .08, 18), z < -3 ? "#D9573E" : "#3E8FD4"), 7.45, .09, z);
+    add(g, mesh(new THREE.CylinderGeometry(.13, .13, .02, 18), "#8C6239"), 7.45, .13, z);
+  }
+});
+addObject("횃대", null, [], g => {
+  add(g, mesh(new THREE.CylinderGeometry(.35, .4, .06, 20), "#6B5644"), 2.6, .08, 4.6);
+  add(g, mesh(new THREE.CylinderGeometry(.03, .03, 1.42, 10), "#8A6748"), 2.6, .78, 4.6);
+  const bar = add(g, mesh(new THREE.CylinderGeometry(.025, .025, .8, 10), "#8A6748"), 2.6, 1.46, 4.6); bar.rotation.z = Math.PI/2;
+  add(g, mesh(new THREE.CylinderGeometry(.08, .06, .06, 14), "#E1B342"), 2.95, 1.5, 4.6);
+});
+
+/* ================= World: park ================= */
+const PARK = new THREE.Vector3(19, 0, 2);
+{
+  const lawn = new THREE.Mesh(new THREE.CircleGeometry(10, 64), mat("#7DB35E"));
+  lawn.rotation.x = -Math.PI/2; lawn.position.set(PARK.x, 0.01, PARK.z); lawn.receiveShadow = true; lawn.userData.ground = true;
+  scene.add(lawn);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(4.6, 5.7, 72), mat("#DCD2BF"));
+  ring.rotation.x = -Math.PI/2; ring.position.set(PARK.x, 0.02, PARK.z); ring.receiveShadow = true; ring.userData.ground = true;
+  scene.add(ring);
+  const link = box(scene, 6.2, 0.02, 1.3, "#DCD2BF", 11.2, 0.015, 2); link.castShadow = false; link.userData.ground = true;
+  // trees & flower beds
+  for(let i = 0; i < 9; i++){
+    const a = i / 9 * Math.PI * 2 + 0.3;
+    if(Math.abs(Math.cos(a) + 1) < 0.25) continue; // keep west entrance clear
+    tree(PARK.x + Math.cos(a) * rand(8, 9.2), PARK.z + Math.sin(a) * rand(8, 9.2), rand(.9, 1.35));
+  }
+  const petals = ["#E8566B","#F2C14E","#B97BE0","#FF8E4D","#FFFFFF"];
+  for(let i = 0; i < 4; i++){
+    const a = i / 4 * Math.PI * 2 + Math.PI/4;
+    const cx = PARK.x + Math.cos(a) * 3.2, cz = PARK.z + Math.sin(a) * 3.2;
+    add(scene, mesh(new THREE.CylinderGeometry(.75, .8, .2, 20), "#7A5A3C"), cx, .1, cz);
+    for(let k = 0; k < 7; k++){
+      const b = k / 7 * Math.PI * 2;
+      add(scene, mesh(new THREE.SphereGeometry(.12, 10, 8), pick(petals)), cx + Math.cos(b)*.45, .3, cz + Math.sin(b)*.45);
+    }
+    add(scene, mesh(new THREE.SphereGeometry(.28, 12, 10), "#4F9A55"), cx, .35, cz);
+  }
+}
+const lampHeads = [];
+for(let i = 0; i < 4; i++){
+  const a = i / 4 * Math.PI * 2;
+  const x = PARK.x + Math.cos(a) * 6.3, z = PARK.z + Math.sin(a) * 6.3;
+  add(scene, mesh(new THREE.CylinderGeometry(.05, .07, 2.6, 10), "#3B4350"), x, 1.3, z);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(.18, 14, 10), new THREE.MeshStandardMaterial({ color:"#FFF4D6", emissive:"#FFD38A", emissiveIntensity:0 }));
+  head.position.set(x, 2.68, z); scene.add(head); lampHeads.push(head);
+}
+// fountain
+let spout;
+addObject("분수", "fountain", [0, 1, 2, 3].map(i => {
+  const a = i / 4 * Math.PI * 2 + Math.PI/4;
+  return [PARK.x + Math.cos(a) * 2.25, PARK.z + Math.sin(a) * 2.25, Math.atan2(-Math.cos(a), -Math.sin(a))];
+}), g => {
+  add(g, mesh(new THREE.CylinderGeometry(1.6, 1.7, .45, 40), "#B9B3A8"), PARK.x, .22, PARK.z);
+  add(g, new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.45, .05, 40), mat("#6FB2D9", { transparent:true, opacity:.85, roughness:.1 })), PARK.x, .42, PARK.z);
+  add(g, mesh(new THREE.CylinderGeometry(.18, .26, 1.1, 16), "#B9B3A8"), PARK.x, .9, PARK.z);
+  add(g, mesh(new THREE.CylinderGeometry(.6, .35, .18, 28), "#B9B3A8"), PARK.x, 1.45, PARK.z);
+  spout = add(g, new THREE.Mesh(new THREE.ConeGeometry(.12, .8, 14, 1, true), mat("#BFE3F5", { transparent:true, opacity:.7, roughness:.1 })), PARK.x, 1.95, PARK.z);
+  spout.rotation.x = Math.PI;
+});
+// benches
+for(let i = 0; i < 3; i++){
+  const a = i / 3 * Math.PI * 2 + Math.PI/3;
+  const bx = PARK.x + Math.cos(a) * 6.6, bz = PARK.z + Math.sin(a) * 6.6;
+  const face = Math.atan2(PARK.x - bx, PARK.z - bz);
+  const tx = Math.cos(face), tz = -Math.sin(face); // tangent (local +x)
+  addObject("벤치", "bench", [[bx + tx*.42, bz + tz*.42, face], [bx - tx*.42, bz - tz*.42, face]], g => {
+    const b = new THREE.Group(); b.position.set(bx, 0, bz); b.rotation.y = face; g.add(b);
+    box(b, 1.7, .07, .5, "#A9744B", 0, .45, 0);
+    box(b, 1.7, .45, .06, "#A9744B", 0, .74, -.26);
+    for(const s of [-.72, .72]){ box(b, .07, .44, .45, "#3B4350", s, .22, 0); box(b, .07, .5, .06, "#3B4350", s, .7, -.27); }
+  });
+}
+
+/* ================= People model (≈5 heads tall) ================= */
+const LOOKS = {
+  shirtsM:["#3E7BD6","#D9573E","#3FA46A","#8E5BD3","#E0A33A","#2B9BA8","#5B6CE0","#55626F"],
+  shirtsF:["#E2709A","#F2B33D","#6FB6D9","#9A7BE0","#F07E5C","#4FB38A","#FFFFFF","#C2477F"],
+  pants:["#2F3A52","#4A3B2F","#3C4A3A","#55565C","#24486B"],
+  skirts:["#2F3A52","#B8475B","#3D6FA8","#E3C27A","#5A4C7A"],
+  skins:["#F1C9A5","#E3B08A","#C98D66","#9C6644"],
+  hair:["#2A2018","#5A3A22","#1B1B1B","#8A5A2B","#3B2A1E","#A0522D"],
+};
+const NAMES = {
+  m:["민준","서준","도윤","지호","현우","준서","태윤","건우","시우","유찬"],
+  f:["서연","하은","지우","민서","수아","지민","예린","채원","유나","소율"],
+};
+const nameCount = { m:0, f:0 };
+function buildPerson(look, gender){
+  const F = gender === "f";
+  const root = new THREE.Group();
+  const body = new THREE.Group(); root.add(body);
+  if(F) body.scale.setScalar(0.96);
+  const pelvis = new THREE.Group(); pelvis.position.y = 0.86; body.add(pelvis);
+  const hips = mesh(new THREE.CapsuleGeometry(0.14, 0.06, 6, 16), look.pants);
+  hips.scale.set(F ? 1.45 : 1.35, 1, F ? .9 : .85); hips.position.y = 0.02; pelvis.add(hips);
+  if(look.skirt){
+    add(pelvis, mesh(new THREE.CylinderGeometry(0.17, 0.28, 0.36, 22), look.skirt), 0, -0.12, 0);
+  }
+  const legColor = look.skirt ? look.skin : look.pants;
+  const P = { root, body, pelvis };
+  for(const [s, k] of [[1, "L"], [-1, "R"]]){
+    const hip = new THREE.Group(); hip.position.set(s*(F ? .09 : .095), 0, 0); pelvis.add(hip);
+    add(hip, mesh(new THREE.CapsuleGeometry(F ? .064 : .068, 0.28, 6, 12), legColor), 0, -0.2, 0);
+    const knee = new THREE.Group(); knee.position.y = -0.42; hip.add(knee);
+    add(knee, mesh(new THREE.CapsuleGeometry(F ? .052 : .058, 0.3, 6, 12), legColor), 0, -0.19, 0);
+    add(knee, mesh(new THREE.BoxGeometry(F ? .11 : .12, 0.08, F ? .22 : .24), look.shoes), 0, -0.40, 0.04);
+    P["hip"+k] = hip; P["knee"+k] = knee;
+  }
+  const chest = new THREE.Group(); chest.position.y = 0.06; pelvis.add(chest); P.chest = chest;
+  const torso = mesh(new THREE.CapsuleGeometry(0.15, 0.24, 8, 16), look.shirt);
+  torso.scale.set(F ? 1.16 : 1.3, 1, F ? .78 : .8); torso.position.y = 0.22; chest.add(torso);
+  add(chest, mesh(new THREE.CylinderGeometry(F ? .05 : .055, F ? .055 : .06, 0.1, 12), look.skin), 0, 0.5, 0);
+  const shX = F ? .195 : .22;
+  for(const [s, k] of [[1, "L"], [-1, "R"]]){
+    const sh = new THREE.Group(); sh.position.set(s*shX, 0.42, 0); chest.add(sh);
+    add(sh, mesh(new THREE.CapsuleGeometry(F ? .05 : .056, 0.2, 6, 12), look.shirt), 0, -0.14, 0);
+    const el = new THREE.Group(); el.position.y = -0.29; sh.add(el);
+    add(el, mesh(new THREE.CapsuleGeometry(F ? .043 : .047, 0.18, 6, 12), look.skin), 0, -0.13, 0);
+    add(el, mesh(new THREE.SphereGeometry(F ? .05 : .056, 12, 10), look.skin), 0, -0.29, 0);
+    P["sh"+k] = sh; P["el"+k] = el;
+    if(k === "R"){
+      const book = add(el, mesh(new THREE.BoxGeometry(0.22, 0.03, 0.17), "#C7564A"), 0.12, -0.31, 0.06);
+      book.visible = false; P.book = book;
+    }
+  }
+  const head = new THREE.Group(); head.position.y = 0.54; chest.add(head); P.head = head;
+  const skull = mesh(new THREE.SphereGeometry(0.165, 24, 18), look.skin); skull.scale.set(F ? .96 : 1, 1.1, 1.02); skull.position.y = 0.17; head.add(skull);
+  const cap = mesh(new THREE.SphereGeometry(0.178, 24, 12, 0, Math.PI*2, 0, Math.PI*(F ? .56 : .52)), look.hair);
+  cap.scale.set(1.03, 1.12, 1.07); cap.position.y = 0.19; cap.rotation.x = F ? -0.14 : -0.28; head.add(cap);
+  if(F){
+    if(look.hairStyle === "long"){
+      const back = add(head, mesh(new THREE.CapsuleGeometry(0.15, 0.2, 8, 16), look.hair), 0, 0.03, -0.09); back.scale.set(1.12, 1, .55);
+    } else if(look.hairStyle === "bob"){
+      const back = add(head, mesh(new THREE.CapsuleGeometry(0.16, 0.05, 8, 16), look.hair), 0, 0.11, -0.05); back.scale.set(1.14, 1, .8);
+    } else {
+      add(head, mesh(new THREE.SphereGeometry(0.075, 14, 10), look.hair), 0, 0.24, -0.18);
+      const tail = add(head, mesh(new THREE.CapsuleGeometry(0.05, 0.16, 6, 10), look.hair), 0, 0.1, -0.22); tail.rotation.x = 0.25;
+    }
+  }
+  for(const s of [1, -1]){
+    add(head, mesh(new THREE.SphereGeometry(F ? .024 : .022, 10, 8), "#1C1C1F"), s*0.062, 0.18, 0.15);
+    add(head, mesh(new THREE.BoxGeometry(F ? .055 : .06, F ? .01 : .014, 0.012), look.hair), s*0.062, 0.228, 0.155);
+    const ear = add(head, mesh(new THREE.SphereGeometry(0.036, 10, 8), look.skin), s*0.162, 0.16, 0); ear.scale.set(.5, 1, 1);
+  }
+  add(head, mesh(new THREE.SphereGeometry(F ? .02 : .024, 10, 8), look.skin), 0, 0.14, 0.168);
+  add(head, mesh(new THREE.BoxGeometry(F ? .055 : .06, F ? .018 : .012, 0.012), F ? "#C4555F" : "#8C3B3B"), 0, 0.085, 0.157);
+  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.075, 18, 14), new THREE.MeshStandardMaterial({ color:"#3DAA63", emissive:"#3DAA63", emissiveIntensity:.6, roughness:.3 }));
+  orb.position.y = 2.1; root.add(orb); P.orb = orb;
+  return P;
+}
+
+/* ================= Citizens ================= */
+const NEED_KEYS = [["hunger","배부름"],["energy","에너지"],["fun","재미"],["hygiene","청결"],["social","교류"]];
+const PET_NEEDS = [["hunger","배부름"],["energy","에너지"],["love","애정"]];
+const DECAY = { hunger:.32, energy:.2, fun:.4, hygiene:.22, social:.3 };
+const citizens = [], pets = [];
+
+class Citizen {
+  constructor(x, z, gender){
+    this.gender = gender;
+    const list = NAMES[gender]; const n = nameCount[gender]++;
+    this.name = list[n % list.length] + (n >= list.length ? Math.floor(n / list.length) + 1 : "");
+    const F = gender === "f";
+    this.look = {
+      shirt: pick(F ? LOOKS.shirtsF : LOOKS.shirtsM), pants: pick(LOOKS.pants), skin: pick(LOOKS.skins), hair: pick(LOOKS.hair),
+      shoes: pick(["#2B2B2E","#6B4A33","#EDEDED"]),
+      skirt: F && Math.random() < .55 ? pick(LOOKS.skirts) : null,
+      hairStyle: pick(["long","bob","pony"]),
+    };
+    this.p = buildPerson(this.look, gender);
+    this.root = this.p.root; this.root.position.set(x, 0.05, z);
+    this.root.rotation.y = rand(-Math.PI, Math.PI);
+    this.root.traverse(m => { if(m.isMesh && m !== this.p.orb) m.userData.citizen = this; });
+    scene.add(this.root);
+    this.needs = Object.fromEntries(NEED_KEYS.map(([k]) => [k, rand(45, 90)]));
+    this.state = "idle"; this.idleT = rand(0.5, 2);
+    this.act = null; this.spot = null; this.target = null; this.face = this.root.rotation.y;
+    this.timer = 0; this.walkPhase = Math.random()*6; this.partner = null; this.petTarget = null; this.route = null; this.t = Math.random()*10;
+    const el = document.createElement("div"); el.className = "tag"; this.tagEl = el;
+    this.tag = new CSS2DObject(el); this.tag.position.y = 2.38; this.root.add(this.tag);
+    this.updateTag();
+  }
+  get pos(){ return this.root.position; }
+  get pets(){ return pets.filter(p => p.owner === this); }
+  mood(){ return NEED_KEYS.reduce((s,[k]) => s + this.needs[k], 0) / NEED_KEYS.length; }
+  sleeping(){ return this.state === "act" && this.act === "sleep"; }
+  actLabel(){
+    if(this.state === "walk"){
+      if(this.act === "stroll") return "🌳 공원 산책 중";
+      if(this.act === "wander") return "🚶 돌아다니는 중";
+      if(this.act === "go") return "👟 이동하는 중";
+      if(this.act === "pet" && this.petTarget) return `🐾 ${this.petTarget.name}에게 가는 중`;
+      return "🚶 가는 중: " + ACTS[this.act].label.replace(/ 중$/, "");
+    }
+    if(this.state === "act"){
+      if(this.act === "pet" && this.petTarget) return `🐾 ${this.petTarget.name}와(과) 노는 중`;
+      return ACTS[this.act].emoji + " " + ACTS[this.act].label;
+    }
+    return "🙂 쉬는 중";
+  }
+  updateTag(){
+    const e = this.state === "act" ? ACTS[this.act].emoji : this.state === "walk" ? (this.act === "stroll" ? "🌳" : "🚶") : "🙂";
+    this.tagEl.textContent = this.name + " " + e;
+    this.tagEl.classList.toggle("sel", this === selected);
+  }
+  release(){
+    if(this.spot){ this.spot.occ = null; this.spot = null; }
+    this.route = null;
+    if(this.partner){ const p = this.partner; this.partner = null; if(p.partner === this){ p.partner = null; p.finish(); } }
+    if(this.petTarget){ const p = this.petTarget; this.petTarget = null; if(p.petter === this) p.endPetted(); }
+  }
+  finish(){
+    this.release();
+    this.state = "idle"; this.act = null; this.idleT = rand(0.8, 2.5); this.timer = 0;
+    this.p.book.visible = false;
+    this.updateTag();
+  }
+  walkTo(x, z, act, spot, face){
+    this.target = new THREE.Vector3(x, 0.05, z); this.act = act; this.spot = spot; this.targetFace = face;
+    this.state = "walk"; this.timer = 0; this.updateTag();
+  }
+  order(obj){
+    if(ACTS[obj.act]?.park && isNight(hourNow)) return "night";
+    const spot = obj.spots.find(s => !s.occ);
+    if(!spot) return "full";
+    this.release(); spot.occ = this; this.walkTo(spot.x, spot.z, obj.act, spot, spot.face);
+    return "ok";
+  }
+  orderMove(x, z){ this.release(); this.walkTo(x, z, "go", null, null); }
+  available(){ return (this.state === "idle" || (this.state === "walk" && this.act === "wander")) && !this.partner; }
+  startStroll(){
+    this.release();
+    const a0 = Math.atan2(this.pos.z - PARK.z, this.pos.x - PARK.x);
+    const dir = Math.random() < .5 ? 1 : -1;
+    this.route = [];
+    for(let i = 0; i <= 9; i++){
+      const a = a0 + dir * i * Math.PI * 2 / 9;
+      this.route.push(new THREE.Vector3(PARK.x + Math.cos(a) * 5.15, 0.05, PARK.z + Math.sin(a) * 5.15));
+    }
+    const first = this.route.shift();
+    this.walkTo(first.x, first.z, "stroll", null, null);
+  }
+  startPet(pet){
+    this.release();
+    pet.beginPetted(this);
+    this.petTarget = pet;
+    let tx, tz;
+    if(pet.kind === "parrot"){ tx = PET_HOME.perch.x; tz = PET_HOME.perch.z + 0.8; }
+    else {
+      const d = new THREE.Vector3().subVectors(this.pos, pet.pos); d.y = 0;
+      if(d.lengthSq() < 1e-4) d.set(0, 0, 1);
+      d.normalize(); tx = pet.pos.x + d.x * 0.62; tz = pet.pos.z + d.z * 0.62;
+    }
+    this.walkTo(tx, tz, "pet", null, null);
+  }
+  decide(hour){
+    const night = isNight(hour);
+    let best = null, bestScore = 0.06;
+    const consider = (score, fn) => { if(score > bestScore){ bestScore = score; best = fn; } };
+    const urg = k => (100 - this.needs[k]) / 100;
+    for(const obj of objects){
+      if(!obj.act || !obj.spots.length) continue;
+      const a = ACTS[obj.act];
+      if(a.park && (night || hour >= 21)) continue;
+      let u = urg(a.need);
+      if(obj.act === "sleep") u += night ? 0.45 : -0.15;
+      if(a.park) u *= 0.92;
+      for(const s of obj.spots){
+        if(s.occ) continue;
+        const d = Math.hypot(s.x - this.pos.x, s.z - this.pos.z);
+        consider(u*u + rand(0, .12) - d*.005, () => { s.occ = this; this.walkTo(s.x, s.z, obj.act, s, s.face); });
+      }
+    }
+    if(!night){
+      for(const o of citizens){
+        if(o === this || !o.available()) continue;
+        consider(urg("social") ** 2 + rand(0, .12), () => this.startChat(o));
+      }
+      for(const p of pets){
+        if(!p.pettable()) continue;
+        const u = Math.max(urg("fun"), urg("social")) * .9 + (p.owner === this ? .08 : 0);
+        consider(u*u + rand(0, .1) - this.pos.distanceTo(p.pos) * .005, () => this.startPet(p));
+      }
+      if(hour < 20){
+        const hasDog = this.pets.some(p => p.kind === "dog");
+        consider(urg("fun") ** 2 * .9 + (hasDog ? .14 : 0) + rand(0, .1), () => this.startStroll());
+      }
+    }
+    if(best) best();
+    else this.walkTo(rand(-6.5, 6.5), rand(-3, 6.5), "wander", null, null);
+  }
+  startChat(o){
+    o.release();
+    const dir = new THREE.Vector3().subVectors(this.pos, o.pos); dir.y = 0;
+    const d = dir.length() || 1; dir.divideScalar(d);
+    const meet = o.pos.clone().addScaledVector(dir, 0.95);
+    this.partner = o; o.partner = this;
+    o.state = "act"; o.act = "chat"; o.timer = 0; o.target = null; o.updateTag();
+    this.walkTo(meet.x, meet.z, "chat", null, null);
+  }
+  update(dt, sdt, hour){
+    this.t += dt;
+    let a = null;
+    if(this.state === "act") a = ACTS[this.act];
+    else if(this.state === "walk" && this.act === "stroll") a = ACTS.stroll;
+    const paused = (this.act === "chat" && this.partner && this.partner.state !== "act") || (this.act === "pet" && this.state !== "act");
+    for(const [k] of NEED_KEYS){
+      let v = this.needs[k] - DECAY[k] * sdt * (k === "energy" && isNight(hour) ? 1.6 : 1);
+      if(a && a.gains[k] && !paused) v += (a.gains[k] + DECAY[k]) * sdt;
+      this.needs[k] = clamp(v, 0, 100);
+    }
+    if(this.state === "idle"){
+      this.idleT -= sdt;
+      if(this.idleT <= 0) this.decide(hour);
+    } else if(this.state === "walk"){
+      if(this.act === "pet" && !this.petTarget){ this.finish(); return; }
+      const to = new THREE.Vector3().subVectors(this.target, this.pos); to.y = 0;
+      const dist = to.length();
+      if(this.act === "chat" && this.partner){
+        const pp = this.partner.pos; this.partner.face = Math.atan2(this.pos.x - pp.x, this.pos.z - pp.z);
+      }
+      const step = 1.35 * sdt;
+      if(dist <= step || dist < 0.04){
+        this.pos.x = this.target.x; this.pos.z = this.target.z;
+        if(this.act === "stroll" && this.route && this.route.length){ const n = this.route.shift(); this.target.set(n.x, 0.05, n.z); return; }
+        if(this.act === "wander" || this.act === "go" || this.act === "stroll"){ this.finish(); return; }
+        if(this.act === "chat" && !this.partner){ this.finish(); return; }
+        this.state = "act"; this.timer = 0;
+        if(this.act === "chat"){ const pp = this.partner.pos; this.face = Math.atan2(pp.x - this.pos.x, pp.z - this.pos.z); this.partner.face = this.face + Math.PI; }
+        else if(this.act === "pet"){ const pp = this.petTarget.pos; this.face = Math.atan2(pp.x - this.pos.x, pp.z - this.pos.z); }
+        else if(this.targetFace != null) this.face = this.targetFace;
+        this.updateTag();
+      } else {
+        to.divideScalar(dist);
+        for(const o of citizens){
+          if(o === this || o === this.partner) continue;
+          const dx = this.pos.x - o.pos.x, dz = this.pos.z - o.pos.z, dd = Math.hypot(dx, dz);
+          if(dd < 0.6 && dd > 0.001){ to.x += dx/dd * .6; to.z += dz/dd * .6; }
+        }
+        to.normalize();
+        this.pos.addScaledVector(to, step);
+        this.face = Math.atan2(to.x, to.z);
+        this.walkPhase += sdt * 7.2;
+      }
+    } else if(this.state === "act"){
+      this.timer += sdt;
+      const need = ACTS[this.act].need;
+      const full = need && this.needs[need] >= 99.5;
+      const listening = this.act === "chat" && this.partner && this.partner.state === "walk";
+      if(this.act === "pet" && !this.petTarget){ this.finish(); return; }
+      if(!listening && (this.timer > ACTS[this.act].max || (full && this.timer > 3))){
+        if(this.act === "sleep" && isNight(hour) && this.timer < 200){ /* sleep in until morning */ }
+        else this.finish();
+      }
+    }
+    this.root.rotation.y = lerpAngle(this.root.rotation.y, this.face, 1 - Math.exp(-dt * 8));
+    this.animate(dt);
+    const m = this.mood(), orb = this.p.orb;
+    const col = m > 62 ? "#3DAA63" : m > 35 ? "#E2B33A" : "#D9533E";
+    orb.material.color.set(col); orb.material.emissive.set(col);
+    orb.position.y = (this.sleeping() ? 1.25 : 2.1) + Math.sin(this.t * 2) * 0.04;
+    this.tag.position.y = orb.position.y + 0.28;
+  }
+  animate(dt){
+    const P = this.p, t = this.t;
+    const T = { hipL:0, hipR:0, kneeL:0, kneeR:0, shL:0, shR:0, elL:-0.12, elR:-0.12, chest:0, head:0, bodyY:0, bodyX:0, armOut:0.09 };
+    let pose = this.state === "walk" ? "walk" : this.state === "act" ? ACTS[this.act].pose : "idle";
+    if(pose === "pet") pose = this.petTarget?.kind === "parrot" ? "petBird" : "petCrouch";
+    const wave = (f, a = 1) => Math.sin(t * f) * a;
+    const sit = () => { T.hipL = T.hipR = -1.52; T.kneeL = T.kneeR = 1.5; T.bodyY = -0.39; T.shL = T.shR = -0.35; T.elL = T.elR = -0.9; };
+    switch(pose){
+      case "walk": {
+        const ph = this.walkPhase, s = Math.sin(ph);
+        T.hipL = -0.55*s; T.hipR = 0.55*s;
+        T.kneeL = 0.12 + 0.75*Math.max(0, Math.sin(ph + 1.2)); T.kneeR = 0.12 + 0.75*Math.max(0, Math.sin(ph + Math.PI + 1.2));
+        T.shL = 0.45*s; T.shR = -0.45*s; T.elL = T.elR = -0.35;
+        T.bodyY = Math.abs(Math.cos(ph)) * 0.035 - 0.02; T.chest = 0.05; break;
+      }
+      case "sleep": T.bodyX = -Math.PI/2; T.bodyY = 0.66; T.head = -0.1; T.armOut = 0.15; T.chest = wave(1.2, .02); break;
+      case "eat": { sit(); const k = (Math.sin(t*3.2)+1)/2; T.shR = -0.55 - 0.35*k; T.elR = -1.3 - 0.9*k; T.shL = -0.75; T.elL = -0.6; T.head = 0.1; break; }
+      case "tv": sit(); T.head = wave(.5, .06) - 0.05; T.chest = -0.12; break;
+      case "read": T.shL = T.shR = -0.7; T.elL = T.elR = -1.25; T.head = 0.38; T.armOut = 0.02; P.book.visible = true; break;
+      case "garden": { const k = Math.sin(t*2.6); T.chest = 0.95; T.hipL = T.hipR = -0.35; T.kneeL = T.kneeR = 0.55; T.bodyY = -0.12; T.shL = -1.0 + k*.35; T.shR = -1.0 - k*.35; T.elL = T.elR = -0.3; T.head = -0.3; break; }
+      case "shower": { const k = Math.sin(t*6); T.shL = -2.7 + k*.12; T.shR = -2.7 - k*.12; T.elL = T.elR = -1.5; T.head = -0.25; T.armOut = 0.25; break; }
+      case "chat": T.shR = -0.45 - 0.35*Math.max(0, Math.sin(t*2.6)); T.elR = -1.0 + wave(5, .25); T.shL = -0.1; T.head = wave(3, .07); T.chest = wave(1.3, .03); break;
+      case "look": T.head = -0.15 + wave(.6, .08); T.shL = T.shR = 0.25; T.elL = T.elR = -0.5; T.armOut = 0.02; break;
+      case "petCrouch": { const k = Math.sin(t*4); T.hipL = T.hipR = -1.35; T.kneeL = T.kneeR = 2.2; T.bodyY = -0.42; T.chest = 0.5; T.head = 0.45;
+        T.shR = -1.05 + k*.2; T.elR = -0.35; T.shL = -0.4; T.elL = -0.8; break; }
+      case "petBird": T.shR = -1.75 + wave(3, .12); T.elR = -0.7; T.head = -0.2; T.shL = -0.1; break;
+      default: T.chest = wave(1.6, .015); T.head = wave(.7, .05);
+    }
+    if(pose !== "read") P.book.visible = false;
+    const k = 1 - Math.exp(-dt * (pose === "walk" ? 16 : 7));
+    for(const n of ["hipL","hipR","kneeL","kneeR","shL","shR","elL","elR","chest","head"]) P[n].rotation.x = lerp(P[n].rotation.x, T[n], k);
+    P.shL.rotation.z = lerp(P.shL.rotation.z, T.armOut, k); P.shR.rotation.z = lerp(P.shR.rotation.z, -T.armOut, k);
+    P.body.position.y = lerp(P.body.position.y, T.bodyY, k);
+    P.body.rotation.x = lerp(P.body.rotation.x, T.bodyX, 1 - Math.exp(-dt * 5));
+  }
+}
+
+/* ================= Pets ================= */
+const PET_INFO = {
+  dog:    { label:"개",     emoji:"🐶", names:["초코","보리","콩이","두부","몽이"], colors:["#B8834F","#E3C07A","#3B3632","#F2EEE8","#8A5A3B"] },
+  cat:    { label:"고양이", emoji:"🐱", names:["나비","치즈","까미","모모","루루"], colors:["#E59A4C","#8F949B","#2E2C2B","#F1ECE4","#C9B59A"] },
+  parrot: { label:"앵무새", emoji:"🦜", names:["망고","키위","레몬","삐삐","하늘"], colors:["#3FB24F","#E0473A","#3E86D9","#F2C230"] },
+};
+const PET_STATES = { idle:"쉬는 중", walk:"돌아다니는 중", follow:"주인 따라가는 중", eat:"밥 먹는 중", sleep:"자는 중",
+  petted:"쓰다듬받는 중", perch:"횃대에 앉아 있음", fly:"날아다니는 중", shoulder:"주인 어깨 위" };
+const petCount = { dog:0, cat:0, parrot:0 };
+
+function buildDog(color){
+  const root = new THREE.Group(), body = new THREE.Group(); body.position.y = .38; root.add(body);
+  const dark = new THREE.Color(color).multiplyScalar(.6).getStyle();
+  const torso = add(body, mesh(new THREE.CapsuleGeometry(.13, .3, 8, 16), color), 0, 0, 0); torso.rotation.x = Math.PI/2;
+  const head = new THREE.Group(); head.position.set(0, .13, .26); body.add(head);
+  add(head, mesh(new THREE.SphereGeometry(.12, 16, 12), color), 0, 0, 0);
+  add(head, mesh(new THREE.BoxGeometry(.11, .085, .14), color), 0, -.03, .12);
+  add(head, mesh(new THREE.SphereGeometry(.026, 8, 6), "#1A1A1A"), 0, -.005, .195);
+  for(const s of [1, -1]){
+    add(head, mesh(new THREE.SphereGeometry(.018, 8, 6), "#1A1A1A"), s*.05, .035, .1);
+    const ear = add(head, mesh(new THREE.BoxGeometry(.04, .13, .08), dark), s*.1, .02, -.01); ear.rotation.z = s*.25;
+  }
+  const legs = [];
+  for(const [x, z] of [[.075,.16],[-.075,.16],[.075,-.16],[-.075,-.16]]){
+    const g = new THREE.Group(); g.position.set(x, -.05, z); body.add(g);
+    add(g, mesh(new THREE.CapsuleGeometry(.04, .22, 6, 10), color), 0, -.15, 0);
+    add(g, mesh(new THREE.SphereGeometry(.045, 8, 6), dark), 0, -.3, .015);
+    legs.push(g);
+  }
+  const tail = new THREE.Group(); tail.position.set(0, .07, -.27); body.add(tail);
+  const tm = add(tail, mesh(new THREE.CapsuleGeometry(.025, .16, 6, 8), color), 0, .1, 0);
+  tail.rotation.x = -0.7;
+  return { root, body, head, legs, tail, bodyH:.38, lieH:.14 };
+}
+function buildCat(color){
+  const root = new THREE.Group(), body = new THREE.Group(); body.position.y = .25; root.add(body);
+  const torso = add(body, mesh(new THREE.CapsuleGeometry(.085, .24, 8, 14), color), 0, 0, 0); torso.rotation.x = Math.PI/2;
+  const head = new THREE.Group(); head.position.set(0, .09, .2); body.add(head);
+  add(head, mesh(new THREE.SphereGeometry(.085, 16, 12), color), 0, 0, 0);
+  add(head, mesh(new THREE.SphereGeometry(.014, 8, 6), "#E58A9B"), 0, -.015, .085);
+  for(const s of [1, -1]){
+    add(head, mesh(new THREE.ConeGeometry(.035, .07, 8), color), s*.048, .08, -.005);
+    add(head, mesh(new THREE.SphereGeometry(.016, 8, 6), "#9ACD4A"), s*.035, .02, .072);
+  }
+  const legs = [];
+  for(const [x, z] of [[.05,.12],[-.05,.12],[.05,-.12],[-.05,-.12]]){
+    const g = new THREE.Group(); g.position.set(x, -.03, z); body.add(g);
+    add(g, mesh(new THREE.CapsuleGeometry(.025, .16, 6, 8), color), 0, -.105, 0);
+    legs.push(g);
+  }
+  const tail = new THREE.Group(); tail.position.set(0, .03, -.2); body.add(tail);
+  add(tail, mesh(new THREE.CapsuleGeometry(.02, .28, 6, 8), color), 0, .16, 0);
+  tail.rotation.x = -0.9;
+  return { root, body, head, legs, tail, bodyH:.25, lieH:.09 };
+}
+function buildParrot(color){
+  const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
+  const belly = new THREE.Color(color).lerp(new THREE.Color("#FFE680"), .5).getStyle();
+  const torso = add(body, mesh(new THREE.CapsuleGeometry(.065, .1, 8, 14), color), 0, .1, 0); torso.rotation.x = -.3;
+  add(body, mesh(new THREE.SphereGeometry(.05, 12, 10), belly), 0, .08, .04);
+  const head = new THREE.Group(); head.position.set(0, .2, .03); body.add(head);
+  add(head, mesh(new THREE.SphereGeometry(.06, 14, 12), color), 0, 0, 0);
+  const beak = add(head, mesh(new THREE.ConeGeometry(.022, .06, 10), "#3A3530"), 0, -.012, .065); beak.rotation.x = Math.PI/2 + .5;
+  for(const s of [1, -1]){
+    add(head, mesh(new THREE.SphereGeometry(.018, 8, 6), "#FFFFFF"), s*.04, .01, .035);
+    add(head, mesh(new THREE.SphereGeometry(.01, 8, 6), "#111111"), s*.047, .012, .043);
+  }
+  const wings = [];
+  for(const s of [1, -1]){
+    const w = new THREE.Group(); w.position.set(s*.06, .15, -.01); body.add(w);
+    add(w, mesh(new THREE.BoxGeometry(.02, .15, .1), color), 0, -.07, -.01);
+    wings.push(w);
+  }
+  const tail = add(body, mesh(new THREE.BoxGeometry(.05, .17, .015), color), 0, -.03, -.07); tail.rotation.x = .45;
+  for(const s of [1, -1]) add(body, mesh(new THREE.CylinderGeometry(.008, .008, .05, 6), "#3A3530"), s*.02, .0, .0);
+  return { root, body, head, wings, tail };
+}
+
+class Pet {
+  constructor(kind, x, z, owner){
+    this.kind = kind; this.owner = owner;
+    const info = PET_INFO[kind];
+    const n = petCount[kind]++;
+    this.name = info.names[n % info.names.length] + (n >= info.names.length ? Math.floor(n / info.names.length) + 1 : "");
+    this.color = pick(info.colors);
+    this.m = kind === "dog" ? buildDog(this.color) : kind === "cat" ? buildCat(this.color) : buildParrot(this.color);
+    this.root = this.m.root;
+    this.root.traverse(o => { if(o.isMesh) o.userData.pet = this; });
+    this.idx = n;
+    this.root.position.set(x, kind === "parrot" ? PET_HOME.perch.y : 0.05, z);
+    if(kind === "parrot") this.root.position.copy(this.perchPos());
+    scene.add(this.root);
+    this.needs = { hunger:rand(55, 90), energy:rand(55, 90), love:rand(40, 80) };
+    this.state = kind === "parrot" ? "perch" : "idle";
+    this.idleT = rand(1, 3); this.timer = 0; this.face = rand(-3, 3); this.phase = 0; this.t = Math.random()*10;
+    this.moving = false; this.petter = null; this.route = []; this.landing = "perch"; this.afterLand = "perch";
+    const el = document.createElement("div"); el.className = "tag pet"; this.tagEl = el;
+    this.tag = new CSS2DObject(el); this.root.add(this.tag);
+    this.tag.position.y = kind === "dog" ? .82 : kind === "cat" ? .58 : .42;
+    this.updateTag();
+  }
+  get pos(){ return this.root.position; }
+  get emoji(){ return PET_INFO[this.kind].emoji; }
+  perchPos(){ return PET_HOME.perch.clone().add(new THREE.Vector3(-0.25 + (this.idx % 3) * 0.22, 0, 0)); }
+  homeBed(){ const b = this.kind === "dog" ? PET_HOME.dogBed : PET_HOME.catBed; return b.clone().add(new THREE.Vector3((this.idx % 2) * .3 - .15, 0, 0)); }
+  bowl(){ return this.kind === "dog" ? PET_HOME.dogBowl : PET_HOME.catBowl; }
+  stateLabel(){
+    if(this.state === "shoulder" && this.owner) return `${this.owner.name} 어깨 위`;
+    if(this.state === "walk" && this.next === "eat") return "밥 먹으러 가는 중";
+    if(this.state === "walk" && this.next === "sleep") return "잠자리로 가는 중";
+    return PET_STATES[this.state] || "쉬는 중";
+  }
+  updateTag(){ this.tagEl.textContent = this.emoji + " " + this.name + (this.state === "sleep" ? " 💤" : ""); this.tagEl.classList.toggle("sel", this === selectedPet); }
+  pettable(){
+    if(this.petter) return false;
+    if(this.kind === "parrot") return this.state === "perch";
+    return ["idle","walk","follow"].includes(this.state) && !(this.state === "walk" && this.next !== "idle");
+  }
+  beginPetted(c){
+    this.petter = c; this.prevState = this.state;
+    if(this.kind === "parrot"){ this.state = "petted"; this.root.position.copy(this.perchPos()); }
+    else this.state = "petted";
+    this.updateTag();
+  }
+  endPetted(){
+    this.petter = null;
+    this.state = this.kind === "parrot" ? "perch" : "idle"; this.idleT = rand(1, 3);
+    this.updateTag();
+  }
+  goTo(v, next, face){
+    this.target = new THREE.Vector3(v.x, 0.05, v.z); this.next = next; this.nextFace = face; this.state = "walk"; this.updateTag();
+  }
+  moveTo(target, speed, sdt){
+    const dx = target.x - this.pos.x, dz = target.z - this.pos.z, dist = Math.hypot(dx, dz);
+    const step = speed * sdt;
+    if(dist <= Math.max(step, 0.02)){ this.pos.x = target.x; this.pos.z = target.z; return true; }
+    this.pos.x += dx / dist * step; this.pos.z += dz / dist * step;
+    this.face = Math.atan2(dx, dz); this.moving = true; this.phase += sdt * speed * (this.kind === "cat" ? 11 : 9);
+    return false;
+  }
+  ownerOut(){ const o = this.owner; return o && o.state !== "idle" && OUTING.has(o.act); }
+  randomPoint(){ return Math.random() < .8 ? new THREE.Vector3(rand(-6.5, 6.5), 0, rand(-3, 6)) : new THREE.Vector3(rand(-3, 3), 0, rand(7, 8.2)); }
+  decide(hour){
+    const night = isNight(hour);
+    if(this.needs.energy < 25 || (night && this.needs.energy < 97)) return this.goTo(this.homeBed(), "sleep", rand(-3, 3));
+    if(this.needs.hunger < 35) return this.goTo(this.bowl().clone().add(new THREE.Vector3(-.45, 0, 0)), "eat", Math.PI/2);
+    if(this.ownerOut() && Math.random() < (this.kind === "dog" ? .9 : .15)){ this.state = "follow"; this.updateTag(); return; }
+    const r = Math.random();
+    if(r < .25){
+      const c = pick(citizens.filter(c => !c.sleeping()));
+      if(c){ const a = rand(0, Math.PI*2); return this.goTo(new THREE.Vector3(c.pos.x + Math.sin(a)*.8, 0, c.pos.z + Math.cos(a)*.8), "idle"); }
+    }
+    if(r < (this.kind === "cat" ? .55 : .75)) return this.goTo(this.randomPoint(), "idle");
+    this.idleT = rand(3, 7);
+  }
+  updateWalker(dt, sdt, hour){
+    const speed = this.kind === "dog" ? 1.5 : 1.1;
+    switch(this.state){
+      case "idle":
+        this.idleT -= sdt;
+        if(this.kind === "dog" && this.ownerOut()){ this.state = "follow"; this.updateTag(); break; }
+        if(this.idleT <= 0) this.decide(hour);
+        break;
+      case "walk":
+        if(this.kind === "dog" && this.next === "idle" && this.ownerOut()){ this.state = "follow"; this.updateTag(); break; }
+        if(this.moveTo(this.target, speed, sdt)){
+          this.state = this.next; this.timer = 0; this.idleT = rand(2, 5);
+          if(this.nextFace != null) this.face = this.nextFace;
+          this.updateTag();
+        }
+        break;
+      case "eat":
+        this.timer += sdt;
+        if(this.timer > 7 || this.needs.hunger >= 99){ this.state = "idle"; this.idleT = rand(1, 3); this.updateTag(); }
+        break;
+      case "sleep":
+        if(this.needs.energy >= 99 && !isNight(hour)){ this.state = "idle"; this.idleT = rand(1, 3); this.updateTag(); }
+        break;
+      case "follow": {
+        const o = this.owner;
+        if(!this.ownerOut()){ this.state = "idle"; this.idleT = rand(1, 4); this.updateTag(); break; }
+        const f = o.root.rotation.y, fx = Math.sin(f), fz = Math.cos(f);
+        const side = this.idx % 2 ? -1 : 1;
+        const tgt = new THREE.Vector3(o.pos.x - fx * .8 + fz * .5 * side, 0, o.pos.z - fz * .8 - fx * .5 * side);
+        const dist = Math.hypot(tgt.x - this.pos.x, tgt.z - this.pos.z);
+        if(dist > 0.3) this.moveTo(tgt, dist > 2.5 ? 2.8 : 1.6, sdt);
+        else this.face = lerpAngle(this.face, Math.atan2(o.pos.x - this.pos.x, o.pos.z - this.pos.z), .1);
+        break;
+      }
+      case "petted":
+        if(!this.petter){ this.state = "idle"; break; }
+        { const p = this.petter.pos; if(this.petter.state === "act") this.face = Math.atan2(p.x - this.pos.x, p.z - this.pos.z); }
+        break;
+    }
+  }
+  shoulderPos(){
+    const v = new THREE.Vector3(); this.owner.p.shL.getWorldPosition(v); v.y += 0.08; return v;
+  }
+  ownerHostsBird(){ const o = this.owner; return o && !o.sleeping() && !(o.state === "act" && ["shower","pet"].includes(o.act)); }
+  takeOff(landing, after = "perch", hops = 3){
+    this.route = [];
+    for(let i = 0; i < hops; i++) this.route.push(new THREE.Vector3(rand(-6, 14), rand(2.2, 3.4), rand(-4, 8)));
+    this.landing = landing; this.afterLand = after; this.state = "fly"; this.updateTag();
+  }
+  updateBird(dt, sdt, hour){
+    const night = isNight(hour);
+    switch(this.state){
+      case "perch": case "eat": case "sleep": case "petted": {
+        this.pos.copy(this.perchPos()); this.face = lerpAngle(this.face, 0, .05);
+        if(this.state === "petted"){ if(!this.petter){ this.state = "perch"; this.updateTag(); } break; }
+        if(this.state === "sleep"){ if(!night && this.needs.energy >= 95){ this.state = "perch"; this.idleT = rand(2, 5); this.updateTag(); } break; }
+        if(this.state === "eat"){ this.timer += sdt; if(this.timer > 6 || this.needs.hunger >= 99){ this.state = "perch"; this.idleT = rand(2, 4); this.updateTag(); } break; }
+        this.idleT -= sdt;
+        if(this.idleT > 0) break;
+        if(night || this.needs.energy < 25){ this.state = "sleep"; this.updateTag(); break; }
+        if(this.needs.hunger < 40){ this.state = "eat"; this.timer = 0; this.updateTag(); break; }
+        if(Math.random() < .6){
+          const toOwner = this.ownerHostsBird() && Math.random() < .5;
+          this.takeOff(toOwner ? "shoulder" : "perch");
+        } else this.idleT = rand(4, 8);
+        break;
+      }
+      case "fly": {
+        let tgt;
+        if(this.route.length) tgt = this.route[0];
+        else if(this.landing === "shoulder" && this.ownerHostsBird()) tgt = this.shoulderPos();
+        else { this.landing = "perch"; tgt = this.perchPos(); }
+        const d = new THREE.Vector3().subVectors(tgt, this.pos), dist = d.length();
+        const step = 3.0 * sdt;
+        if(dist <= Math.max(step, .03)){
+          this.pos.copy(tgt);
+          if(this.route.length){ this.route.shift(); break; }
+          if(this.landing === "shoulder"){ this.state = "shoulder"; this.timer = rand(15, 30); }
+          else { this.state = this.afterLand; this.timer = 0; this.idleT = rand(4, 8); }
+          this.updateTag();
+        } else {
+          this.pos.addScaledVector(d.divideScalar(dist), step);
+          if(Math.abs(d.x) + Math.abs(d.z) > .05) this.face = Math.atan2(d.x, d.z);
+        }
+        break;
+      }
+      case "shoulder": {
+        if(!this.ownerHostsBird() || night){ this.takeOff("perch", night ? "sleep" : "perch", 1); break; }
+        this.pos.copy(this.shoulderPos()); this.face = this.owner.root.rotation.y;
+        this.timer -= sdt;
+        if(this.timer <= 0) this.takeOff("perch", "perch", 2);
+        break;
+      }
+    }
+  }
+  update(dt, sdt, hour){
+    this.t += dt; this.moving = false;
+    const n = this.needs;
+    n.hunger -= .25 * sdt; n.energy -= .15 * sdt; n.love -= .3 * sdt;
+    if(this.state === "eat") n.hunger += 10 * sdt;
+    if(this.state === "sleep") n.energy += 2.2 * sdt;
+    if(this.state === "petted" && this.petter?.state === "act") n.love += 9 * sdt;
+    if(this.state === "follow" || this.state === "shoulder") n.love += .9 * sdt;
+    for(const k in n) n[k] = clamp(n[k], 0, 100);
+    if(this.kind === "parrot") this.updateBird(dt, sdt, hour); else this.updateWalker(dt, sdt, hour);
+    this.root.rotation.y = lerpAngle(this.root.rotation.y, this.face, 1 - Math.exp(-dt * 8));
+    this.animate(dt);
+  }
+  animate(dt){
+    const m = this.m, t = this.t, k = 1 - Math.exp(-dt * 10);
+    if(this.kind === "parrot"){
+      const flying = this.state === "fly";
+      const flap = flying ? Math.sin(t * 24) * .9 + .5 : .05;
+      m.wings[0].rotation.z = lerp(m.wings[0].rotation.z, flap, flying ? 1 : k);
+      m.wings[1].rotation.z = lerp(m.wings[1].rotation.z, -flap, flying ? 1 : k);
+      m.body.rotation.x = lerp(m.body.rotation.x, flying ? .7 : 0, k);
+      let hx = 0;
+      if(this.state === "sleep") hx = .6;
+      else if(this.state === "eat") hx = .5 + Math.sin(t * 8) * .3;
+      else if(this.state === "petted") hx = -.3 + Math.sin(t * 5) * .1;
+      m.head.rotation.x = lerp(m.head.rotation.x, hx, k);
+      m.head.rotation.y = this.state === "perch" || this.state === "shoulder" ? Math.sin(t * .9) * .6 : 0;
+      this.tag.visible = true;
+      return;
+    }
+    const lying = this.state === "sleep";
+    const sw = this.moving ? Math.sin(this.phase) * .6 : 0;
+    const legT = lying ? [-1.35, -1.35, 1.35, 1.35] : [sw, -sw, -sw, sw];
+    m.legs.forEach((l, i) => l.rotation.x = lerp(l.rotation.x, legT[i], k));
+    m.body.position.y = lerp(m.body.position.y, lying ? m.lieH : m.bodyH + (this.moving ? Math.abs(Math.cos(this.phase)) * .02 : 0), k);
+    let hx = 0, hy = 0;
+    if(lying) hx = .35;
+    else if(this.state === "eat") hx = .7 + Math.sin(t * 7) * .12;
+    else if(this.state === "petted") hx = -.35;
+    else if(!this.moving) hy = Math.sin(t * .8) * .5;
+    m.head.rotation.x = lerp(m.head.rotation.x, hx, k); m.head.rotation.y = lerp(m.head.rotation.y, hy, k);
+    if(this.kind === "dog"){
+      const excited = this.state === "petted" || this.state === "follow";
+      m.tail.rotation.z = Math.sin(t * (excited ? 18 : 6)) * (lying ? .05 : excited ? .7 : .35);
+    } else {
+      m.tail.rotation.z = Math.sin(t * 1.4) * (lying ? .1 : .45);
+      m.tail.rotation.x = lerp(m.tail.rotation.x, lying ? -1.5 : this.state === "petted" ? -0.2 : -0.9, k);
+    }
+  }
+}
+
+/* ================= UI ================= */
+let selected = null, selectedPet = null, follow = false, hourNow = 8;
+const peopleEl = document.getElementById("people"), petsEl = document.getElementById("pets");
+const needsEl = document.getElementById("needs");
+const colorFor = v => v > 62 ? "var(--good)" : v > 35 ? "var(--mid)" : "var(--bad)";
+let needEls = {};
+function buildNeedRows(keys){
+  needsEl.innerHTML = ""; needEls = {};
+  keys.forEach(([k, label]) => {
+    const row = document.createElement("div"); row.className = "need";
+    row.innerHTML = `<span>${label}</span><div class="bar" role="meter" aria-label="${label}" aria-valuemin="0" aria-valuemax="100"><div class="fill"></div></div><output class="num"></output>`;
+    needsEl.appendChild(row);
+    needEls[k] = { bar: row.querySelector(".bar"), fill: row.querySelector(".fill"), out: row.querySelector("output") };
+  });
+}
+function renderLists(){
+  peopleEl.innerHTML = "";
+  for(const c of citizens){
+    const li = document.createElement("li");
+    const b = document.createElement("button"); b.className = "person"; b.type = "button";
+    b.innerHTML = `<span class="chip" style="background:${c.look.shirt};color:${c.look.shirt === "#FFFFFF" ? "#1A212C" : "#fff"}">${c.gender === "f" ? "여" : "남"}</span><span><span class="nm"></span><br><span class="sub"></span></span><span class="mood"></span>`;
+    b.querySelector(".nm").textContent = c.name;
+    b.addEventListener("click", () => c === selected ? clearSelection() : selectCitizen(c));
+    c.listBtn = b; li.appendChild(b); peopleEl.appendChild(li);
+  }
+  petsEl.innerHTML = "";
+  for(const p of pets){
+    const li = document.createElement("li");
+    const b = document.createElement("button"); b.className = "person"; b.type = "button";
+    b.innerHTML = `<span class="chip emoji">${p.emoji}</span><span><span class="nm"></span><br><span class="sub"></span></span><span class="mood"></span>`;
+    b.querySelector(".nm").textContent = p.name + (p.owner ? ` · ${p.owner.name}네` : "");
+    b.addEventListener("click", () => p === selectedPet ? clearSelection() : selectPet(p));
+    p.listBtn = b; li.appendChild(b); petsEl.appendChild(li);
+  }
+  syncSelectionUI();
+}
+function refreshUI(){
+  for(const c of citizens){
+    if(!c.listBtn) continue;
+    c.listBtn.querySelector(".sub").textContent = c.actLabel();
+    c.listBtn.querySelector(".mood").style.background = colorFor(c.mood());
+  }
+  for(const p of pets){
+    if(!p.listBtn) continue;
+    p.listBtn.querySelector(".sub").textContent = p.stateLabel();
+    p.listBtn.querySelector(".mood").style.background = colorFor((p.needs.hunger + p.needs.energy + p.needs.love) / 3);
+  }
+  const subj = selected || selectedPet;
+  if(subj){
+    document.getElementById("dAct").textContent = selected ? selected.actLabel() : selectedPet.stateLabel();
+    for(const k in needEls){
+      const v = subj.needs[k], e = needEls[k];
+      e.fill.style.width = v.toFixed(0) + "%"; e.fill.style.background = colorFor(v);
+      e.out.textContent = v.toFixed(0); e.bar.setAttribute("aria-valuenow", v.toFixed(0));
+    }
+  }
+}
+function syncSelectionUI(){
+  const subj = selected || selectedPet;
+  document.getElementById("detail").hidden = !subj;
+  document.getElementById("idleHelp").hidden = !!subj;
+  if(selected){
+    document.getElementById("dName").textContent = `${selected.name} (${selected.gender === "f" ? "여" : "남"})`;
+    const owned = selected.pets.map(p => p.emoji + " " + p.name).join(", ");
+    document.getElementById("detailHelp").textContent =
+      (owned ? `반려동물: ${owned}. ` : "") + "선택한 상태에서 가구나 반려동물을 클릭하면 그걸 하러 가고, 바닥을 클릭하면 그곳으로 걸어가요. 공원 벤치와 분수도 쓸 수 있어요. Esc로 선택을 풀어요.";
+    document.getElementById("stopBtn").hidden = false;
+  } else if(selectedPet){
+    document.getElementById("dName").textContent = `${selectedPet.emoji} ${selectedPet.name} (${PET_INFO[selectedPet.kind].label})`;
+    document.getElementById("detailHelp").textContent = selectedPet.owner ? `주인: ${selectedPet.owner.name}` + (selectedPet.kind === "dog" ? " · 주인이 산책하거나 외출하면 따라나서요." : selectedPet.kind === "parrot" ? " · 가끔 날아가서 주인 어깨에 앉아요." : " · 마음 내킬 때만 주인을 따라가요.") : "";
+    document.getElementById("stopBtn").hidden = true;
+  }
+  citizens.forEach(x => { x.updateTag(); x.listBtn?.setAttribute("aria-pressed", x === selected); });
+  pets.forEach(x => { x.updateTag(); x.listBtn?.setAttribute("aria-pressed", x === selectedPet); });
+  refreshUI();
+}
+function selectCitizen(c){ selected = c; selectedPet = null; buildNeedRows(NEED_KEYS); syncSelectionUI(); }
+function selectPet(p){ selectedPet = p; selected = null; buildNeedRows(PET_NEEDS); syncSelectionUI(); }
+function clearSelection(){
+  selected = null; selectedPet = null; follow = false;
+  document.getElementById("followBtn").setAttribute("aria-pressed", "false");
+  syncSelectionUI();
+}
+let toastTimer;
+function toast(msg){
+  const t = document.getElementById("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 1900);
+}
+document.getElementById("followBtn").addEventListener("click", e => { follow = !follow; e.currentTarget.setAttribute("aria-pressed", follow); camAnim = null; });
+document.getElementById("stopBtn").addEventListener("click", () => { if(selected){ selected.finish(); toast(selected.name + " 님이 하던 일을 멈췄어요"); } });
+function addCitizen(g){
+  const c = new Citizen(rand(-1, 1), rand(5, 6.5), g); citizens.push(c); renderLists(); selectCitizen(c);
+  toast(`${c.name} 님이 이사 왔어요`);
+}
+document.getElementById("addM").addEventListener("click", () => addCitizen("m"));
+document.getElementById("addF").addEventListener("click", () => addCitizen("f"));
+document.querySelectorAll("[data-addpet]").forEach(b => b.addEventListener("click", () => {
+  const owner = selected || pick(citizens);
+  const p = new Pet(b.dataset.addpet, rand(-2, 2), rand(3, 5), owner);
+  pets.push(p); renderLists(); selectPet(p);
+  toast(`${owner.name} 님이 ${PET_INFO[p.kind].label} ${p.name}을(를) 데려왔어요`);
+}));
+document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => goView(b.dataset.view)));
+let speed = 1;
+document.querySelectorAll(".speed button").forEach(b => b.addEventListener("click", () => {
+  speed = +b.dataset.s;
+  document.querySelectorAll(".speed button").forEach(x => x.setAttribute("aria-pressed", x === b));
+}));
+addEventListener("keydown", e => { if(e.key === "Escape") clearSelection(); });
+
+/* picking */
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+let downAt = null;
+canvas.addEventListener("pointerdown", e => { downAt = [e.clientX, e.clientY]; });
+canvas.addEventListener("pointerup", e => {
+  if(!downAt) return;
+  const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]); downAt = null;
+  if(moved > 6) return;
+  const r = canvas.getBoundingClientRect();
+  ptr.set(((e.clientX - r.left)/r.width)*2 - 1, -((e.clientY - r.top)/r.height)*2 + 1);
+  ray.setFromCamera(ptr, camera);
+  const hits = ray.intersectObjects(scene.children, true).filter(h => h.object.isMesh && h.object.visible);
+  const hit = hits.find(h => { const u = h.object.userData; return u.citizen || u.pet || u.obj || u.ground; });
+  if(!hit) return;
+  const u = hit.object.userData;
+  if(u.citizen){ selectCitizen(u.citizen); return; }
+  if(u.pet){
+    if(selected){
+      const p = u.pet;
+      if(!p.pettable()){ toast(`${p.name}은(는) 지금 ${p.stateLabel()}이라 놀 수 없어요`); return; }
+      selected.startPet(p); toast(`${selected.name}: ${p.name}와(과) 놀러 가요`);
+    } else selectPet(u.pet);
+    return;
+  }
+  if(!selected) return;
+  if(u.obj){
+    if(!u.obj.act || !u.obj.spots.length){ toast(u.obj.name + "은(는) 직접 쓸 수 없어요"); return; }
+    const res = selected.order(u.obj);
+    if(res === "ok") toast(`${selected.name}: ${u.obj.name}(으)로 가요`);
+    else if(res === "night") toast("밤에는 공원 시설을 쓰지 않아요");
+    else toast(u.obj.name + "에 빈자리가 없어요");
+  } else if(u.ground){
+    const p = hit.point; selected.orderMove(clamp(p.x, -14, 32), clamp(p.z, -5.5, 16));
+  }
+});
+
+/* ================= Time & lighting ================= */
+let simMin = 8 * 60;
+const MIN_PER_SEC = 2;
+function updateSky(){
+  const h = (simMin / 60) % 24;
+  const day = Math.max(0, Math.sin((h - 6) / 12 * Math.PI));
+  const ang = (h - 6) / 12 * Math.PI;
+  sun.position.set(8 + Math.cos(ang) * 18, Math.max(Math.sin(ang), 0.15) * 22, 2 + 8);
+  sun.intensity = 0.15 + 2.4 * day;
+  hemi.intensity = 0.35 + 0.95 * day;
+  const dark = 1 - Math.min(1, day * 2.5);
+  lamp.intensity = dark * 16; parkLight.intensity = dark * 30;
+  lampHeads.forEach(l => l.material.emissiveIntensity = dark * 2.2);
+  const dusk = Math.max(0, 1 - Math.abs(day - 0.18) / 0.18) * (day < .4 ? 1 : 0);
+  scene.background.copy(SKY_NIGHT).lerp(SKY_DAY, Math.min(1, day * 1.6)).lerp(SKY_DUSK, dusk * 0.6);
+  const hh = Math.floor(h), mm = Math.floor(simMin % 60);
+  document.getElementById("clockTime").textContent = String(hh).padStart(2, "0") + ":" + String(mm).padStart(2, "0");
+  document.getElementById("clockDay").textContent = `${Math.floor(simMin / 1440) + 1}일차 ${h >= 6 && h < 19 ? "☀️" : "🌙"}`;
+  return h;
+}
+
+/* ================= Start ================= */
+const c1 = new Citizen(-1, 3, "m"), c2 = new Citizen(1.5, 4.5, "f"), c3 = new Citizen(3, 2, "m"), c4 = new Citizen(-2.5, 5, "f");
+citizens.push(c1, c2, c3, c4);
+pets.push(new Pet("dog", 0, 4, c1), new Pet("cat", -3, 3.5, c2), new Pet("parrot", 0, 0, c3));
+renderLists();
+
+function resize(){
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false); labelRenderer.setSize(w, h);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage); resize();
+
+const clock = new THREE.Clock();
+let uiT = 0;
+function frame(){
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const sdt = dt * speed;
+  simMin += sdt * MIN_PER_SEC;
+  hourNow = updateSky();
+  const adt = speed ? dt : 0;
+  for(const c of citizens) c.update(adt, sdt, hourNow);
+  for(const p of pets) p.update(adt, sdt, hourNow);
+  if(spout){ spout.scale.y = 1 + Math.sin(performance.now() / 180) * .12; }
+  if(camAnim){
+    camAnim.t = Math.min(1, camAnim.t + dt / 1.1);
+    const e = camAnim.t < .5 ? 2*camAnim.t*camAnim.t : 1 - Math.pow(-2*camAnim.t + 2, 2) / 2;
+    camera.position.lerpVectors(camAnim.fromP, camAnim.toP, e);
+    orbit.target.lerpVectors(camAnim.fromT, camAnim.toT, e);
+    if(camAnim.t >= 1) camAnim = null;
+  }
+  const subj = selected || selectedPet;
+  if(follow && subj){ orbit.target.lerp(new THREE.Vector3(subj.pos.x, 0.9, subj.pos.z), 1 - Math.exp(-dt * 3)); }
+  orbit.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+  if((uiT += dt) > 0.25){ uiT = 0; refreshUI(); }
+  requestAnimationFrame(frame);
+}
+frame();
+</script>
+</body>
+</html>
