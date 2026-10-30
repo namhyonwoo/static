@@ -1651,12 +1651,16 @@ const PEER_PREFIX = "citizen-sim-namhyonwoo-static-";
 /* WebRTC 연결 후보를 찾는 서버. STUN만으로는 휴대폰 통신망처럼 NAT가 엄격한 환경에서 연결이 안 될 수 있다.
    TURN_ENDPOINT 에 자격증명 발급 Worker 주소(turn-worker.js 참고)를 넣으면 시작할 때 TURN 서버를 받아와 함께 쓴다. */
 const TURN_ENDPOINT = "";   // 예: "https://citizen-turn.<계정>.workers.dev"
+/* 고정 자격증명을 주는 TURN(예: Metered)은 여기에 바로 넣는다. HTML에 그대로 노출되므로 무료 한도 안의 데모 용도에만 적합하다.
+   예: { urls:["turn:standard.relay.metered.ca:80", "turn:standard.relay.metered.ca:443", "turns:standard.relay.metered.ca:443?transport=tcp"], username:"...", credential:"..." } */
+const TURN_STATIC = [];
 const ICE = { iceServers: [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun.cloudflare.com:3478"] },
 ] };
 const PEER_OPTS = { config: ICE };
 let turnReady = false;
 async function loadTurn(){
+  if(TURN_STATIC.length){ ICE.iceServers = [...ICE.iceServers, ...TURN_STATIC]; turnReady = true; }
   if(!TURN_ENDPOINT) return;
   try {
     const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 4000);
