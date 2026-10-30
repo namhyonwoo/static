@@ -1243,16 +1243,20 @@ function petResult(c, p){
 function addCitizen(g, select = true){
   const c = new Citizen(rand(-1, 1), rand(5, 6.5), g); citizens.push(c); renderLists();
   if(select) selectCitizen(c);
-  hostBroadcastInit();
-  return `${c.name} 님이 이사 왔어요`;
+  return announce(`${c.name} 님이 이사 왔어요`);
 }
 function addPet(kind, owner, select = true){
   owner = owner || pick(citizens);
   const p = new Pet(kind, rand(-2, 2), rand(3, 5), owner);
   pets.push(p); renderLists();
   if(select) selectPet(p);
+  return announce(`${owner.name} 님이 ${PET_INFO[p.kind].label} ${p.name}을(를) 데려왔어요`);
+}
+/* 시민·반려동물이 늘어나면 호스트가 새 정의와 안내 토스트를 모든 관전자에게 전파한다 */
+function announce(msg){
   hostBroadcastInit();
-  return `${owner.name} 님이 ${PET_INFO[p.kind].label} ${p.name}을(를) 데려왔어요`;
+  if(net.role === "host") broadcast({ t:"toast", msg });
+  return msg;
 }
 document.getElementById("addM").addEventListener("click", () => net.role === "viewer" ? sendCmd({ k:"addC", g:"m" }) : toast(addCitizen("m")));
 document.getElementById("addF").addEventListener("click", () => net.role === "viewer" ? sendCmd({ k:"addC", g:"f" }) : toast(addCitizen("f")));
@@ -1359,8 +1363,8 @@ function handleCommand(conn, m){
     case "move": if(c && Number.isFinite(m.x) && Number.isFinite(m.z)) c.orderMove(clamp(m.x, -14, 32), clamp(m.z, -5.5, 16)); break;
     case "pet": { const p = pets.find(x => x.id === m.pid); if(c && p) msg = petResult(c, p); break; }
     case "stop": if(c) msg = stopResult(c); break;
-    case "addC": if(m.g === "m" || m.g === "f"){ msg = addCitizen(m.g, false); toast(msg); } break;
-    case "addP": if(PET_INFO[m.kind]){ msg = addPet(m.kind, citizens.find(x => x.id === m.owner), false); toast(msg); } break;
+    case "addC": if(m.g === "m" || m.g === "f") toast(addCitizen(m.g, false)); break;   // 토스트는 announce()가 전원에게 보냄
+    case "addP": if(PET_INFO[m.kind]) toast(addPet(m.kind, citizens.find(x => x.id === m.owner), false)); break;
     case "speed": if([0, 1, 3, 8].includes(m.s)) setSpeed(m.s); break;
   }
   if(msg && conn.open) conn.send({ t:"toast", msg });
