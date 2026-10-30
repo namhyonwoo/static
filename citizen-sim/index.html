@@ -75,6 +75,8 @@ body{
 .speed button[aria-pressed="true"]{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:600; }
 h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
 .list{ list-style:none; margin:0; padding:0; display:grid; gap:.2rem; }
+.list li{ display:flex; align-items:center; gap:.25rem; }
+.list .person{ flex:1; min-width:0; }
 .person{
   width:100%; display:grid; grid-template-columns:1.5rem 1fr auto; align-items:center; gap:.55rem; text-align:left;
   font:inherit; color:var(--ink); background:none; border:1px solid transparent; border-radius:8px; padding:.45rem .55rem; cursor:pointer;
@@ -85,7 +87,22 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
 .person .chip.emoji{ background:none; font-size:1.1rem; }
 .person .sub{ color:var(--muted); font-size:.8rem; }
 .person .mood{ width:.65rem; height:.65rem; border-radius:50%; }
-.detail{ border-top:1px solid var(--line); margin-top:1rem; padding-top:.2rem; }
+/* 상세 모달 */
+.modal{ position:absolute; inset:0; z-index:5; display:grid; place-items:center; padding:1rem; background:rgba(10,14,20,.38); }
+.modal-card{
+  background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:14px; padding:1rem 1.1rem 1.1rem;
+  width:min(23rem, 100%); max-height:100%; overflow:auto; box-shadow:0 20px 50px rgba(0,0,0,.3);
+}
+.modal-head{ display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+.modal-head h2{ margin:0; font-size:1.1rem; }
+.btn.icon{ padding:.25rem .55rem; min-height:0; line-height:1.4; }
+/* 심 옆에 뜨는 설정 버튼 */
+.gear{
+  pointer-events:auto; font:inherit; font-size:12px; font-weight:600; color:#1A212C; background:rgba(255,255,255,.95);
+  border:1px solid rgba(0,0,0,.12); border-radius:999px; padding:.28rem .65rem; cursor:pointer; white-space:nowrap;
+  box-shadow:0 2px 8px rgba(0,0,0,.18);
+}
+.gear:hover{ background:#1A212C; color:#fff; }
 .need{ display:grid; grid-template-columns:3.2rem 1fr 2.4rem; gap:.6rem; align-items:center; margin:.45rem 0; }
 .need .bar{ height:.55rem; background:var(--track); border-radius:999px; overflow:hidden; }
 .need .fill{ height:100%; border-radius:999px; transition:width .3s, background-color .3s; }
@@ -146,6 +163,23 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
   </div>
   <div class="toast" id="toast" role="status"></div>
   <div class="netpill" id="netPill" hidden><span class="dot"></span><span id="netPillText">연결 중…</span></div>
+  <div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="dName">
+    <div class="modal-card">
+      <div class="modal-head"><h2 id="dName">이름</h2><button class="btn icon" id="modalClose" type="button" aria-label="닫기">✕</button></div>
+      <div class="meta" id="dAct"></div>
+      <div id="needs"></div>
+      <div class="row-btns">
+        <button class="btn" id="followBtn" type="button" aria-pressed="false">카메라 따라가기</button>
+        <button class="btn" id="stopBtn" type="button">하던 일 멈추기</button>
+      </div>
+      <form class="miniform" id="editForm" hidden>
+        <label>이름 <input id="editName" maxlength="12" autocomplete="off"></label>
+        <label>인사말 <input id="editGreet" maxlength="40" autocomplete="off"></label>
+        <div class="row-btns"><button class="btn" type="submit">저장</button></div>
+      </form>
+      <p class="help" id="detailHelp"></p>
+    </div>
+  </div>
 </main>
 
 <aside class="panel" aria-label="시뮬레이션 정보">
@@ -194,22 +228,7 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
     <button class="btn" data-addpet="parrot" type="button">🦜 앵무새</button>
   </div>
 
-  <section class="detail" id="detail" hidden>
-    <h2 id="dName">이름</h2>
-    <div class="meta" id="dAct"></div>
-    <div id="needs"></div>
-    <div class="row-btns">
-      <button class="btn" id="followBtn" type="button" aria-pressed="false">카메라 따라가기</button>
-      <button class="btn" id="stopBtn" type="button">하던 일 멈추기</button>
-    </div>
-    <form class="miniform" id="editForm" hidden>
-      <label>이름 <input id="editName" maxlength="12" autocomplete="off"></label>
-      <label>인사말 <input id="editGreet" maxlength="40" autocomplete="off"></label>
-      <div class="row-btns"><button class="btn" type="submit">저장</button></div>
-    </form>
-    <p class="help" id="detailHelp"></p>
-  </section>
-  <p class="help" id="idleHelp">시민이나 반려동물을 클릭하면 상태를 볼 수 있어요. 시민은 욕구에 따라 스스로 할 일을 정하고, 개는 주인이 외출하면 따라나서요.</p>
+  <p class="help" id="idleHelp">시민이나 반려동물을 클릭하면 선택되고 옆에 설정 버튼이 떠요. 설정에서 상태와 이름·인사말을 볼 수 있어요. 시민은 욕구에 따라 스스로 할 일을 정하고, 개는 주인이 외출하면 따라나서요.</p>
 </aside>
 
 <script type="module">
@@ -1210,6 +1229,20 @@ function buildNeedRows(keys){
     needEls[k] = { bar: row.querySelector(".bar"), fill: row.querySelector(".fill"), out: row.querySelector("output") };
   });
 }
+function rowGear(onClick){
+  const g = document.createElement("button"); g.className = "btn icon"; g.type = "button"; g.textContent = "⚙"; g.setAttribute("aria-label", "상세 설정");
+  g.addEventListener("click", onClick); return g;
+}
+/* 선택한 심 옆에 뜨는 설정 버튼(3D 공간에 붙는 HTML 라벨) */
+const gearEl = document.createElement("button"); gearEl.className = "gear"; gearEl.type = "button"; gearEl.textContent = "⚙ 설정";
+const gearObj = new CSS2DObject(gearEl); gearObj.visible = false; scene.add(gearObj);
+gearEl.addEventListener("pointerdown", e => e.stopPropagation());
+gearEl.addEventListener("click", e => { e.stopPropagation(); openModal(); });
+const modal = document.getElementById("modal");
+function openModal(){ if(!(selected || selectedPet)) return; syncSelectionUI(); modal.hidden = false; document.getElementById("modalClose").focus(); }
+function closeModal(){ modal.hidden = true; }
+document.getElementById("modalClose").addEventListener("click", closeModal);
+modal.addEventListener("click", e => { if(e.target === modal) closeModal(); });
 function renderLists(){
   peopleEl.innerHTML = "";
   for(const c of citizens){
@@ -1218,7 +1251,7 @@ function renderLists(){
     b.innerHTML = `<span class="chip" style="background:${c.look.shirt};color:${c.look.shirt === "#FFFFFF" ? "#1A212C" : "#fff"}">${c.gender === "f" ? "여" : "남"}</span><span><span class="nm"></span><br><span class="sub"></span></span><span class="mood"></span>`;
     b.querySelector(".nm").textContent = c.name;
     b.addEventListener("click", () => c === selected ? clearSelection() : selectCitizen(c));
-    c.listBtn = b; li.appendChild(b); peopleEl.appendChild(li);
+    c.listBtn = b; li.appendChild(b); li.appendChild(rowGear(() => { selectCitizen(c); openModal(); })); peopleEl.appendChild(li);
   }
   petsEl.innerHTML = "";
   for(const p of pets){
@@ -1227,7 +1260,7 @@ function renderLists(){
     b.innerHTML = `<span class="chip emoji">${p.emoji}</span><span><span class="nm"></span><br><span class="sub"></span></span><span class="mood"></span>`;
     b.querySelector(".nm").textContent = p.name + (p.owner ? ` · ${p.owner.name}네` : "");
     b.addEventListener("click", () => p === selectedPet ? clearSelection() : selectPet(p));
-    p.listBtn = b; li.appendChild(b); petsEl.appendChild(li);
+    p.listBtn = b; li.appendChild(b); li.appendChild(rowGear(() => { selectPet(p); openModal(); })); petsEl.appendChild(li);
   }
   syncSelectionUI();
 }
@@ -1254,15 +1287,15 @@ function refreshUI(){
 }
 function syncSelectionUI(){
   const subj = selected || selectedPet;
-  document.getElementById("detail").hidden = !subj;
-  document.getElementById("idleHelp").hidden = !!subj;
+  if(!subj) closeModal();
+  gearObj.visible = !!subj;
   document.getElementById("editForm").hidden = !selected;
   if(selected){
     document.getElementById("dName").textContent = `${selected.name} (${selected.gender === "f" ? "여" : "남"})`;
     document.getElementById("editName").value = selected.name; document.getElementById("editGreet").value = selected.greeting;
     const owned = selected.pets.map(p => p.emoji + " " + p.name).join(", ");
     document.getElementById("detailHelp").textContent =
-      (owned ? `반려동물: ${owned}. ` : "") + "선택한 상태에서 가구나 반려동물을 클릭하면 그걸 하러 가고, 바닥을 클릭하면 그곳으로 걸어가요. 공원 벤치와 분수도 쓸 수 있어요. Esc로 선택을 풀어요.";
+      (owned ? `반려동물: ${owned}. ` : "") + "선택한 상태에서 가구나 반려동물을 클릭하면 그걸 하러 가고, 바닥을 클릭하면 그곳으로 걸어가요. 공원 벤치와 분수도 쓸 수 있어요. Esc로 창을 닫거나 선택을 풀어요.";
     document.getElementById("stopBtn").hidden = false;
   } else if(selectedPet){
     document.getElementById("dName").textContent = `${selectedPet.emoji} ${selectedPet.name} (${PET_INFO[selectedPet.kind].label})`;
@@ -1371,7 +1404,7 @@ document.querySelectorAll(".speed button").forEach(b => b.addEventListener("clic
   if(net.role === "viewer"){ sendCmd({ k:"speed", s:+b.dataset.s }); return; }
   setSpeed(+b.dataset.s);
 }));
-addEventListener("keydown", e => { if(e.key === "Escape") clearSelection(); });
+addEventListener("keydown", e => { if(e.key === "Escape"){ if(!modal.hidden) closeModal(); else clearSelection(); } });
 
 /* picking */
 const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
@@ -1614,6 +1647,8 @@ function frame(){
     const h = selected ? selected.p.orb.position.y + 0.95 : subj.kind === "dog" ? 1.1 : subj.kind === "cat" ? .85 : .6;
     marker.position.set(subj.pos.x, subj.pos.y + h + Math.sin(performance.now() / 350) * .06, subj.pos.z);
     marker.rotation.y += dt * 1.6;
+    const gh = selected ? 1.25 : subj.kind === "dog" ? .55 : subj.kind === "cat" ? .4 : .25;
+    gearObj.position.set(subj.pos.x + 0.7, subj.pos.y + gh, subj.pos.z);
   }
   if(follow && subj){ orbit.target.lerp(new THREE.Vector3(subj.pos.x, 0.9, subj.pos.z), 1 - Math.exp(-dt * 3)); }
   orbit.update();
