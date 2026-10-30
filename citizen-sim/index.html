@@ -1649,11 +1649,30 @@ function updateSky(){
    - 연결 서버에 닿지 못하면 혼자 보기로 돌아간다. */
 const PEER_PREFIX = "citizen-sim-namhyonwoo-static-";
 /* WebRTC 연결 후보를 찾는 서버. STUN만으로는 휴대폰 통신망처럼 NAT가 엄격한 환경에서 연결이 안 될 수 있다.
-   그런 환경까지 지원하려면 TURN 서버를 추가한다(예: { urls:"turn:호스트:3478", username:"...", credential:"..." }). */
+   TURN_ENDPOINT 에 자격증명 발급 Worker 주소(turn-worker.js 참고)를 넣으면 시작할 때 TURN 서버를 받아와 함께 쓴다. */
+const TURN_ENDPOINT = "";   // 예: "https://citizen-turn.<계정>.workers.dev"
 const ICE = { iceServers: [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun.cloudflare.com:3478"] },
 ] };
 const PEER_OPTS = { config: ICE };
+let turnReady = false;
+async function loadTurn(){
+  if(!TURN_ENDPOINT) return;
+  try {
+    const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 4000);
+    const r = await fetch(TURN_ENDPOINT, { signal: ctrl.signal, cache: "no-store" });
+    clearTimeout(timer);
+    if(!r.ok) throw new Error("http " + r.status);
+    const d = await r.json();
+    const servers = (d.iceServers || [])
+      .filter(s => s && s.urls && (s.username ? s.credential : true))
+      .map(s => ({ ...s, urls: (Array.isArray(s.urls) ? s.urls : [s.urls]).filter(u => !/:53(\?|$)/.test(u)) }))   // 브라우저가 막는 53번 포트 제외
+      .filter(s => s.urls.length);
+    if(!servers.length) throw new Error("empty");
+    ICE.iceServers = [...ICE.iceServers, ...servers];
+    turnReady = servers.some(s => String(s.urls).includes("turn"));
+  } catch(e) { console.warn("TURN 자격증명을 받지 못했어요:", e.message); }
+}
 const ROOM = (new URLSearchParams(location.search).get("room") || "town").toUpperCase().replace(/[^A-Z0-9_-]/g, "").slice(0, 24) || "TOWN";
 const ROOM_ID = PEER_PREFIX + ROOM;
 const net = { role:"connecting", peer:null, conns:[], host:null, decided:false, tick:null };
@@ -1672,7 +1691,7 @@ function broadcast(msg){ for(const c of net.conns) if(c.open) c.send(msg); }
 function hostBroadcastInit(){ if(net.role === "host") broadcast(roomInit()); }
 function updateViewerCount(){
   const n = net.conns.length;
-  setPill(`함께 보기 · 이 화면이 호스트 · 관전 ${n}명`, "on");
+  setPill(`함께 보기 · 이 화면이 호스트 · 관전 ${n}명${turnReady ? " · 중계 켜짐" : ""}`, "on");
   setStatus(`함께 보기 · 이 화면이 동네를 운영 중이에요${roomLabel}. 지금 ${n}명이 같이 보고 있어요.`);
 }
 /* 관전자가 보낸 명령을 호스트가 검증·실행하고 결과를 돌려준다 */
@@ -1820,7 +1839,7 @@ function joinAsViewer(delay){
       openTimer = setTimeout(() => { if(!opened){ try { conn.close(); } catch {} lost("timeout"); } }, 10000);
       conn.on("open", () => {
         opened = true; clearTimeout(openTimer); joinAttempts = 0; connectFailures = 0;
-        setPill(`함께 보기 · 관전 중${roomLabel}`, "on");
+        setPill(`함께 보기 · 관전 중${roomLabel}${turnReady ? " · 중계 켜짐" : ""}`, "on");
         setStatus(`함께 보기 · 다른 사람의 화면이 운영하는 동네를 같이 보고 있어요${roomLabel}. 명령은 그쪽에서 실행돼요.`);
         toast("동네에 들어왔어요");
       });
@@ -1916,7 +1935,7 @@ addEventListener("pagehide", () => { saveSnapshot(); if(net.peer) net.peer.destr
 /* ================= Start ================= */
 renderLists();
 if(typeof Peer === "undefined") goSolo("PeerJS 로드 실패");
-else claimHost(false);
+else loadTurn().then(() => claimHost(false));
 
 function resize(){
   const w = stage.clientWidth, h = stage.clientHeight;
