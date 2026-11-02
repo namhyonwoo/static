@@ -93,9 +93,11 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
 /* 소개창: 왼쪽에 심의 확대 뷰 + 남길 말 말풍선 + 이름·인사말·상태 */
 .notewin{
   position:absolute; left:.8rem; top:3.6rem; width:min(16.5rem, 52vw); max-height:calc(100% - 4.4rem); overflow:auto; z-index:3;
-  background:transparent; color:var(--ink); border:1px solid var(--line); border-radius:12px; overflow:hidden;
+  background:transparent; color:var(--ink); border:1px solid var(--line); border-radius:12px;
   box-shadow:0 10px 30px rgba(0,0,0,.2);
 }
+/* 초상화 복사용 캔버스: 소개창이 메인 캔버스 밖(모바일 아래 영역)에 있을 때만 쓴다 */
+.notewin-shot{ position:absolute; inset:0; width:100%; height:100%; display:block; }
 .notewin-head{ display:flex; align-items:center; justify-content:space-between; gap:.4rem; padding:.4rem .5rem .4rem .7rem; background:var(--panel); position:sticky; top:0; z-index:1; }
 .notewin-head h2{ margin:0; font-size:.95rem; }
 .notewin-view{ position:relative; width:100%; aspect-ratio:1 / 1; background:transparent; border-top:1px solid var(--line); }
@@ -161,9 +163,26 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
 :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
 
 @media (max-width:760px){
-  body{ grid-template-columns:1fr; grid-template-rows:56% 44%; }
+  :root{ --split:56%; }
+  body{ grid-template-columns:1fr; grid-template-rows:var(--split) calc(100% - var(--split)); }
   .panel{ border-left:0; border-top:1px solid var(--line); }
   .clock .time{ font-size:2rem; }
+  /* 소개창은 왼쪽 띄우기 대신 화면 아래 절반(현황 패널 자리)을 통째로 쓴다 */
+  .notewin{
+    position:fixed; left:0; right:0; top:var(--split); bottom:0; width:auto; max-height:none; z-index:5;
+    display:flex; flex-direction:column; overflow:hidden; border-radius:0; border:0; border-top:1px solid var(--line);
+    background:var(--panel); box-shadow:0 -8px 24px rgba(0,0,0,.18);
+  }
+  .notewin-head{ position:static; flex:0 0 auto; padding-top:.5rem; }
+  .notewin-head h2{ font-size:1.05rem; }
+  .tabs{ flex:0 0 auto; }
+  .tabs .tab{ font-size:.92rem; padding:.5rem 0 .55rem; }
+  .notewin-view{ flex:0 0 auto; width:100%; aspect-ratio:auto; height:clamp(6.5rem, 30vh, 9.5rem); }
+  .notebubble{ max-width:55%; }
+  .notewin-info{ flex:1 1 auto; min-height:0; overflow:auto; padding:.6rem 1rem 1rem; font-size:.9rem; }
+  .notewin-info .row-btns{ margin-top:.5rem; }
+  .btn{ min-height:2.6rem; }
+  .guest{ max-height:none; }
 }
 </style>
 <script type="importmap">
@@ -185,7 +204,7 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
       <button class="tab" type="button" role="tab" data-tab="guest" aria-selected="false">방명록</button>
       <button class="tab" type="button" role="tab" data-tab="edit" aria-selected="false">설정</button>
     </div>
-    <div class="notewin-view" id="noteView" data-pane="about"><div class="notebubble" id="noteBubble"></div></div>
+    <div class="notewin-view" id="noteView" data-pane="about"><canvas class="notewin-shot" id="noteShot" hidden aria-hidden="true"></canvas><div class="notebubble" id="noteBubble"></div></div>
     <div class="notewin-info" data-pane="about">
       <div class="row" id="greetRow"><span class="k">인사말</span><span id="introGreet"></span></div>
       <div class="row"><span class="k">상태</span><span><span class="mood" id="introMood"></span><span id="dAct"></span></span></div>
@@ -1395,26 +1414,54 @@ document.getElementById("guestForm").addEventListener("submit", e => {
 /* 확대 뷰: 같은 장면을 심의 얼굴 앞에 둔 카메라로, 창 영역에만(scissor) 한 번 더 그린다 */
 const portraitCam = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
 const _hp = new THREE.Vector3(), _ct = new THREE.Vector3();
-function renderPortrait(subj){
-  const cr = canvas.getBoundingClientRect(), vr = noteView.getBoundingClientRect();
-  const w = Math.round(vr.width), h = Math.round(vr.height);
-  if(w < 8 || h < 8) return;
-  const x = Math.round(vr.left - cr.left), y = Math.round(cr.bottom - vr.bottom);
+const noteShot = document.getElementById("noteShot"), shotCtx = noteShot.getContext("2d");
+function aimPortrait(subj, w, h){
   const isC = subj === selected;
   (isC ? subj.p.head : subj.m.head).getWorldPosition(_hp); _hp.y += isC ? 0.17 : 0.03;
   const ry = subj.root.rotation.y, fx = Math.sin(ry), fz = Math.cos(ry);
   const dist = isC ? 1.6 : subj.kind === "parrot" ? 0.55 : subj.kind === "cat" ? 0.9 : 1.1;
-  const side = isC ? 0.22 : dist * 0.14, up = isC ? 0.25 : dist * 0.16;
-  // 카메라는 얼굴 앞, 약간 위. 머리가 창의 왼쪽 아래로 오도록 시선을 대상의 왼쪽으로 조금 옮긴다
+  // 세로 공간이 넉넉한 정사각 창(데스크톱)은 머리를 창의 왼쪽 아래에, 납작한 가로 창(모바일)은 세로 중앙에 둔다
+  const wide = w / h > 1.3;
+  const side = (isC ? 0.22 : dist * 0.14) * (wide ? 1.4 : 1), up = wide ? dist * 0.05 : isC ? 0.25 : dist * 0.16;
+  const ty = wide ? _hp.y + (isC ? 0.03 : 0.01) : _hp.y - (isC ? 0.02 : 0.01);
   portraitCam.position.set(_hp.x + fx * dist, _hp.y + up, _hp.z + fz * dist);
-  _ct.set(_hp.x + fz * side, _hp.y - (isC ? 0.02 : 0.01), _hp.z - fx * side);
+  _ct.set(_hp.x + fz * side, ty, _hp.z - fx * side);
   portraitCam.lookAt(_ct);
   portraitCam.aspect = w / h; portraitCam.updateProjectionMatrix();
+}
+function portraitRects(){
+  const cr = canvas.getBoundingClientRect(), vr = noteView.getBoundingClientRect();
+  const w = Math.round(vr.width), h = Math.round(vr.height);
+  if(w < 8 || h < 8) return null;
+  const inside = vr.left >= cr.left - 1 && vr.right <= cr.right + 1 && vr.top >= cr.top - 1 && vr.bottom <= cr.bottom + 1;
+  return { cr, vr, w, h, inside };
+}
+/* 소개창이 메인 캔버스 위에 떠 있을 때(데스크톱): 그 자리에 scissor 로 바로 그린다. 메인 장면을 그린 뒤 호출 */
+function renderPortrait(subj, r){
+  const { cr, vr, w, h } = r;
+  const x = Math.round(vr.left - cr.left), y = Math.round(cr.bottom - vr.bottom);
+  aimPortrait(subj, w, h);
   renderer.setScissorTest(true);
   renderer.setViewport(x, y, w, h); renderer.setScissor(x, y, w, h);
   renderer.render(scene, portraitCam);
   renderer.setScissorTest(false);
   renderer.setViewport(0, 0, cr.width, cr.height);
+}
+/* 소개창이 캔버스 밖에 있을 때(모바일 아래 영역): 캔버스 왼쪽 아래 구석에 그린 뒤 2D 캔버스로 복사한다. 메인 장면을 그리기 전에 호출 */
+function renderPortraitShot(subj, r){
+  const { cr, w: w0, h: h0 } = r;
+  const w = Math.min(w0, Math.floor(cr.width)), h = Math.min(h0, Math.floor(cr.height));
+  const pr = renderer.getPixelRatio();
+  aimPortrait(subj, w, h);
+  renderer.setScissorTest(true);
+  renderer.setViewport(0, 0, w, h); renderer.setScissor(0, 0, w, h);
+  renderer.render(scene, portraitCam);
+  renderer.setScissorTest(false);
+  renderer.setViewport(0, 0, cr.width, cr.height);
+  const pw = Math.round(w * pr), ph = Math.round(h * pr);
+  if(noteShot.width !== pw || noteShot.height !== ph){ noteShot.width = pw; noteShot.height = ph; }
+  shotCtx.clearRect(0, 0, pw, ph);
+  shotCtx.drawImage(canvas, 0, canvas.height - ph, pw, ph, 0, 0, pw, ph);
 }
 function selectPet(p){ selectedPet = p; selected = null; buildNeedRows(PET_NEEDS); syncSelectionUI(); }
 function clearSelection(){
@@ -2039,8 +2086,11 @@ function frame(){
   }
   if(follow && subj){ orbit.target.lerp(new THREE.Vector3(subj.pos.x, 0.9, subj.pos.z), 1 - Math.exp(-dt * 3)); }
   orbit.update();
+  const pr = !noteWin.hidden && subj && introTab === "about" ? portraitRects() : null;
+  noteShot.hidden = !pr || pr.inside;
+  if(pr && !pr.inside) renderPortraitShot(subj, pr);
   renderer.render(scene, camera);
-  if(!noteWin.hidden && subj) renderPortrait(subj);
+  if(pr && pr.inside) renderPortrait(subj, pr);
   labelRenderer.render(scene, camera);
   if((uiT += dt) > 0.25){ uiT = 0; refreshUI(); }
   requestAnimationFrame(frame);
