@@ -44,6 +44,8 @@ body{
 .tag.show{ opacity:1; }
 .tag.pet{ font-size:11px; font-weight:400; padding:.1rem .45rem; background:rgba(255,255,255,.82); }
 .tag.sel{ background:#1A212C; color:#fff; }
+.placeTag{ background:rgba(26,33,44,.78); color:#fff; border-radius:999px; padding:.2rem .7rem; font-size:12px; font-weight:600; white-space:nowrap; pointer-events:none; }
+.honk{ background:#FFFFFF; color:#1A212C; border-radius:10px; padding:.2rem .5rem; font-size:12px; font-weight:700; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.2); }
 .bubbleWrap{ position:relative; width:0; height:0; }
 .bubble{
   position:absolute; left:50%; bottom:1.3rem; transform:translateX(-50%); background:#FFFFFF; color:#1A212C;
@@ -168,6 +170,8 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
   .panel{ border-left:0; border-top:1px solid var(--line); }
   .clock .time{ font-size:2rem; }
   /* 소개창은 왼쪽 띄우기 대신 화면 아래 절반(현황 패널 자리)을 통째로 쓴다 */
+  .places{ flex-wrap:wrap; max-width:calc(100% - 1.6rem); }
+  .netpill{ top:auto; bottom:.7rem; right:.6rem; left:.6rem; font-size:.78rem; padding:.3rem .7rem; text-align:center; }
   .notewin{
     position:fixed; left:0; right:0; top:var(--split); bottom:0; width:auto; max-height:none; z-index:5;
     display:flex; flex-direction:column; overflow:hidden; border-radius:0; border:0; border-top:1px solid var(--line);
@@ -240,6 +244,8 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
     <button type="button" data-view="all">전체</button>
     <button type="button" data-view="house">집</button>
     <button type="button" data-view="park">공원</button>
+    <button type="button" data-view="office">회사</button>
+    <button type="button" data-view="market">시장</button>
   </div>
   <div class="toast" id="toast" role="status"></div>
   <div class="netpill" id="netPill" hidden><span class="dot"></span><span id="netPillText">연결 중…</span></div>
@@ -305,9 +311,11 @@ const orbit = new OrbitControls(camera, canvas);
 orbit.enableDamping = true;
 orbit.maxPolarAngle = Math.PI * 0.47; orbit.minDistance = 4; orbit.maxDistance = 70;
 const VIEWS = {
-  all:   { pos:[24, 26, 32], target:[8, 0.5, 2] },
+  all:   { pos:[30, 36, 46], target:[4, 0.5, 9] },
   house: { pos:[11, 13, 17], target:[0, 0.5, 1.5] },
   park:  { pos:[29, 14, 18], target:[19, 0.5, 2] },
+  office:{ pos:[4, 13, 36], target:[-5, 0.5, 22] },
+  market:{ pos:[21, 12, 34], target:[12, 0.5, 21] },
 };
 let camAnim = null;
 function goView(name){
@@ -321,7 +329,7 @@ const hemi = new THREE.HemisphereLight(0xffffff, 0x7d8a6a, 1.2);
 scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff3e0, 2.4);
 sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left:-22, right:22, top:22, bottom:-22, near:1, far:80 });
+Object.assign(sun.shadow.camera, { left:-30, right:32, top:30, bottom:-30, near:1, far:90 });
 sun.shadow.bias = -0.0005;
 scene.add(sun, sun.target);
 sun.target.position.set(8, 0, 2);
@@ -367,7 +375,7 @@ function tree(x, z, s = 1){
   add(t, mesh(new THREE.IcosahedronGeometry(1, 1), pick(["#4F9A55","#5AA65E","#47904D"]), { flatShading:true }), 0, 2.1, 0);
   scene.add(t);
 }
-tree(-11, -8, 1.3); tree(10.5, -10, 1.1); tree(-12, 6, 1); tree(-8, 12, 1.15); tree(5, 13, .9);
+tree(-11, -8, 1.3); tree(10.5, -10, 1.1); tree(-12, 6, 1); tree(-10, 9.2, 1.15); tree(5.5, 9.4, .9);
 
 /* ================= Activities ================= */
 const ACTS = {
@@ -382,10 +390,13 @@ const ACTS = {
   fountain: { label:"분수 구경하는 중",  emoji:"⛲", pose:"look",   need:"fun",     gains:{ fun:3.2 },                 max:14, park:true },
   stroll:   { label:"공원 산책 중",      emoji:"🌳", pose:"idle",   need:"fun",     gains:{ fun:2.6, social:.4 },      max:999 },
   pet:      { label:"반려동물과 노는 중",emoji:"🐾", pose:"pet",    need:"fun",     gains:{ fun:3.2, social:2.5 },     max:10 },
+  work:     { label:"일하는 중",         emoji:"💼", pose:"work",   need:"money",   gains:{ money:2.6, fun:-.15, social:.3 }, max:70, hours:[9, 18] },
+  shop:     { label:"장 보는 중",        emoji:"🛒", pose:"look",   need:"fun",     gains:{ fun:3, hunger:1.6, money:-1.3 }, max:14, hours:[8, 20], cost:15 },
   wander:   { label:"돌아다니는 중",     emoji:"🚶", pose:"idle",   need:null,      gains:{},                          max:3 },
   go:       { label:"이동하는 중",       emoji:"👟", pose:"idle",   need:null,      gains:{},                          max:2 },
 };
-const OUTING = new Set(["wander","go","stroll","bench","fountain"]);
+const OUTING = new Set(["wander","go","stroll","bench","fountain","shop"]);
+const isOpen = (a, h) => !a.hours || (h >= a.hours[0] && h < a.hours[1]);
 const objects = [], pickables = [];
 function addObject(name, act, spots, build){
   const g = new THREE.Group(); build(g); scene.add(g);
@@ -546,6 +557,97 @@ for(let i = 0; i < 3; i++){
   });
 }
 
+
+/* ================= World: roads, office, market ================= */
+/* 동서 도로(z=13)와 남북 도로(x=-16)가 집 남쪽에서 만난다. 도로 남쪽에 회사와 시장. 우측통행 기준 차선. */
+const ROADS = [
+  { axis:"x", at:13,  from:-38, to:48, lanes:[{ off:1.1, dir:1 }, { off:-1.1, dir:-1 }] },
+  { axis:"z", at:-16, from:-38, to:48, lanes:[{ off:-1.1, dir:1 }, { off:1.1, dir:-1 }] },
+];
+const placeTags = [];
+function placeTag(text, x, y, z){
+  const el = document.createElement("div"); el.className = "placeTag"; el.textContent = text;
+  const o = new CSS2DObject(el); o.position.set(x, y, z); scene.add(o); placeTags.push(o); return o;
+}
+{
+  const asphalt = "#5B5F66", curb = "#CFCAC0", line = "#E8C547";
+  for(const r of ROADS){
+    const len = r.to - r.from, mid = (r.from + r.to) / 2;
+    const horiz = r.axis === "x";
+    const road = box(scene, horiz ? len : 4.4, 0.03, horiz ? 4.4 : len, asphalt, horiz ? mid : r.at, 0.012, horiz ? r.at : mid);
+    road.castShadow = false; road.userData.ground = true;
+    for(const sgn of [-1, 1]){ // 보도
+      const sw = box(scene, horiz ? len : 1.2, 0.05, horiz ? 1.2 : len, curb, horiz ? mid : r.at + sgn * 2.8, 0.02, horiz ? r.at + sgn * 2.8 : mid);
+      sw.castShadow = false; sw.userData.ground = true;
+    }
+    for(let p = r.from + 1; p < r.to; p += 2.4){ // 중앙선(점선)
+      const d = box(scene, horiz ? 1.2 : .12, 0.005, horiz ? .12 : 1.2, line, horiz ? p : r.at, 0.03, horiz ? r.at : p);
+      d.castShadow = false; d.userData.ground = true;
+    }
+  }
+  // 교차로 바닥을 다시 덮어 중앙선이 교차로를 가로지르지 않게 한다
+  const cross = box(scene, 4.4, 0.035, 4.4, asphalt, -16, 0.014, 13); cross.castShadow = false; cross.userData.ground = true;
+  // 횡단보도: 집 앞길, 시장 앞, 남북 도로
+  const zebra = (x, z, horiz) => { for(let i = -1.6; i <= 1.6; i += 0.64){
+    const b = box(scene, horiz ? .32 : 2.2, 0.006, horiz ? 2.2 : .32, "#F2F0EA", horiz ? x + i : x, 0.034, horiz ? z : z + i); b.castShadow = false; b.userData.ground = true; } };
+  zebra(0, 13, true); zebra(12, 13, true); zebra(-16, 7.5, false); zebra(-16, 18.5, false);
+}
+/* ----- 회사: 지붕 없는 사무실(집과 같은 단면 연출). 책상 6개, 9~18시에만 연다 ----- */
+const OFFICE = new THREE.Vector3(-5, 0, 21.5);
+{
+  const ox = OFFICE.x, oz = OFFICE.z;
+  const fl = box(scene, 11, 0.1, 6.5, "#DAD4CC", ox, 0.05, oz); fl.castShadow = false; fl.userData.ground = true;
+  box(scene, 11.3, 2.2, 0.25, "#C7D3E3", ox, 1.1, oz + 3.3);                 // 남쪽 벽
+  box(scene, 0.25, 2.2, 6.7, "#C7D3E3", ox + 5.6, 1.1, oz);                  // 동쪽 벽
+  box(scene, 11.3, 0.14, 0.32, "#8FA3BF", ox, 2.27, oz + 3.3);
+  box(scene, 0.32, 0.14, 6.7, "#8FA3BF", ox + 5.6, 2.27, oz);
+  for(let i = -4; i <= 4; i += 2){ box(scene, 1.2, 1.0, 0.1, "#9CC7EE", ox + i, 1.25, oz + 3.22, { roughness:.2 }); } // 창
+  box(scene, 4.2, 0.9, 0.5, "#3B4350", ox, 2.75, oz + 3.3);                  // 간판
+  box(scene, 3.0, 0.02, 5.4, "#CFC7B8", ox - 2.5, 0.025, oz - 6.2).castShadow = false; // 입구 길(도로 보도까지)
+  // 책상 + 의자(작업 자리는 의자 위치, 남쪽을 보고 앉음)
+  const desks = [];
+  for(let r = 0; r < 2; r++) for(let c = 0; c < 3; c++){ desks.push([ox - 3.3 + c * 3.3, oz - 1.4 + r * 2.6]); }
+  desks.forEach(([dx, dz], i) => {
+    addObject("책상", "work", [[dx, dz - 0.75, Math.PI]], g => {
+      box(g, 1.6, 0.06, 0.8, "#D9C4A5", dx, 0.78, dz);
+      for(const sx of [-0.7, 0.7]) for(const sz of [-0.3, 0.3]) box(g, 0.06, 0.74, 0.06, "#6B6E75", dx + sx, 0.41, dz + sz);
+      box(g, 0.6, 0.42, 0.04, "#2E3440", dx, 1.05, dz + 0.15);                 // 모니터
+      box(g, 0.6, 0.42, 0.02, "#9CC7EE", dx, 1.05, dz + 0.17, { emissive:"#5A8FD0", emissiveIntensity:.35 });
+      box(g, 0.45, 0.02, 0.18, "#E6E6E6", dx, 0.82, dz - 0.2);                 // 키보드
+      box(g, 0.5, 0.06, 0.5, "#4D6FA8", dx, 0.44, dz - 0.75);                  // 의자
+      box(g, 0.5, 0.55, 0.06, "#4D6FA8", dx, 0.74, dz - 0.98);
+      box(g, 0.05, 0.4, 0.05, "#3B4350", dx, 0.2, dz - 0.75);
+    });
+  });
+  add(scene, mesh(new THREE.CylinderGeometry(.22, .26, .5, 12), "#B8834F"), ox + 4.6, .25, oz - 2.6); // 화분
+  add(scene, mesh(new THREE.IcosahedronGeometry(.55, 1), "#4F9A55", { flatShading:true }), ox + 4.6, .95, oz - 2.6);
+  placeTag("🏢 회사 · 9시~18시", ox, 3.6, oz + 3.3);
+}
+/* ----- 시장: 천막 가판대 3곳. 8~20시에 열고, 장을 보면 지갑이 줄고 재미·배부름이 오른다 ----- */
+const MARKET = new THREE.Vector3(12, 0, 21);
+{
+  const mx = MARKET.x, mz = MARKET.z;
+  const pl = box(scene, 11, 0.06, 6, "#CFC7B8", mx, 0.03, mz); pl.castShadow = false; pl.userData.ground = true;
+  box(scene, 2.4, 0.02, 4.2, "#CFC7B8", mx, 0.025, mz - 5).castShadow = false; // 도로 보도까지 길
+  const stalls = [
+    { name:"과일 가게", stripe:"#D9533E", goods:["#E8566B","#F2C14E","#FF8E4D","#8BC34A"] },
+    { name:"꽃 가게",   stripe:"#8E5BD3", goods:["#E8566B","#B97BE0","#FFFFFF","#F2C14E"] },
+    { name:"빵 가게",   stripe:"#E0A33A", goods:["#C98D66","#E3B08A","#B8834F"] },
+  ];
+  stalls.forEach((st, i) => {
+    const sx = mx - 3.6 + i * 3.6, sz = mz + 0.8;
+    addObject(st.name, "shop", [[sx - 0.55, sz - 1.5, 0], [sx + 0.55, sz - 1.5, 0]], g => {
+      box(g, 2.6, 0.9, 1.2, "#A9744B", sx, 0.45, sz);                           // 매대
+      box(g, 2.7, 0.06, 1.3, "#C9A57A", sx, 0.93, sz);
+      for(const px of [-1.2, 1.2]) box(g, 0.08, 2.3, 0.08, "#7A5A3C", sx + px, 1.15, sz + 0.55);
+      for(let k = 0; k < 6; k++){ box(g, 0.5, 0.05, 1.7, k % 2 ? "#F5F1E8" : st.stripe, sx - 1.25 + k * 0.5, 2.3, sz + 0.1); } // 줄무늬 천막
+      for(let k = 0; k < 7; k++){ add(g, mesh(new THREE.SphereGeometry(.14, 10, 8), pick(st.goods)), sx - 0.9 + k * 0.3, 1.08, sz - 0.25 + (k % 2) * 0.35); }
+      if(i === 1) for(let k = 0; k < 3; k++){ add(g, mesh(new THREE.CylinderGeometry(.12, .1, .3, 10), "#6FB2D9"), sx - 0.6 + k * 0.6, 1.1, sz + 0.3); }
+    });
+  });
+  placeTag("🧺 시장 · 8시~20시", mx, 3.2, mz + 1.2);
+}
+
 /* ================= People model (≈5 heads tall) ================= */
 const LOOKS = {
   shirtsM:["#3E7BD6","#D9573E","#3FA46A","#8E5BD3","#E0A33A","#2B9BA8","#5B6CE0","#55626F"],
@@ -636,9 +738,9 @@ const marker = new THREE.Group();
 const GREETINGS = ["안녕!", "좋은 하루야 😊", "오늘 뭐 해?", "반가워!", "밥은 먹었어?", "날씨 좋다~"];
 
 /* ================= Citizens ================= */
-const NEED_KEYS = [["hunger","배부름"],["energy","에너지"],["fun","재미"],["hygiene","청결"],["social","교류"]];
+const NEED_KEYS = [["hunger","배부름"],["energy","에너지"],["fun","재미"],["hygiene","청결"],["social","교류"],["money","지갑"]];
 const PET_NEEDS = [["hunger","배부름"],["energy","에너지"],["love","애정"]];
-const DECAY = { hunger:.32, energy:.2, fun:.4, hygiene:.22, social:.3 };
+const DECAY = { hunger:.32, energy:.2, fun:.4, hygiene:.22, social:.3, money:.03 };
 const citizens = [], pets = [];
 
 let nextId = 1;
@@ -731,6 +833,8 @@ class Citizen {
   }
   order(obj){
     if(ACTS[obj.act]?.park && isNight(hourNow)) return "night";
+    if(!isOpen(ACTS[obj.act], hourNow)) return "closed";
+    if(ACTS[obj.act].cost && this.needs.money < ACTS[obj.act].cost) return "broke";
     const spot = obj.spots.find(s => !s.occ);
     if(!spot) return "full";
     this.release(); spot.occ = this; this.walkTo(spot.x, spot.z, obj.act, spot, spot.face);
@@ -772,8 +876,12 @@ class Citizen {
       if(!obj.act || !obj.spots.length) continue;
       const a = ACTS[obj.act];
       if(a.park && (night || hour >= 21)) continue;
+      if(!isOpen(a, hour)) continue;
+      if(a.cost && this.needs.money < a.cost) continue;
       let u = urg(a.need);
       if(obj.act === "sleep") u += night ? 0.45 : -0.15;
+      if(obj.act === "work") u = Math.min(1, u + 0.18 + (hour < 11 ? 0.12 : 0)); // 출근 시간대엔 일하러 가고 싶어진다
+      if(obj.act === "shop") u = Math.max(u, urg("hunger") * .8) * (this.needs.money > 50 ? 1 : .8);
       if(a.park) u *= 0.92;
       for(const s of obj.spots){
         if(s.occ) continue;
@@ -888,7 +996,7 @@ class Citizen {
     this.netTarget.set(m.x, 0.05, m.z); this.face = m.f;
     const changed = this.state !== m.s || this.act !== m.a;
     this.state = m.s; this.act = m.a;
-    NEED_KEYS.forEach(([k], i) => this.needs[k] = m.n[i]);
+    NEED_KEYS.forEach(([k], i) => this.needs[k] = m.n[i] ?? 60);
     this.petTarget = m.pt ? pets.find(p => p.id === m.pt) || null : null;
     if(changed) this.updateTag();
   }
@@ -916,6 +1024,7 @@ class Citizen {
       case "sleep": T.bodyX = -Math.PI/2; T.bodyY = 0.66; T.head = -0.1; T.armOut = 0.15; T.chest = wave(1.2, .02); break;
       case "eat": { sit(); const k = (Math.sin(t*3.2)+1)/2; T.shR = -0.55 - 0.35*k; T.elR = -1.3 - 0.9*k; T.shL = -0.75; T.elL = -0.6; T.head = 0.1; break; }
       case "tv": sit(); T.head = wave(.5, .06) - 0.05; T.chest = -0.12; break;
+      case "work": { sit(); const k = Math.sin(t*9); T.shL = -0.85 + k*.05; T.shR = -0.85 - k*.05; T.elL = T.elR = -1.15; T.head = 0.18 + wave(.9, .04); T.chest = 0.08; T.armOut = 0.04; break; }
       case "read": T.shL = T.shR = -0.7; T.elL = T.elR = -1.25; T.head = 0.38; T.armOut = 0.02; P.book.visible = true; break;
       case "garden": { const k = Math.sin(t*2.6); T.chest = 0.95; T.hipL = T.hipR = -0.35; T.kneeL = T.kneeR = 0.55; T.bodyY = -0.12; T.shL = -1.0 + k*.35; T.shR = -1.0 - k*.35; T.elL = T.elR = -0.3; T.head = -0.3; break; }
       case "shower": { const k = Math.sin(t*6); T.shL = -2.7 + k*.12; T.shR = -2.7 - k*.12; T.elL = T.elR = -1.5; T.head = -0.25; T.armOut = 0.25; break; }
@@ -934,6 +1043,126 @@ class Citizen {
     P.body.rotation.x = lerp(P.body.rotation.x, T.bodyX, 1 - Math.exp(-dt * 5));
   }
 }
+
+
+/* ================= Cars: 도로를 따라 무작위로 지나가는 차 ================= */
+/* 호스트만 시뮬레이션하고 상태 메시지에 실어 보낸다. 저장하지 않는 일회성 볼거리. 앞차·보행자가 가까우면 속도를 줄이고 가끔 경적을 울린다. */
+const CAR_KINDS = [
+  { len:1.9, body:[1.9, .5, .95], cabin:[1.0, .42, .85], cy:.86, w:.2 },   // 승용차
+  { len:2.3, body:[2.3, .75, 1.0], cabin:[1.1, .45, .9], cy:1.05, w:.22 }, // 밴
+  { len:3.4, body:[3.4, .95, 1.05], cabin:null, cy:0, w:.24 },             // 버스
+];
+const CAR_COLORS = ["#D9533E","#3E7BD6","#F2C230","#F5F1E8","#2E3440","#3FA46A","#E2709A","#8E5BD3","#55626F"];
+const cars = []; let carSeq = 1, carTimer = 4;
+function buildCar(kind, color){
+  const K = CAR_KINDS[kind], g = new THREE.Group();
+  box(g, ...K.body, color, 0, K.body[1] / 2 + .22, 0);
+  if(K.cabin) box(g, ...K.cabin, color, -.12, K.cy, 0);
+  else for(let i = -1.2; i <= 1.2; i += .6) box(g, .42, .4, 1.07, "#9CC7EE", i, .95, 0, { roughness:.2 }); // 버스 창
+  if(K.cabin) box(g, K.cabin[0] + .02, .3, K.cabin[2] - .1, "#9CC7EE", -.12, K.cy + .02, 0, { roughness:.2 });
+  for(const sx of [-1, 1]) for(const sz of [-1, 1]){
+    const w = mesh(new THREE.CylinderGeometry(K.w, K.w, .18, 12), "#2B2B2E"); w.rotation.x = Math.PI / 2;
+    add(g, w, sx * (K.len / 2 - .45), K.w, sz * (K.body[2] / 2));
+  }
+  const lights = [];
+  for(const sz of [-.32, .32]){
+    const h = new THREE.Mesh(new THREE.BoxGeometry(.06, .14, .18), new THREE.MeshStandardMaterial({ color:"#FFF4D6", emissive:"#FFE9A8", emissiveIntensity:0 }));
+    add(g, h, K.len / 2 + .01, .5, sz); lights.push(h);
+    box(g, .06, .12, .18, "#D9533E", -K.len / 2 - .01, .5, sz, { emissive:"#B3261E", emissiveIntensity:.4 });
+  }
+  const honkEl = document.createElement("div"); honkEl.className = "honk"; honkEl.textContent = "빵빵!"; honkEl.hidden = true;
+  const honk = new CSS2DObject(honkEl); honk.position.set(0, 1.7, 0); g.add(honk);
+  g.traverse(m => { if(m.isMesh) m.userData.ground = true; }); // 클릭하면 배경처럼 선택 해제
+  scene.add(g);
+  return { group:g, lights, honkEl };
+}
+class Car {
+  constructor(def){
+    this.id = def.id; this.kind = def.kind; this.color = def.color;
+    this.road = ROADS[def.road]; this.lane = this.road.lanes[def.lane]; this.dir = this.lane.dir;
+    this.p = def.p; this.speed = def.speed || rand(4.2, 6.5); this.vel = this.speed;
+    const v = buildCar(this.kind, this.color); this.group = v.group; this.lights = v.lights; this.honkEl = v.honkEl;
+    this.honkT = 0; this.netTarget = new THREE.Vector3();
+    this.place(); this.group.position.copy(this.netTarget); this.group.rotation.y = this.heading();
+  }
+  heading(){ return this.road.axis === "x" ? (this.dir > 0 ? Math.PI / 2 : -Math.PI / 2) : (this.dir > 0 ? 0 : Math.PI); }
+  place(){
+    if(this.road.axis === "x") this.netTarget.set(this.p, 0.03, this.road.at + this.lane.off);
+    else this.netTarget.set(this.road.at + this.lane.off, 0.03, this.p);
+  }
+  // 전방 몇 m 안에 앞차나 보행자가 있는지
+  ahead(){
+    let want = this.speed, honk = false;
+    const ax = this.road.axis === "x";
+    const fwd = o => (ax ? o.x - this.group.position.x : o.z - this.group.position.z) * this.dir;
+    const side = o => Math.abs(ax ? o.z - this.group.position.z : o.x - this.group.position.x);
+    for(const c of cars){
+      if(c === this || c.road !== this.road || c.lane !== this.lane) continue;
+      const d = fwd(c.group.position) - CAR_KINDS[this.kind].len / 2 - CAR_KINDS[c.kind].len / 2;
+      if(d > 0 && d < 3.5) want = Math.min(want, c.vel * Math.max(0, (d - 0.6) / 2.9));
+    }
+    for(const c of citizens){
+      const d = fwd(c.pos); if(d < 0 || d > 3.2 || side(c.pos) > 1.5) continue;
+      want = 0; if(d < 2.2) honk = true;
+    }
+    for(const pt of pets){
+      const d = fwd(pt.pos); if(d < 0 || d > 2.6 || side(pt.pos) > 1.3) continue;
+      want = 0;
+    }
+    return { want, honk };
+  }
+  update(dt, sdt){
+    const { want, honk } = this.ahead();
+    this.vel += clamp(want - this.vel, -9 * sdt, 3.5 * sdt);
+    this.p += this.dir * this.vel * sdt;
+    this.place();
+    this.group.position.copy(this.netTarget);
+    this.honkT -= dt;
+    if(honk && this.honkT <= 0 && Math.random() < .35){ this.honkT = 4; this.showHonk(); }
+    this.present(dt);
+  }
+  showHonk(){ this.honkEl.hidden = false; clearTimeout(this.honkTimer); this.honkTimer = setTimeout(() => this.honkEl.hidden = true, 1200); }
+  present(dt){
+    const dark = 1 - Math.min(1, Math.max(0, Math.sin((hourNow - 6) / 12 * Math.PI)) * 2.5);
+    for(const l of this.lights) l.material.emissiveIntensity = dark * 2.5;
+  }
+  done(){ return this.dir > 0 ? this.p > this.road.to : this.p < this.road.from; }
+  netState(){ const r = v => Math.round(v * 100) / 100; return { i:this.id, k:this.kind, c:this.color, r:ROADS.indexOf(this.road), l:this.road.lanes.indexOf(this.lane), p:r(this.p) }; }
+  applyNet(m){ this.p = m.p; this.place(); }
+  presentViewer(dt){
+    this.group.position.lerp(this.netTarget, 1 - Math.exp(-dt * 12));
+    this.present(dt);
+  }
+  dispose(){ scene.remove(this.group); }
+}
+function spawnCar(){
+  const road = Math.random() < .62 ? 0 : 1, lane = Math.random() < .5 ? 0 : 1;
+  const R = ROADS[road], L = R.lanes[lane];
+  const kind = Math.random() < .68 ? 0 : Math.random() < .7 ? 1 : 2;
+  const p = L.dir > 0 ? R.from : R.to;
+  // 출발 지점 바로 앞에 차가 있으면 이번엔 쉬어 간다
+  if(cars.some(c => c.road === R && c.lane === L && Math.abs(c.p - p) < 5)) return;
+  cars.push(new Car({ id:carSeq++, kind, color:pick(CAR_COLORS), road, lane, p }));
+}
+function updateCars(dt, sdt){
+  carTimer -= sdt;
+  if(carTimer <= 0){ carTimer = rand(4, 11); if(cars.length < 9) spawnCar(); }
+  for(let i = cars.length - 1; i >= 0; i--){
+    const c = cars[i]; c.update(dt, sdt);
+    if(c.done()){ c.dispose(); cars.splice(i, 1); }
+  }
+}
+function applyCars(list){
+  const seen = new Set();
+  for(const m of list || []){
+    seen.add(m.i);
+    let c = cars.find(x => x.id === m.i);
+    if(!c){ c = new Car({ id:m.i, kind:m.k, color:m.c, road:m.r, lane:m.l, p:m.p }); cars.push(c); }
+    c.applyNet(m);
+  }
+  for(let i = cars.length - 1; i >= 0; i--) if(!seen.has(cars[i].id)){ cars[i].dispose(); cars.splice(i, 1); }
+}
+function clearCars(){ for(const c of cars) c.dispose(); cars.length = 0; }
 
 /* ================= Pets ================= */
 const PET_INFO = {
@@ -1487,6 +1716,8 @@ function orderResult(c, obj){
   const res = c.order(obj);
   if(res === "ok") return `${c.name}: ${obj.name}(으)로 가요`;
   if(res === "night") return "밤에는 공원 시설을 쓰지 않아요";
+  if(res === "closed") return `${obj.name}은(는) 지금 닫혀 있어요 (${ACTS[obj.act].hours[0]}시~${ACTS[obj.act].hours[1]}시)`;
+  if(res === "broke") return `${c.name}: 지갑이 비어서 장을 볼 수 없어요. 회사에서 일하면 채워져요`;
   return obj.name + "에 빈자리가 없어요";
 }
 function petResult(c, p){
@@ -1741,7 +1972,7 @@ function roomInit(){
     citizens: citizens.map(c => ({ id:c.id, gender:c.gender, name:c.name, greeting:c.greeting, note:c.note, guestbook:c.guestbook, look:c.look, x:c.pos.x, z:c.pos.z })),
     pets: pets.map(p => ({ id:p.id, kind:p.kind, name:p.name, color:p.color, idx:p.idx, owner:p.owner ? p.owner.id : 0, x:p.pos.x, y:p.pos.y, z:p.pos.z })) };
 }
-function roomState(){ return { t:"state", simMin, speed, c:citizens.map(c => c.netState()), p:pets.map(p => p.netState()) }; }
+function roomState(){ return { t:"state", simMin, speed, c:citizens.map(c => c.netState()), p:pets.map(p => p.netState()), v:cars.map(c => c.netState()) }; }
 function broadcast(msg){ for(const c of net.conns) if(c.open) c.send(msg); }
 function hostBroadcastInit(){ if(net.role === "host") broadcast(roomInit()); }
 function updateViewerCount(){
@@ -1788,6 +2019,7 @@ function takeOverState(){
   nameCount.m = citizens.filter(c => c.gender === "m").length; nameCount.f = citizens.filter(c => c.gender === "f").length;
   for(const k in petCount) petCount[k] = pets.filter(p => p.kind === k).length;
   for(const obj of objects) for(const s of obj.spots) s.occ = null;
+  carSeq = Math.max(0, ...cars.map(c => c.id)) + 1;
   for(const c of citizens){ c.pos.copy(c.netTarget); c.partner = null; c.petTarget = null; c.spot = null; c.route = null; c.target = null; c.finish(); }
   for(const p of pets){
     p.pos.copy(p.netTarget); p.petter = null; p.moving = false; p.route = []; p.next = null; p.target = null;
@@ -1865,6 +2097,7 @@ function applyState(m){
   simMin = m.simMin; if(m.speed !== speed) setSpeed(m.speed);
   for(const s of m.c){ const c = citizens.find(x => x.id === s.i); if(c) c.applyNet(s); }
   for(const s of m.p){ const p = pets.find(x => x.id === s.i); if(p) p.applyNet(s); }
+  if(m.v) applyCars(m.v);
 }
 let joinAttempts = 0, connectFailures = 0;
 function joinAsViewer(delay){
@@ -2062,12 +2295,14 @@ function frame(){
     hourNow = updateSky();
     for(const c of citizens) c.presentViewer(adt);
     for(const p of pets) p.presentViewer(adt);
+    for(const c of cars) c.presentViewer(dt);
   } else {
     const sdt = dt * speed;
     simMin += sdt * MIN_PER_SEC;
     hourNow = updateSky();
     for(const c of citizens) c.update(adt, sdt, hourNow);
     for(const p of pets) p.update(adt, sdt, hourNow);
+    updateCars(dt, sdt);
   }
   if(spout){ spout.scale.y = 1 + Math.sin(performance.now() / 180) * .12; }
   if(camAnim){
