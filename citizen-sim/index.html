@@ -1879,7 +1879,7 @@ function joinAsViewer(delay){
 /* ================= Persistence: snapshot on the server + localStorage ================= */
 /* 정본은 서버(town-worker.js, Cloudflare KV)에 둔다. 호스트가 3분마다, 변경 직후(10초에 1회), 탭 종료 시 올리고,
    새 호스트가 시작할 때 서버 스냅샷을 받아 이어간다. 브라우저 저장소는 서버가 안 될 때의 예비다. */
-const TOWN_ENDPOINT = "";   // 예: "https://citizen-town.<계정>.workers.dev"  (비우면 브라우저 저장소만 사용)
+const TOWN_ENDPOINT = "https://citizen-town.zardbird.workers.dev";   // 비우면 브라우저 저장소만 사용
 const TOWN_KEY = "";        // Worker 에 TOWN_KEY 를 설정했다면 같은 값
 const SAVE_KEY = "citizen-sim:snapshot:" + ROOM;
 const townUrl = () => TOWN_ENDPOINT.replace(/\/$/, "") + "/town?room=" + encodeURIComponent(ROOM) + (TOWN_KEY ? "&key=" + encodeURIComponent(TOWN_KEY) : "");
