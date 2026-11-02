@@ -1085,7 +1085,8 @@ class Car {
     this.honkT = 0; this.netTarget = new THREE.Vector3();
     this.place(); this.group.position.copy(this.netTarget); this.group.rotation.y = this.heading();
   }
-  heading(){ return this.road.axis === "x" ? (this.dir > 0 ? Math.PI / 2 : -Math.PI / 2) : (this.dir > 0 ? 0 : Math.PI); }
+  // 차 모델은 길이가 로컬 +x 방향(앞). rotation.y 로 +x 를 진행 방향에 맞춘다: +x→0, -x→π, +z→-π/2, -z→π/2
+  heading(){ return this.road.axis === "x" ? (this.dir > 0 ? 0 : Math.PI) : (this.dir > 0 ? -Math.PI / 2 : Math.PI / 2); }
   place(){
     if(this.road.axis === "x") this.netTarget.set(this.p, 0.03, this.road.at + this.lane.off);
     else this.netTarget.set(this.road.at + this.lane.off, 0.03, this.p);
