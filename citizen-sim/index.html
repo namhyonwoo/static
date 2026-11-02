@@ -169,21 +169,19 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
   body{ grid-template-columns:1fr; grid-template-rows:var(--split) calc(100% - var(--split)); }
   .panel{ border-left:0; border-top:1px solid var(--line); }
   .clock .time{ font-size:2rem; }
-  /* 소개창은 왼쪽 띄우기 대신 화면 아래 절반(현황 패널 자리)을 통째로 쓴다 */
   .places{ flex-wrap:wrap; max-width:calc(100% - 1.6rem); }
   .netpill{ top:auto; bottom:.7rem; right:.6rem; left:.6rem; font-size:.78rem; padding:.3rem .7rem; text-align:center; }
+  /* 소개창은 왼쪽에 띄우지 않고 아래 패널의 맨 위에 끼워 넣는다(JS가 옮김). 현황 목록은 그 아래로 이어져 함께 스크롤된다 */
   .notewin{
-    position:fixed; left:0; right:0; top:var(--split); bottom:0; width:auto; max-height:none; z-index:5;
-    display:flex; flex-direction:column; overflow:hidden; border-radius:0; border:0; border-top:1px solid var(--line);
-    background:var(--panel); box-shadow:0 -8px 24px rgba(0,0,0,.18);
+    position:static; width:auto; max-height:none; overflow:visible; margin:0 0 1rem; z-index:auto;
+    border:1px solid var(--line); border-radius:12px; background:var(--bg); box-shadow:0 6px 18px rgba(0,0,0,.12);
   }
-  .notewin-head{ position:static; flex:0 0 auto; padding-top:.5rem; }
+  .notewin-head{ position:static; padding:.5rem .5rem .45rem .8rem; border-radius:12px 12px 0 0; }
   .notewin-head h2{ font-size:1.05rem; }
-  .tabs{ flex:0 0 auto; }
   .tabs .tab{ font-size:.92rem; padding:.5rem 0 .55rem; }
-  .notewin-view{ flex:0 0 auto; width:100%; aspect-ratio:auto; height:clamp(6.5rem, 30vh, 9.5rem); }
+  .notewin-view{ width:100%; aspect-ratio:auto; height:clamp(6.5rem, 30vh, 9.5rem); background:#AFCFE8; }
   .notebubble{ max-width:55%; }
-  .notewin-info{ flex:1 1 auto; min-height:0; overflow:auto; padding:.6rem 1rem 1rem; font-size:.9rem; }
+  .notewin-info{ overflow:visible; padding:.6rem .9rem .9rem; font-size:.9rem; border-radius:0 0 12px 12px; }
   .notewin-info .row-btns{ margin-top:.5rem; }
   .btn{ min-height:2.6rem; }
   .guest{ max-height:none; }
@@ -309,9 +307,9 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 300);
 const orbit = new OrbitControls(camera, canvas);
 orbit.enableDamping = true;
-orbit.maxPolarAngle = Math.PI * 0.47; orbit.minDistance = 4; orbit.maxDistance = 70;
+orbit.maxPolarAngle = Math.PI * 0.47; orbit.minDistance = 4; orbit.maxDistance = 95;
 const VIEWS = {
-  all:   { pos:[30, 36, 46], target:[4, 0.5, 9] },
+  all:   { pos:[24, 46, 60], target:[-4, 0.5, 2] },
   house: { pos:[11, 13, 17], target:[0, 0.5, 1.5] },
   park:  { pos:[29, 14, 18], target:[19, 0.5, 2] },
   office:{ pos:[4, 13, 36], target:[-5, 0.5, 22] },
@@ -329,11 +327,11 @@ const hemi = new THREE.HemisphereLight(0xffffff, 0x7d8a6a, 1.2);
 scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff3e0, 2.4);
 sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left:-30, right:32, top:30, bottom:-30, near:1, far:90 });
+Object.assign(sun.shadow.camera, { left:-50, right:44, top:46, bottom:-46, near:1, far:110 });
 sun.shadow.bias = -0.0005;
 scene.add(sun, sun.target);
-sun.target.position.set(8, 0, 2);
-const lamp = new THREE.PointLight(0xffc98a, 0, 0, 1.6); lamp.position.set(0, 3.2, 0); scene.add(lamp);
+sun.target.position.set(-2, 0, 2);
+const houseLamps = []; // 집마다 하나씩, buildHouse() 에서 채운다
 const parkLight = new THREE.PointLight(0xffd9a0, 0, 0, 1.4); parkLight.position.set(19, 4, 2); scene.add(parkLight);
 const SKY_DAY = new THREE.Color("#AFCFE8"), SKY_DUSK = new THREE.Color("#E9B48E"), SKY_NIGHT = new THREE.Color("#1A2240");
 scene.background = SKY_DAY.clone();
@@ -357,18 +355,9 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const isNight = h => h >= 22 || h < 6;
 
 /* ================= World: house ================= */
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), mat("#8FBF6C"));
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), mat("#8FBF6C"));
 ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; ground.userData.ground = true;
 scene.add(ground);
-const floor = mesh(new THREE.BoxGeometry(16, 0.1, 12), "#C9A57A");
-floor.castShadow = false; floor.userData.ground = true; scene.add(floor);
-for(let i = -7.5; i <= 7.5; i += 1){ box(scene, 0.02, 0.005, 12, "#B8915F", i, 0.052, 0).castShadow = false; }
-box(scene, 16.3, 1.3, 0.25, "#EDE6DA", 0, 0.65, -6.1);
-box(scene, 0.25, 1.3, 12.2, "#EDE6DA", -8.1, 0.65, 0);
-box(scene, 16.3, 0.12, 0.3, "#C9BBA6", 0, 1.33, -6.1);
-box(scene, 0.3, 0.12, 12.2, "#C9BBA6", -8.1, 1.33, 0);
-for(let z = 6.6; z < 8; z += 0.7) box(scene, 1.2, 0.04, 0.5, "#CFC7B8", 0, 0.02, z).castShadow = false;
-box(scene, 3.4, 0.02, 3.2, "#7E9CB8", -5.4, 0.06, 2).castShadow = false;
 function tree(x, z, s = 1){
   const t = new THREE.Group(); t.position.set(x, 0, z); t.scale.setScalar(s);
   add(t, mesh(new THREE.CylinderGeometry(.14, .2, 1.4, 10), "#7A5A3C"), 0, .7, 0);
@@ -392,107 +381,136 @@ const ACTS = {
   pet:      { label:"반려동물과 노는 중",emoji:"🐾", pose:"pet",    need:"fun",     gains:{ fun:3.2, social:2.5 },     max:10 },
   work:     { label:"일하는 중",         emoji:"💼", pose:"work",   need:"money",   gains:{ money:2.6, fun:-.15, social:.3 }, max:70, hours:[9, 18] },
   shop:     { label:"장 보는 중",        emoji:"🛒", pose:"look",   need:"fun",     gains:{ fun:3, hunger:1.6, money:-1.3 }, max:14, hours:[8, 20], cost:15 },
+  vendor:   { label:"장사하는 중",       emoji:"🧺", pose:"vendor", need:null,      gains:{},                          max:999 }, // NPC 전용
+  idle:     { label:"서 있는 중",        emoji:"🙂", pose:"idle",   need:null,      gains:{},                          max:999 }, // NPC 전용
   wander:   { label:"돌아다니는 중",     emoji:"🚶", pose:"idle",   need:null,      gains:{},                          max:3 },
   go:       { label:"이동하는 중",       emoji:"👟", pose:"idle",   need:null,      gains:{},                          max:2 },
 };
 const OUTING = new Set(["wander","go","stroll","bench","fountain","shop"]);
 const isOpen = (a, h) => !a.hours || (h >= a.hours[0] && h < a.hours[1]);
 const objects = [], pickables = [];
-function addObject(name, act, spots, build){
-  const g = new THREE.Group(); build(g); scene.add(g);
-  const obj = { name, act, group:g, spots: spots.map(s => ({ x:s[0], z:s[1], face:s[2], occ:null })) };
+function addObject(home, name, act, spots, build){
+  if(typeof home === "string"){ build = spots; spots = act; act = name; name = home; home = null; } // 집 밖 물건은 home 없이
+  const g = new THREE.Group(); build(g); (home ? home.group : scene).add(g);
+  const ox = home ? home.ox : 0, oz = home ? home.oz : 0;
+  const obj = { name, act, group:g, home: home ? home.idx : null, spots: spots.map(s => ({ x:s[0] + ox, z:s[1] + oz, face:s[2], occ:null })) };
   g.traverse(m => { if(m.isMesh){ m.userData.obj = obj; pickables.push(m); } });
   objects.push(obj); return obj;
 }
 
-/* ----- house furniture ----- */
-[-7.3, -6.0, -4.7, -3.4].forEach((bx, i) => {
-  addObject("침대", "sleep", [[bx, -4.0, 0]], g => {
-    box(g, 1.1, 0.35, 2.1, "#8A6748", bx, 0.25, -4.95);
-    box(g, 1.0, 0.18, 1.95, "#F3F1EC", bx, 0.5, -4.95);
-    box(g, 1.02, 0.06, 1.3, ["#6C8FC7","#C7786C","#7FB08A","#C9A24E"][i], bx, 0.6, -4.55);
-    box(g, 0.7, 0.12, 0.35, "#FFFFFF", bx, 0.64, -5.65);
-    box(g, 1.1, 0.8, 0.12, "#8A6748", bx, 0.5, -5.98);
+/* 집 한 채: 바닥·벽·가구·반려동물 용품을 (ox, oz) 기준으로 짓는다. 가구 자리는 home 번호를 기억해 주민이 제집을 우선 쓰게 한다 */
+const HOUSES = [];
+const HOUSE_STYLES = [
+  { floor:"#C9A57A", floorLine:"#B8915F", wall:"#EDE6DA", trim:"#C9BBA6", rug:"#7E9CB8", sofa:"#5E7FA8", sofa2:"#4F6E95", beds:["#6C8FC7","#C7786C","#7FB08A","#C9A24E"] },
+  { floor:"#B9A48E", floorLine:"#A48F79", wall:"#F3E2C7", trim:"#D8B98F", rug:"#C98D66", sofa:"#A86A5E", sofa2:"#8F574C", beds:["#E2B33A","#6FB6D9","#E2709A","#4FB38A"] },
+  { floor:"#D3B98F", floorLine:"#C2A77C", wall:"#DCE7E2", trim:"#A9C3B8", rug:"#8E9BB8", sofa:"#4FB38A", sofa2:"#3E9A74", beds:["#8E5BD3","#F07E5C","#3E7BD6","#F2C14E"] },
+];
+function buildHouse(ox, oz, label){
+  const idx = HOUSES.length, style = HOUSE_STYLES[idx % HOUSE_STYLES.length];
+  const H = new THREE.Group(); H.position.set(ox, 0, oz); scene.add(H);
+  const home = { idx, ox, oz, group:H, label, pet:null };
+  HOUSES.push(home);
+  const floor = mesh(new THREE.BoxGeometry(16, 0.1, 12), style.floor);
+  floor.castShadow = false; floor.userData.ground = true; H.add(floor);
+  for(let i = -7.5; i <= 7.5; i += 1){ box(H, 0.02, 0.005, 12, style.floorLine, i, 0.052, 0).castShadow = false; }
+  box(H, 16.3, 1.3, 0.25, style.wall, 0, 0.65, -6.1);
+  box(H, 0.25, 1.3, 12.2, style.wall, -8.1, 0.65, 0);
+  box(H, 16.3, 0.12, 0.3, style.trim, 0, 1.33, -6.1);
+  box(H, 0.3, 0.12, 12.2, style.trim, -8.1, 1.33, 0);
+  for(let z = 6.6; z < 8; z += 0.7) box(H, 1.2, 0.04, 0.5, "#CFC7B8", 0, 0.02, z).castShadow = false;
+  box(H, 3.4, 0.02, 3.2, style.rug, -5.4, 0.06, 2).castShadow = false;
+  /* ----- house furniture ----- */
+  [-7.3, -6.0, -4.7, -3.4].forEach((bx, i) => {
+    addObject(home, "침대", "sleep", [[bx, -4.0, 0]], g => {
+      box(g, 1.1, 0.35, 2.1, "#8A6748", bx, 0.25, -4.95);
+      box(g, 1.0, 0.18, 1.95, "#F3F1EC", bx, 0.5, -4.95);
+      box(g, 1.02, 0.06, 1.3, style.beds[i], bx, 0.6, -4.55);
+      box(g, 0.7, 0.12, 0.35, "#FFFFFF", bx, 0.64, -5.65);
+      box(g, 1.1, 0.8, 0.12, "#8A6748", bx, 0.5, -5.98);
+    });
   });
-});
-addObject("식탁", "eat", [[3.35, -1.5, Math.PI/2], [5.65, -1.5, -Math.PI/2], [4.5, -0.55, Math.PI]], g => {
-  box(g, 1.6, 0.08, 1.0, "#A47A52", 4.5, 0.76, -1.5);
-  [[-0.7,-0.4],[0.7,-0.4],[-0.7,0.4],[0.7,0.4]].forEach(([dx,dz]) => box(g, 0.08, 0.72, 0.08, "#8A6748", 4.5+dx, 0.38, -1.5+dz));
-  box(g, 0.24, 0.04, 0.24, "#FFFFFF", 4.1, 0.82, -1.5); box(g, 0.24, 0.04, 0.24, "#FFFFFF", 4.9, 0.82, -1.5);
-  [[3.35,-1.5,0],[5.65,-1.5,0],[4.5,-0.55,1]].forEach(([x,z,rot]) => {
-    box(g, 0.5, 0.06, 0.5, "#C29A6B", x, 0.45, z);
-    if(rot) box(g, 0.5, 0.55, 0.06, "#C29A6B", x, 0.75, z+0.24);
-    else box(g, 0.06, 0.55, 0.5, "#C29A6B", x + (x < 4.5 ? -0.24 : 0.24), 0.75, z);
-    box(g, 0.4, 0.42, 0.4, "#9C774F", x, 0.21, z);
+  addObject(home, "식탁", "eat", [[3.35, -1.5, Math.PI/2], [5.65, -1.5, -Math.PI/2], [4.5, -0.55, Math.PI]], g => {
+    box(g, 1.6, 0.08, 1.0, "#A47A52", 4.5, 0.76, -1.5);
+    [[-0.7,-0.4],[0.7,-0.4],[-0.7,0.4],[0.7,0.4]].forEach(([dx,dz]) => box(g, 0.08, 0.72, 0.08, "#8A6748", 4.5+dx, 0.38, -1.5+dz));
+    box(g, 0.24, 0.04, 0.24, "#FFFFFF", 4.1, 0.82, -1.5); box(g, 0.24, 0.04, 0.24, "#FFFFFF", 4.9, 0.82, -1.5);
+    [[3.35,-1.5,0],[5.65,-1.5,0],[4.5,-0.55,1]].forEach(([x,z,rot]) => {
+      box(g, 0.5, 0.06, 0.5, "#C29A6B", x, 0.45, z);
+      if(rot) box(g, 0.5, 0.55, 0.06, "#C29A6B", x, 0.75, z+0.24);
+      else box(g, 0.06, 0.55, 0.5, "#C29A6B", x + (x < 4.5 ? -0.24 : 0.24), 0.75, z);
+      box(g, 0.4, 0.42, 0.4, "#9C774F", x, 0.21, z);
+    });
   });
-});
-addObject("부엌", "eat", [], g => {
-  box(g, 3.6, 0.95, 0.7, "#E8E4DC", 4.4, 0.48, -5.6);
-  box(g, 3.6, 0.06, 0.74, "#5F6B78", 4.4, 0.98, -5.6);
-  box(g, 0.85, 1.95, 0.75, "#DDE3EA", 7.2, 0.98, -5.55);
-  box(g, 0.04, 0.5, 0.04, "#8D97A3", 6.9, 1.2, -5.15);
-});
-addObject("소파", "tv", [[-4.75, 1.2, -Math.PI/2], [-4.75, 2.0, -Math.PI/2], [-4.75, 2.8, -Math.PI/2]], g => {
-  box(g, 0.9, 0.45, 2.6, "#5E7FA8", -4.5, 0.25, 2);
-  box(g, 0.25, 0.65, 2.6, "#4F6E95", -4.0, 0.62, 2);
-  box(g, 0.9, 0.55, 0.22, "#4F6E95", -4.5, 0.4, 0.62); box(g, 0.9, 0.55, 0.22, "#4F6E95", -4.5, 0.4, 3.38);
-});
-addObject("TV", "tv", [], g => {
-  box(g, 0.5, 0.55, 2.0, "#4A3B2F", -7.6, 0.3, 2);
-  box(g, 0.08, 0.9, 1.6, "#15181D", -7.55, 1.1, 2);
-  box(g, 0.02, 0.8, 1.5, "#2B4B70", -7.5, 1.1, 2, { emissive:"#2B4B70", emissiveIntensity:.6 });
-});
-addObject("책장", "read", [[0.9, -4.8, Math.PI], [2.1, -4.8, Math.PI]], g => {
-  box(g, 2.4, 2.0, 0.45, "#8A6748", 1.5, 1.0, -5.75);
-  const cols = ["#C7564A","#3F7FBF","#E1B342","#5EA26A","#8E5BD3","#D9822B"];
-  for(let r = 0; r < 4; r++) for(let i = 0; i < 9; i++)
-    box(g, 0.16, rand(.3,.4), 0.3, pick(cols), 0.6 + i*0.23, 0.32 + r*0.47, -5.65).castShadow = false;
-});
-addObject("샤워부스", "shower", [[6.6, 4.6, -Math.PI/2]], g => {
-  box(g, 1.4, 0.1, 1.4, "#DDE6EE", 6.6, 0.06, 4.6);
-  box(g, 0.05, 2.1, 1.4, "#BFD9EC", 5.9, 1.1, 4.6, { transparent:true, opacity:.35 }).castShadow = false;
-  box(g, 1.4, 2.1, 0.05, "#BFD9EC", 6.6, 1.1, 3.9, { transparent:true, opacity:.35 }).castShadow = false;
-  box(g, 0.05, 0.05, 0.5, "#8D97A3", 7.2, 2.15, 4.6);
-  box(g, 0.25, 0.04, 0.25, "#8D97A3", 7.0, 2.12, 4.6);
-});
-addObject("정원", "garden", [[-1.3, 8.4, 0], [1.3, 8.4, 0]], g => {
-  box(g, 5, 0.25, 1.6, "#7A5A3C", 0, 0.12, 9.5);
-  box(g, 4.8, 0.06, 1.4, "#5A3E28", 0, 0.27, 9.5).castShadow = false;
-  const petals = ["#E8566B","#F2C14E","#B97BE0","#FF8E4D","#FFFFFF"];
-  for(let i = 0; i < 16; i++){
-    const x = -2.1 + (i % 8) * 0.6, z = 9.1 + Math.floor(i/8) * 0.7;
-    box(g, 0.03, 0.4, 0.03, "#3E8A45", x, 0.48, z);
-    add(g, mesh(new THREE.SphereGeometry(.1, 10, 8), pick(petals)), x, 0.72, z);
-  }
-});
-
-/* ----- pet furniture ----- */
-const PET_HOME = {
-  dogBed:   new THREE.Vector3(-1.7, 0.05, -5.0),
-  catBed:   new THREE.Vector3(-6.6, 0.05, 4.9),
-  dogBowl:  new THREE.Vector3(7.0, 0.05, -3.6),
-  catBowl:  new THREE.Vector3(7.0, 0.05, -2.8),
-  perch:    new THREE.Vector3(2.6, 1.5, 4.6),
-};
-addObject("개 방석", null, [], g => {
-  add(g, mesh(new THREE.CylinderGeometry(.6, .62, .14, 24), "#B5574B"), -1.7, .1, -5.0);
-  add(g, mesh(new THREE.TorusGeometry(.55, .1, 10, 24), "#9C4A40"), -1.7, .16, -5.0).rotation.x = Math.PI/2;
-});
-addObject("고양이 쿠션", null, [], g => {
-  add(g, mesh(new THREE.CylinderGeometry(.42, .44, .12, 24), "#8A7BC4"), -6.6, .1, 4.9);
-});
-addObject("밥그릇", null, [], g => {
-  for(const z of [-3.6, -2.8]){
-    add(g, mesh(new THREE.CylinderGeometry(.16, .12, .08, 18), z < -3 ? "#D9573E" : "#3E8FD4"), 7.45, .09, z);
-    add(g, mesh(new THREE.CylinderGeometry(.13, .13, .02, 18), "#8C6239"), 7.45, .13, z);
-  }
-});
-addObject("횃대", null, [], g => {
-  add(g, mesh(new THREE.CylinderGeometry(.35, .4, .06, 20), "#6B5644"), 2.6, .08, 4.6);
-  add(g, mesh(new THREE.CylinderGeometry(.03, .03, 1.42, 10), "#8A6748"), 2.6, .78, 4.6);
-  const bar = add(g, mesh(new THREE.CylinderGeometry(.025, .025, .8, 10), "#8A6748"), 2.6, 1.46, 4.6); bar.rotation.z = Math.PI/2;
-  add(g, mesh(new THREE.CylinderGeometry(.08, .06, .06, 14), "#E1B342"), 2.95, 1.5, 4.6);
-});
+  addObject(home, "부엌", "eat", [], g => {
+    box(g, 3.6, 0.95, 0.7, "#E8E4DC", 4.4, 0.48, -5.6);
+    box(g, 3.6, 0.06, 0.74, "#5F6B78", 4.4, 0.98, -5.6);
+    box(g, 0.85, 1.95, 0.75, "#DDE3EA", 7.2, 0.98, -5.55);
+    box(g, 0.04, 0.5, 0.04, "#8D97A3", 6.9, 1.2, -5.15);
+  });
+  addObject(home, "소파", "tv", [[-4.75, 1.2, -Math.PI/2], [-4.75, 2.0, -Math.PI/2], [-4.75, 2.8, -Math.PI/2]], g => {
+    box(g, 0.9, 0.45, 2.6, style.sofa, -4.5, 0.25, 2);
+    box(g, 0.25, 0.65, 2.6, style.sofa2, -4.0, 0.62, 2);
+    box(g, 0.9, 0.55, 0.22, style.sofa2, -4.5, 0.4, 0.62); box(g, 0.9, 0.55, 0.22, style.sofa2, -4.5, 0.4, 3.38);
+  });
+  addObject(home, "TV", "tv", [], g => {
+    box(g, 0.5, 0.55, 2.0, "#4A3B2F", -7.6, 0.3, 2);
+    box(g, 0.08, 0.9, 1.6, "#15181D", -7.55, 1.1, 2);
+    box(g, 0.02, 0.8, 1.5, "#2B4B70", -7.5, 1.1, 2, { emissive:"#2B4B70", emissiveIntensity:.6 });
+  });
+  addObject(home, "책장", "read", [[0.9, -4.8, Math.PI], [2.1, -4.8, Math.PI]], g => {
+    box(g, 2.4, 2.0, 0.45, "#8A6748", 1.5, 1.0, -5.75);
+    const cols = ["#C7564A","#3F7FBF","#E1B342","#5EA26A","#8E5BD3","#D9822B"];
+    for(let r = 0; r < 4; r++) for(let i = 0; i < 9; i++)
+      box(g, 0.16, rand(.3,.4), 0.3, pick(cols), 0.6 + i*0.23, 0.32 + r*0.47, -5.65).castShadow = false;
+  });
+  addObject(home, "샤워부스", "shower", [[6.6, 4.6, -Math.PI/2]], g => {
+    box(g, 1.4, 0.1, 1.4, "#DDE6EE", 6.6, 0.06, 4.6);
+    box(g, 0.05, 2.1, 1.4, "#BFD9EC", 5.9, 1.1, 4.6, { transparent:true, opacity:.35 }).castShadow = false;
+    box(g, 1.4, 2.1, 0.05, "#BFD9EC", 6.6, 1.1, 3.9, { transparent:true, opacity:.35 }).castShadow = false;
+    box(g, 0.05, 0.05, 0.5, "#8D97A3", 7.2, 2.15, 4.6);
+    box(g, 0.25, 0.04, 0.25, "#8D97A3", 7.0, 2.12, 4.6);
+  });
+  addObject(home, "정원", "garden", [[-1.3, 8.4, 0], [1.3, 8.4, 0]], g => {
+    box(g, 5, 0.25, 1.6, "#7A5A3C", 0, 0.12, 9.5);
+    box(g, 4.8, 0.06, 1.4, "#5A3E28", 0, 0.27, 9.5).castShadow = false;
+    const petals = ["#E8566B","#F2C14E","#B97BE0","#FF8E4D","#FFFFFF"];
+    for(let i = 0; i < 16; i++){
+      const x = -2.1 + (i % 8) * 0.6, z = 9.1 + Math.floor(i/8) * 0.7;
+      box(g, 0.03, 0.4, 0.03, "#3E8A45", x, 0.48, z);
+      add(g, mesh(new THREE.SphereGeometry(.1, 10, 8), pick(petals)), x, 0.72, z);
+    }
+  });
+  
+  /* ----- pet furniture ----- */
+  home.pet = {
+    dogBed:   new THREE.Vector3(ox - 1.7, 0.05, oz - 5.0),
+    catBed:   new THREE.Vector3(ox - 6.6, 0.05, oz + 4.9),
+    dogBowl:  new THREE.Vector3(ox + 7.0, 0.05, oz - 3.6),
+    catBowl:  new THREE.Vector3(ox + 7.0, 0.05, oz - 2.8),
+    perch:    new THREE.Vector3(ox + 2.6, 1.5, oz + 4.6),
+  };
+  addObject(home, "개 방석", null, [], g => {
+    add(g, mesh(new THREE.CylinderGeometry(.6, .62, .14, 24), "#B5574B"), -1.7, .1, -5.0);
+    add(g, mesh(new THREE.TorusGeometry(.55, .1, 10, 24), "#9C4A40"), -1.7, .16, -5.0).rotation.x = Math.PI/2;
+  });
+  addObject(home, "고양이 쿠션", null, [], g => {
+    add(g, mesh(new THREE.CylinderGeometry(.42, .44, .12, 24), "#8A7BC4"), -6.6, .1, 4.9);
+  });
+  addObject(home, "밥그릇", null, [], g => {
+    for(const z of [-3.6, -2.8]){
+      add(g, mesh(new THREE.CylinderGeometry(.16, .12, .08, 18), z < -3 ? "#D9573E" : "#3E8FD4"), 7.45, .09, z);
+      add(g, mesh(new THREE.CylinderGeometry(.13, .13, .02, 18), "#8C6239"), 7.45, .13, z);
+    }
+  });
+  addObject(home, "횃대", null, [], g => {
+    add(g, mesh(new THREE.CylinderGeometry(.35, .4, .06, 20), "#6B5644"), 2.6, .08, 4.6);
+    add(g, mesh(new THREE.CylinderGeometry(.03, .03, 1.42, 10), "#8A6748"), 2.6, .78, 4.6);
+    const bar = add(g, mesh(new THREE.CylinderGeometry(.025, .025, .8, 10), "#8A6748"), 2.6, 1.46, 4.6); bar.rotation.z = Math.PI/2;
+    add(g, mesh(new THREE.CylinderGeometry(.08, .06, .06, 14), "#E1B342"), 2.95, 1.5, 4.6);
+  });
+  const lamp = new THREE.PointLight(0xffc98a, 0, 0, 1.6); lamp.position.set(ox, 3.2, oz); scene.add(lamp); houseLamps.push(lamp);
+  placeTag("🏠 " + label, ox, 2.4, oz - 6.1);
+  return home;
+}
 
 /* ================= World: park ================= */
 const PARK = new THREE.Vector3(19, 0, 2);
@@ -608,15 +626,15 @@ const OFFICE = new THREE.Vector3(-5, 0, 21.5);
   const desks = [];
   for(let r = 0; r < 2; r++) for(let c = 0; c < 3; c++){ desks.push([ox - 3.3 + c * 3.3, oz - 1.4 + r * 2.6]); }
   desks.forEach(([dx, dz], i) => {
-    addObject("책상", "work", [[dx, dz - 0.75, Math.PI]], g => {
+    addObject("책상", "work", [[dx, dz + 0.75, Math.PI]], g => {
       box(g, 1.6, 0.06, 0.8, "#D9C4A5", dx, 0.78, dz);
       for(const sx of [-0.7, 0.7]) for(const sz of [-0.3, 0.3]) box(g, 0.06, 0.74, 0.06, "#6B6E75", dx + sx, 0.41, dz + sz);
       box(g, 0.6, 0.42, 0.04, "#2E3440", dx, 1.05, dz + 0.15);                 // 모니터
       box(g, 0.6, 0.42, 0.02, "#9CC7EE", dx, 1.05, dz + 0.17, { emissive:"#5A8FD0", emissiveIntensity:.35 });
-      box(g, 0.45, 0.02, 0.18, "#E6E6E6", dx, 0.82, dz - 0.2);                 // 키보드
-      box(g, 0.5, 0.06, 0.5, "#4D6FA8", dx, 0.44, dz - 0.75);                  // 의자
-      box(g, 0.5, 0.55, 0.06, "#4D6FA8", dx, 0.74, dz - 0.98);
-      box(g, 0.05, 0.4, 0.05, "#3B4350", dx, 0.2, dz - 0.75);
+      box(g, 0.45, 0.02, 0.18, "#E6E6E6", dx, 0.82, dz + 0.22);                 // 키보드(화면 앞)
+      box(g, 0.5, 0.06, 0.5, "#4D6FA8", dx, 0.44, dz + 0.75);                  // 의자(화면을 보고 앉음)
+      box(g, 0.5, 0.55, 0.06, "#4D6FA8", dx, 0.74, dz + 0.98);
+      box(g, 0.05, 0.4, 0.05, "#3B4350", dx, 0.2, dz + 0.75);
     });
   });
   add(scene, mesh(new THREE.CylinderGeometry(.22, .26, .5, 12), "#B8834F"), ox + 4.6, .25, oz - 2.6); // 화분
@@ -647,6 +665,9 @@ const MARKET = new THREE.Vector3(12, 0, 21);
   });
   placeTag("🧺 시장 · 8시~20시", mx, 3.2, mz + 1.2);
 }
+/* ----- 가정집 3채: 원래 집(0호)은 도로 북쪽, 1호는 남북 도로 서쪽, 2호는 0호 북쪽 ----- */
+buildHouse(0, 0, "1호집"); buildHouse(-29, 1, "2호집"); buildHouse(0, -21, "3호집");
+tree(-20, -14, 1.1); tree(-38, -10, 1.2); tree(-39, 8, 1); tree(12, -22, 1.1); tree(-11, -30, 1.2);
 
 /* ================= People model (≈5 heads tall) ================= */
 const LOOKS = {
@@ -762,6 +783,7 @@ class Citizen {
         hairStyle: pick(["long","bob","pony"]),
       };
     }
+    this.home = clamp(Number.isInteger(def && def.home) ? def.home : 0, 0, HOUSES.length - 1);
     this.p = buildPerson(this.look, gender);
     this.root = this.p.root; this.root.position.set(x, 0.05, z);
     this.netTarget = this.root.position.clone();
@@ -859,7 +881,7 @@ class Citizen {
     pet.beginPetted(this);
     this.petTarget = pet;
     let tx, tz;
-    if(pet.kind === "parrot"){ tx = PET_HOME.perch.x; tz = PET_HOME.perch.z + 0.8; }
+    if(pet.kind === "parrot"){ const ph = HOUSES[pet.home].pet.perch; tx = ph.x; tz = ph.z + 0.8; }
     else {
       const d = new THREE.Vector3().subVectors(this.pos, pet.pos); d.y = 0;
       if(d.lengthSq() < 1e-4) d.set(0, 0, 1);
@@ -878,7 +900,9 @@ class Citizen {
       if(a.park && (night || hour >= 21)) continue;
       if(!isOpen(a, hour)) continue;
       if(a.cost && this.needs.money < a.cost) continue;
+      if(obj.home != null && obj.home !== this.home && obj.act === "sleep") continue; // 남의 집 침대에선 안 잔다
       let u = urg(a.need);
+      if(obj.home != null && obj.home !== this.home) u *= 0.8;                       // 남의 집 물건은 덜 끌린다
       if(obj.act === "sleep") u += night ? 0.45 : -0.15;
       if(obj.act === "work") u = Math.min(1, u + 0.18 + (hour < 11 ? 0.12 : 0)); // 출근 시간대엔 일하러 가고 싶어진다
       if(obj.act === "shop") u = Math.max(u, urg("hunger") * .8) * (this.needs.money > 50 ? 1 : .8);
@@ -905,7 +929,7 @@ class Citizen {
       }
     }
     if(best) best();
-    else this.walkTo(rand(-6.5, 6.5), rand(-3, 6.5), "wander", null, null);
+    else { const H = HOUSES[this.home]; this.walkTo(H.ox + rand(-6.5, 6.5), H.oz + rand(-3, 6.5), "wander", null, null); }
   }
   startChat(o){
     o.release();
@@ -950,6 +974,7 @@ class Citizen {
         }
         else if(this.act === "pet"){ const pp = this.petTarget.pos; this.face = Math.atan2(pp.x - this.pos.x, pp.z - this.pos.z); }
         else if(this.targetFace != null) this.face = this.targetFace;
+        if(this.act === "shop" || this.act === "work") npcGreet(this);
         this.updateTag();
       } else {
         to.divideScalar(dist);
@@ -1030,6 +1055,7 @@ class Citizen {
       case "shower": { const k = Math.sin(t*6); T.shL = -2.7 + k*.12; T.shR = -2.7 - k*.12; T.elL = T.elR = -1.5; T.head = -0.25; T.armOut = 0.25; break; }
       case "chat": T.shR = -0.45 - 0.35*Math.max(0, Math.sin(t*2.6)); T.elR = -1.0 + wave(5, .25); T.shL = -0.1; T.head = wave(3, .07); T.chest = wave(1.3, .03); break;
       case "look": T.head = -0.15 + wave(.6, .08); T.shL = T.shR = 0.25; T.elL = T.elR = -0.5; T.armOut = 0.02; break;
+      case "vendor": { const w = Math.sin(t * 0.7) > 0.75; T.shL = -0.55; T.elL = -1.2; T.shR = w ? -2.5 + wave(9, .15) : -0.55; T.elR = w ? -0.4 : -1.2; T.head = wave(1.1, .06); T.chest = 0.05; break; }
       case "petCrouch": { const k = Math.sin(t*4); T.hipL = T.hipR = -1.35; T.kneeL = T.kneeR = 2.2; T.bodyY = -0.42; T.chest = 0.5; T.head = 0.45;
         T.shR = -1.05 + k*.2; T.elR = -0.35; T.shL = -0.4; T.elL = -0.8; break; }
       case "petBird": T.shR = -1.75 + wave(3, .12); T.elR = -0.7; T.head = -0.2; T.shL = -0.1; break;
@@ -1045,20 +1071,94 @@ class Citizen {
 }
 
 
+
+/* ================= NPC: 시장 상인과 회사 직원 ================= */
+/* 시민과 달리 욕구도 이동도 없다. 영업시간에만 보이고, 손님·동료가 오면 한마디 건넨다. 생김새는 고정이라 호스트·관전자가 같은 모습을 본다 */
+const npcs = [];
+class Npc {
+  constructor(o){
+    this.name = o.name; this.place = o.place; this.hours = o.hours; this.lines = o.lines; this.gender = o.gender;
+    this.p = buildPerson(o.look, o.gender); this.root = this.p.root; this.root.position.set(o.x, 0.05, o.z); this.root.rotation.y = o.face;
+    this.state = "act"; this.act = o.act; this.t = Math.random() * 10; this.walkPhase = 0; this.petTarget = null; this.idx = npcs.length;
+    this.root.traverse(m => { if(m.isMesh && m !== this.p.orb){ m.userData.npc = this; m.userData.ground = true; } });
+    this.p.orb.visible = false;
+    const el = document.createElement("div"); el.className = "tag"; el.textContent = o.name; this.tagEl = el;
+    this.tag = new CSS2DObject(el); this.tag.position.y = 2.3; this.root.add(this.tag);
+    const wrap = document.createElement("div"); wrap.className = "bubbleWrap";
+    this.bubbleEl = document.createElement("div"); this.bubbleEl.className = "bubble"; wrap.appendChild(this.bubbleEl);
+    this.bubble = new CSS2DObject(wrap); this.bubble.position.y = 2.3; this.root.add(this.bubble);
+    scene.add(this.root); npcs.push(this);
+  }
+  get pos(){ return this.root.position; }
+  updateTag(){ this.tagEl.classList.toggle("show", this === hovered); }
+  say(text, delay = 0){
+    if(net.role === "host") broadcast({ t:"nsay", n:this.idx, text, delay });
+    clearTimeout(this.sayT1); clearTimeout(this.sayT2);
+    this.sayT1 = setTimeout(() => { this.bubbleEl.textContent = text; this.bubbleEl.classList.add("show");
+      this.sayT2 = setTimeout(() => this.bubbleEl.classList.remove("show"), 2600); }, delay * 1000);
+  }
+  update(dt){
+    const open = isOpen(this, hourNow);
+    this.root.visible = open; if(!open) return;
+    this.t += dt;
+    Citizen.prototype.animate.call(this, dt);
+  }
+}
+/* 손님이나 동료가 자리에 앉으면 가까운 NPC 가 인사한다(호스트에서만 호출) */
+function npcGreet(c){
+  const place = c.act === "shop" ? "market" : c.act === "work" ? "office" : null; if(!place) return;
+  const near = npcs.filter(n => n.place === place && n.root.visible && n.pos.distanceTo(c.pos) < 5);
+  if(!near.length || Math.random() < .25) return;
+  const n = pick(near); n.say(pick(n.lines).replace("{n}", c.name), 0.4);
+}
+{
+  const L = (shirt, pants, skin, hair, extra = {}) => ({ shirt, pants, skin, hair, shoes:"#2B2B2E", skirt:null, hairStyle:"bob", ...extra });
+  const mx = MARKET.x, mz = MARKET.z;
+  [["과일 가게 사장", "f", L("#D9533E", "#2F3A52", "#E3B08A", "#2A2018", { hairStyle:"pony" }), ["싱싱한 과일 보고 가세요!", "{n} 님, 오늘 사과가 달아요", "어서 오세요~"]],
+   ["꽃 가게 사장",   "m", L("#8E5BD3", "#4A3B2F", "#F1C9A5", "#5A3A22"), ["꽃 한 다발 어때요?", "{n} 님, 튤립이 막 들어왔어요", "향기 좋죠?"]],
+   ["빵 가게 사장",   "m", L("#E0A33A", "#3C4A3A", "#C98D66", "#1B1B1B"), ["갓 구운 빵이에요!", "{n} 님, 크루아상 하나 드세요", "오늘도 고마워요"]],
+  ].forEach(([name, gender, look, lines], i) => {
+    const sx = mx - 3.6 + i * 3.6;
+    new Npc({ name, gender, look, lines, place:"market", hours:[8, 20], act:"vendor", x:sx, z:mz + 1.75, face:Math.PI });
+  });
+  const ox = OFFICE.x, oz = OFFICE.z;
+  // 안내 데스크(입구 쪽)와 부장 책상(동쪽 벽 앞)
+  box(scene, 2.2, 0.95, 0.6, "#8FA3BF", ox - 3.4, 0.5, oz - 2.4); box(scene, 2.3, 0.05, 0.7, "#DAD4CC", ox - 3.4, 1.0, oz - 2.4);
+  box(scene, 1.9, 0.06, 0.9, "#A47A52", ox + 4.4, 0.8, oz + 1.5); for(const sz of [-0.35, 0.35]) for(const sx of [-0.85, 0.85]) box(scene, 0.06, 0.76, 0.06, "#6B6E75", ox + 4.4 + sx, 0.4, oz + 1.5 + sz);
+  box(scene, 0.6, 0.42, 0.04, "#2E3440", ox + 4.4, 1.07, oz + 1.65); box(scene, 0.6, 0.42, 0.02, "#9CC7EE", ox + 4.4, 1.07, oz + 1.67, { emissive:"#5A8FD0", emissiveIntensity:.35 });
+  box(scene, 0.55, 0.06, 0.55, "#3B4350", ox + 4.4, 0.46, oz + 2.25); box(scene, 0.55, 0.6, 0.06, "#3B4350", ox + 4.4, 0.78, oz + 2.5);
+  new Npc({ name:"안내 직원 소희", gender:"f", look:L("#FFFFFF", "#24486B", "#F1C9A5", "#3B2A1E", { hairStyle:"long" }), lines:["좋은 아침이에요, {n} 님!", "오늘도 파이팅!", "회의실은 왼쪽이에요"],
+    place:"office", hours:[9, 18], act:"idle", x:ox - 3.4, z:oz - 1.7, face:Math.PI });
+  new Npc({ name:"부장 김철수", gender:"m", look:L("#55626F", "#2F3A52", "#E3B08A", "#1B1B1B"), lines:["{n} 씨, 보고서는요?", "커피 한잔 하고 합시다", "이번 분기도 잘 부탁해요"],
+    place:"office", hours:[9, 18], act:"work", x:ox + 4.4, z:oz + 2.25, face:Math.PI });
+}
+
 /* ================= Cars: 도로를 따라 무작위로 지나가는 차 ================= */
 /* 호스트만 시뮬레이션하고 상태 메시지에 실어 보낸다. 저장하지 않는 일회성 볼거리. 앞차·보행자가 가까우면 속도를 줄이고 가끔 경적을 울린다. */
 const CAR_KINDS = [
   { len:1.9, body:[1.9, .5, .95], cabin:[1.0, .42, .85], cy:.86, w:.2 },   // 승용차
   { len:2.3, body:[2.3, .75, 1.0], cabin:[1.1, .45, .9], cy:1.05, w:.22 }, // 밴
-  { len:3.4, body:[3.4, .95, 1.05], cabin:null, cy:0, w:.24 },             // 버스
+  { len:4.4, body:[4.4, 1.15, 1.15], cabin:null, cy:0, w:.26 },            // 버스(정류장에 선다)
 ];
 const CAR_COLORS = ["#D9533E","#3E7BD6","#F2C230","#F5F1E8","#2E3440","#3FA46A","#E2709A","#8E5BD3","#55626F"];
-const cars = []; let carSeq = 1, carTimer = 4;
+const cars = []; let carSeq = 1, carTimer = 4, busTimer = 12;
+/* 버스 정류장: 동서 도로 양쪽 보도. 버스는 자기 차선의 정류장에 잠깐 선다 */
+const BUS_STOPS = [{ road:0, lane:0, p:17 }, { road:0, lane:1, p:-6 }];
+for(const st of BUS_STOPS){
+  const R = ROADS[st.road], side = R.lanes[st.lane].off > 0 ? 1 : -1, z = R.at + side * 2.8, x = st.p;
+  box(scene, 2.6, 0.06, 1.0, "#B9B3A8", x, 0.06, z).castShadow = false;
+  for(const dx of [-1.1, 1.1]) box(scene, 0.07, 2.3, 0.07, "#3B4350", x + dx, 1.15, z + side * 0.4);
+  box(scene, 2.8, 0.08, 1.2, "#3E7BD6", x, 2.3, z + side * 0.1, { transparent:true, opacity:.85 });
+  box(scene, 1.6, 0.06, 0.4, "#A9744B", x, 0.5, z + side * 0.3); for(const dx of [-0.65, 0.65]) box(scene, 0.06, 0.44, 0.35, "#3B4350", x + dx, 0.25, z + side * 0.3);
+  box(scene, 0.06, 2.0, 0.06, "#3B4350", x + 1.4, 1.0, z - side * 0.4); box(scene, 0.5, 0.3, 0.04, "#F2C230", x + 1.4, 1.9, z - side * 0.4);
+  placeTag("🚌 정류장", x, 2.9, z);
+}
 function buildCar(kind, color){
   const K = CAR_KINDS[kind], g = new THREE.Group();
   box(g, ...K.body, color, 0, K.body[1] / 2 + .22, 0);
   if(K.cabin) box(g, ...K.cabin, color, -.12, K.cy, 0);
-  else for(let i = -1.2; i <= 1.2; i += .6) box(g, .42, .4, 1.07, "#9CC7EE", i, .95, 0, { roughness:.2 }); // 버스 창
+  else { for(let i = -1.6; i <= 1.6; i += .64) box(g, .46, .42, K.body[2] + .02, "#9CC7EE", i, 1.05, 0, { roughness:.2 }); // 버스 창
+    box(g, K.len + .02, .12, K.body[2] + .02, "#F5F1E8", 0, .62, 0); box(g, .9, .24, .02, "#F5F1E8", K.len / 2 - .6, 1.32, K.body[2] / 2 + .01); }
   if(K.cabin) box(g, K.cabin[0] + .02, .3, K.cabin[2] - .1, "#9CC7EE", -.12, K.cy + .02, 0, { roughness:.2 });
   for(const sx of [-1, 1]) for(const sz of [-1, 1]){
     const w = mesh(new THREE.CylinderGeometry(K.w, K.w, .18, 12), "#2B2B2E"); w.rotation.x = Math.PI / 2;
@@ -1113,7 +1213,15 @@ class Car {
     return { want, honk };
   }
   update(dt, sdt){
-    const { want, honk } = this.ahead();
+    let { want, honk } = this.ahead();
+    if(this.kind === 2){ // 버스: 정류장 앞에서 2.5초 정차
+      const st = BUS_STOPS.find(x => ROADS[x.road] === this.road && this.road.lanes[x.lane] === this.lane);
+      if(st && !this.stopped){
+        const d = (st.p - this.p) * this.dir;
+        if(d < 0.3 && d > -1){ this.wait = (this.wait ?? 2.5) - sdt; want = 0; if(this.wait <= 0) this.stopped = true; }
+        else if(d < 3.5 && d >= 0.3) want = Math.min(want, this.speed * d / 3.5 + 0.3);
+      }
+    }
     this.vel += clamp(want - this.vel, -9 * sdt, 3.5 * sdt);
     this.p += this.dir * this.vel * sdt;
     this.place();
@@ -1139,15 +1247,21 @@ class Car {
 function spawnCar(){
   const road = Math.random() < .62 ? 0 : 1, lane = Math.random() < .5 ? 0 : 1;
   const R = ROADS[road], L = R.lanes[lane];
-  const kind = Math.random() < .68 ? 0 : Math.random() < .7 ? 1 : 2;
+  const kind = Math.random() < .72 ? 0 : 1; // 버스는 spawnBus 가 따로 띄운다
   const p = L.dir > 0 ? R.from : R.to;
   // 출발 지점 바로 앞에 차가 있으면 이번엔 쉬어 간다
   if(cars.some(c => c.road === R && c.lane === L && Math.abs(c.p - p) < 5)) return;
   cars.push(new Car({ id:carSeq++, kind, color:pick(CAR_COLORS), road, lane, p }));
 }
+function spawnBus(){
+  const lane = Math.random() < .5 ? 0 : 1, R = ROADS[0], L = R.lanes[lane], p = L.dir > 0 ? R.from : R.to;
+  if(cars.some(c => c.road === R && c.lane === L && Math.abs(c.p - p) < 6)) return;
+  cars.push(new Car({ id:carSeq++, kind:2, color:pick(["#3FA46A", "#3E7BD6", "#F2C230"]), road:0, lane, p, speed:rand(3.6, 4.6) }));
+}
 function updateCars(dt, sdt){
-  carTimer -= sdt;
-  if(carTimer <= 0){ carTimer = rand(4, 11); if(cars.length < 9) spawnCar(); }
+  carTimer -= sdt; busTimer -= sdt;
+  if(carTimer <= 0){ carTimer = rand(4, 11); if(cars.length < 10) spawnCar(); }
+  if(busTimer <= 0){ busTimer = rand(28, 50); spawnBus(); }
   for(let i = cars.length - 1; i >= 0; i--){
     const c = cars[i]; c.update(dt, sdt);
     if(c.done()){ c.dispose(); cars.splice(i, 1); }
@@ -1246,6 +1360,7 @@ function buildParrot(color){
 class Pet {
   constructor(kind, x, z, owner, def){
     this.kind = kind; this.owner = owner;
+    this.home = clamp(Number.isInteger(def && def.home) ? def.home : owner ? owner.home : 0, 0, HOUSES.length - 1);
     const info = PET_INFO[kind];
     let n;
     if(def){ this.id = def.id; this.name = def.name; this.color = def.color; n = def.idx; }
@@ -1259,7 +1374,7 @@ class Pet {
     this.root = this.m.root;
     this.root.traverse(o => { if(o.isMesh) o.userData.pet = this; });
     this.idx = n;
-    this.root.position.set(x, kind === "parrot" ? PET_HOME.perch.y : 0.05, z);
+    this.root.position.set(x, kind === "parrot" ? HOUSES[this.home].pet.perch.y : 0.05, z);
     if(kind === "parrot") this.root.position.copy(this.perchPos());
     if(def) this.root.position.set(def.x, def.y, def.z);
     this.netTarget = this.root.position.clone();
@@ -1275,9 +1390,10 @@ class Pet {
   }
   get pos(){ return this.root.position; }
   get emoji(){ return PET_INFO[this.kind].emoji; }
-  perchPos(){ return PET_HOME.perch.clone().add(new THREE.Vector3(-0.25 + (this.idx % 3) * 0.22, 0, 0)); }
-  homeBed(){ const b = this.kind === "dog" ? PET_HOME.dogBed : PET_HOME.catBed; return b.clone().add(new THREE.Vector3((this.idx % 2) * .3 - .15, 0, 0)); }
-  bowl(){ return this.kind === "dog" ? PET_HOME.dogBowl : PET_HOME.catBowl; }
+  get hp(){ return HOUSES[this.home].pet; }
+  perchPos(){ return this.hp.perch.clone().add(new THREE.Vector3(-0.25 + (this.idx % 3) * 0.22, 0, 0)); }
+  homeBed(){ const b = this.kind === "dog" ? this.hp.dogBed : this.hp.catBed; return b.clone().add(new THREE.Vector3((this.idx % 2) * .3 - .15, 0, 0)); }
+  bowl(){ return this.kind === "dog" ? this.hp.dogBowl : this.hp.catBowl; }
   stateLabel(){
     if(this.state === "shoulder" && this.owner) return `${this.owner.name} 어깨 위`;
     if(this.state === "walk" && this.next === "eat") return "밥 먹으러 가는 중";
@@ -1317,7 +1433,7 @@ class Pet {
     return false;
   }
   ownerOut(){ const o = this.owner; return o && o.state !== "idle" && OUTING.has(o.act); }
-  randomPoint(){ return Math.random() < .8 ? new THREE.Vector3(rand(-6.5, 6.5), 0, rand(-3, 6)) : new THREE.Vector3(rand(-3, 3), 0, rand(7, 8.2)); }
+  randomPoint(){ const H = HOUSES[this.home]; return Math.random() < .8 ? new THREE.Vector3(H.ox + rand(-6.5, 6.5), 0, H.oz + rand(-3, 6)) : new THREE.Vector3(H.ox + rand(-3, 3), 0, H.oz + rand(7, 8.2)); }
   decide(hour){
     const night = isNight(hour);
     if(this.needs.energy < 25 || (night && this.needs.energy < 97)) return this.goTo(this.homeBed(), "sleep", rand(-3, 3));
@@ -1377,7 +1493,8 @@ class Pet {
   ownerHostsBird(){ const o = this.owner; return o && !o.sleeping() && !(o.state === "act" && ["shower","pet"].includes(o.act)); }
   takeOff(landing, after = "perch", hops = 3){
     this.route = [];
-    for(let i = 0; i < hops; i++) this.route.push(new THREE.Vector3(rand(-6, 14), rand(2.2, 3.4), rand(-4, 8)));
+    const H = HOUSES[this.home];
+    for(let i = 0; i < hops; i++) this.route.push(new THREE.Vector3(H.ox + rand(-6, 14), rand(2.2, 3.4), H.oz + rand(-4, 8)));
     this.landing = landing; this.afterLand = after; this.state = "fly"; this.updateTag();
   }
   updateBird(dt, sdt, hour){
@@ -1582,6 +1699,13 @@ function syncSelectionUI(){
 function selectCitizen(c){ selected = c; selectedPet = null; buildNeedRows(NEED_KEYS); syncSelectionUI(); }
 /* ----- 소개창: 선택한 시민·반려동물의 모든 정보와 조작이 한곳에 ----- */
 const noteWin = document.getElementById("noteWin"), noteView = document.getElementById("noteView");
+/* 좁은 화면에서는 소개창을 아래 패널 맨 위로 옮겨 현황 목록을 가리지 않게 한다. 넓어지면 다시 3D 화면 위로 되돌린다 */
+const panelEl = document.querySelector(".panel"), narrowMQ = matchMedia("(max-width:760px)");
+function placeNoteWin(){
+  if(narrowMQ.matches){ if(noteWin.parentElement !== panelEl) panelEl.prepend(noteWin); }
+  else if(noteWin.parentElement !== stage) stage.insertBefore(noteWin, document.getElementById("labels").nextSibling);
+}
+narrowMQ.addEventListener("change", placeNoteWin); placeNoteWin();
 document.getElementById("noteWinClose").addEventListener("click", clearSelection);
 let introTab = "about", introSubj = null;
 function setIntroTab(t){
@@ -1595,7 +1719,7 @@ function syncNoteWin(){
   const subj = selected || selectedPet;
   noteWin.hidden = !subj;
   if(!subj) return;
-  if(subj !== introSubj){ introSubj = subj; setIntroTab("about"); noteWin.scrollTop = 0; }
+  if(subj !== introSubj){ introSubj = subj; setIntroTab("about"); noteWin.scrollTop = 0; if(narrowMQ.matches) panelEl.scrollTop = 0; }
   document.getElementById("introTabs").hidden = !selected;   // 반려동물은 소개 탭만
   if(!selected && introTab !== "about") setIntroTab("about");
   const b = document.getElementById("noteBubble");
@@ -1663,6 +1787,11 @@ function portraitRects(){
   const cr = canvas.getBoundingClientRect(), vr = noteView.getBoundingClientRect();
   const w = Math.round(vr.width), h = Math.round(vr.height);
   if(w < 8 || h < 8) return null;
+  if(noteWin.parentElement !== stage){ // 패널 안에 있을 때: 패널 밖으로 스크롤돼 안 보이면 그리지 않는다
+    const pr = panelEl.getBoundingClientRect();
+    if(vr.bottom <= pr.top || vr.top >= pr.bottom) return null;
+    return { cr, vr, w, h, inside:false };
+  }
   const inside = vr.left >= cr.left - 1 && vr.right <= cr.right + 1 && vr.top >= cr.top - 1 && vr.bottom <= cr.bottom + 1;
   return { cr, vr, w, h, inside };
 }
@@ -1727,8 +1856,13 @@ function petResult(c, p){
 }
 const cleanName = v => String(v ?? "").trim().slice(0, 12);
 const cleanGreet = v => String(v ?? "").trim().slice(0, 40);
+function emptiestHouse(){ // 새 주민은 가장 한산한 집으로 이사 온다
+  const n = HOUSES.map(() => 0); for(const c of citizens) n[c.home]++;
+  return n.indexOf(Math.min(...n));
+}
 function addCitizen(g, select = true, name = "", greeting = ""){
-  const c = new Citizen(rand(-1, 1), rand(5, 6.5), g, { name:cleanName(name), greeting:cleanGreet(greeting) }); citizens.push(c); renderLists();
+  const home = emptiestHouse(), H = HOUSES[home];
+  const c = new Citizen(H.ox + rand(-1, 1), H.oz + rand(5, 6.5), g, { name:cleanName(name), greeting:cleanGreet(greeting), home }); citizens.push(c); renderLists();
   if(select) selectCitizen(c);
   return announce(`${c.name} 님이 이사 왔어요`);
 }
@@ -1768,7 +1902,8 @@ document.getElementById("editForm").addEventListener("submit", e => {
 function addPet(kind, owner, select = true){
   owner = owner || pick(citizens);
   if(!owner) return "반려동물을 데려오려면 시민이 먼저 있어야 해요";
-  const p = new Pet(kind, rand(-2, 2), rand(3, 5), owner);
+  const H = HOUSES[owner.home];
+  const p = new Pet(kind, H.ox + rand(-2, 2), H.oz + rand(3, 5), owner);
   pets.push(p); renderLists();
   if(select) selectPet(p);
   return announce(`${owner.name} 님이 ${PET_INFO[p.kind].label} ${p.name}을(를) 데려왔어요`);
@@ -1863,7 +1998,7 @@ let hoverT = 0;
 canvas.addEventListener("pointermove", e => {
   const now = performance.now(); if(now - hoverT < 40) return; hoverT = now;
   const hit = pickAt(e.clientX, e.clientY);
-  const next = hit ? (hit.object.userData.citizen || hit.object.userData.pet || null) : null;
+  const next = hit ? (hit.object.userData.citizen || hit.object.userData.pet || hit.object.userData.npc || null) : null;
   if(next === hovered) return;
   const prev = hovered; hovered = next;
   if(prev) prev.updateTag(); if(next) next.updateTag();
@@ -1910,7 +2045,7 @@ function updateSky(){
   sun.intensity = 0.15 + 2.4 * day;
   hemi.intensity = 0.35 + 0.95 * day;
   const dark = 1 - Math.min(1, day * 2.5);
-  lamp.intensity = dark * 16; parkLight.intensity = dark * 30;
+  for(const l of houseLamps) l.intensity = dark * 16; parkLight.intensity = dark * 30;
   lampHeads.forEach(l => l.material.emissiveIntensity = dark * 2.2);
   const dusk = Math.max(0, 1 - Math.abs(day - 0.18) / 0.18) * (day < .4 ? 1 : 0);
   scene.background.copy(SKY_NIGHT).lerp(SKY_DAY, Math.min(1, day * 1.6)).lerp(SKY_DUSK, dusk * 0.6);
@@ -1970,8 +2105,8 @@ const roomLabel = ROOM === "TOWN" ? "" : ` · 방 ${ROOM}`;
 
 function roomInit(){
   return { t:"init", simMin, speed,
-    citizens: citizens.map(c => ({ id:c.id, gender:c.gender, name:c.name, greeting:c.greeting, note:c.note, guestbook:c.guestbook, look:c.look, x:c.pos.x, z:c.pos.z })),
-    pets: pets.map(p => ({ id:p.id, kind:p.kind, name:p.name, color:p.color, idx:p.idx, owner:p.owner ? p.owner.id : 0, x:p.pos.x, y:p.pos.y, z:p.pos.z })) };
+    citizens: citizens.map(c => ({ id:c.id, gender:c.gender, name:c.name, greeting:c.greeting, note:c.note, guestbook:c.guestbook, look:c.look, home:c.home, x:c.pos.x, z:c.pos.z })),
+    pets: pets.map(p => ({ id:p.id, kind:p.kind, name:p.name, color:p.color, idx:p.idx, owner:p.owner ? p.owner.id : 0, home:p.home, x:p.pos.x, y:p.pos.y, z:p.pos.z })) };
 }
 function roomState(){ return { t:"state", simMin, speed, c:citizens.map(c => c.netState()), p:pets.map(p => p.netState()), v:cars.map(c => c.netState()) }; }
 function broadcast(msg){ for(const c of net.conns) if(c.open) c.send(msg); }
@@ -2010,8 +2145,11 @@ function sendCmd(cmd){
 /* ----- 호스트 ----- */
 function seedTown(){
   const c1 = new Citizen(-1, 3, "m"), c2 = new Citizen(1.5, 4.5, "f"), c3 = new Citizen(3, 2, "m"), c4 = new Citizen(-2.5, 5, "f");
-  citizens.push(c1, c2, c3, c4);
-  pets.push(new Pet("dog", 0, 4, c1), new Pet("cat", -3, 3.5, c2), new Pet("parrot", 0, 0, c3));
+  const H1 = HOUSES[1], H2 = HOUSES[2];
+  const c5 = new Citizen(H1.ox - 1, H1.oz + 3, "f", { home:1 }), c6 = new Citizen(H1.ox + 2, H1.oz + 4, "m", { home:1 });
+  const c7 = new Citizen(H2.ox + 1, H2.oz + 3, "m", { home:2 }), c8 = new Citizen(H2.ox - 2, H2.oz + 4.5, "f", { home:2 });
+  citizens.push(c1, c2, c3, c4, c5, c6, c7, c8);
+  pets.push(new Pet("dog", 0, 4, c1), new Pet("cat", -3, 3.5, c2), new Pet("parrot", 0, 0, c3), new Pet("dog", H1.ox + 1, H1.oz + 3, c5), new Pet("cat", H2.ox - 1, H2.oz + 2, c8));
   renderLists();
 }
 /* 관전하던 상태에서 호스트로 이어받을 때: 보이던 위치·욕구는 유지하고, 내부 행동 상태만 깨끗이 초기화한다 */
@@ -2139,6 +2277,7 @@ function joinAsViewer(delay){
         else if(m.t === "state") applyState(m);
         else if(m.t === "toast") toast(m.msg);
         else if(m.t === "say"){ const c = citizens.find(x => x.id === m.cid); if(c) c.say(String(m.text).slice(0, 40), m.delay || 0); }
+        else if(m.t === "nsay"){ const n = npcs[m.n]; if(n) n.say(String(m.text).slice(0, 40), m.delay || 0); }
         else if(m.t === "reset"){ clearTown(); toast("동네가 초기화됐어요"); }
         else if(m.t === "remove"){
           for(const id of m.c || []){ const c = citizens.find(x => x.id === id); if(c){ if(c === selected) clearSelection(); detachCitizen(c); } }
@@ -2305,6 +2444,7 @@ function frame(){
     for(const p of pets) p.update(adt, sdt, hourNow);
     updateCars(dt, sdt);
   }
+  for(const n of npcs) n.update(dt);
   if(spout){ spout.scale.y = 1 + Math.sin(performance.now() / 180) * .12; }
   if(camAnim){
     camAnim.t = Math.min(1, camAnim.t + dt / 1.1);
