@@ -1762,14 +1762,15 @@ function becomeHost(peer, tookOver){
   net.tick = setInterval(() => { if(net.conns.length) broadcast(roomState()); }, 100);
   updateViewerCount();
   toast(tookOver ? "호스트가 나가서 이 화면이 동네를 이어받았어요"
-    : restored ? `저장된 동네를 이어서 시작해요 (${Math.floor(simMin / 1440) + 1}일차) · 함께 보기 켜짐`
+    : restored ? restoredMsg(restored) + " · 함께 보기 켜짐"
     : "함께 보기가 켜졌어요. 같은 주소를 연 사람은 이 동네를 같이 봐요");
+  showSaveStatus(); scheduleUpload();
 }
 function goSolo(reason){
   const wasViewer = net.role !== "host";
   if(net.peer && !net.peer.destroyed) net.peer.destroy();
   net.role = "solo"; net.host = null; net.conns = []; clearInterval(net.tick);
-  if(citizens.length === 0){ if(restoreSnapshot()) toast(`저장된 동네를 이어서 시작해요 (${Math.floor(simMin / 1440) + 1}일차)`); else seedTown(); }
+  if(citizens.length === 0){ const from = restoreSnapshot(); if(from) toast(restoredMsg(from)); else seedTown(); }
   else if(wasViewer) takeOverState();   // 관전하던 상태를 이어서 혼자 돌린다
   setPill("혼자 보기 · 연결 안 됨", "off");
   setStatus(`함께 보기를 켜지 못해 혼자 보기로 열었어요 (${reason}). 다른 사람과 같은 동네를 보려면 새로고침해서 다시 시도하세요. 휴대폰 통신망처럼 네트워크가 다르면 연결이 안 될 수 있어요.`);
@@ -1875,32 +1876,83 @@ function joinAsViewer(delay){
   }, delay);
 }
 
-/* ================= Persistence: snapshot in localStorage ================= */
-/* 호스트든 관전자든 지금 보고 있는 동네를 5초마다, 그리고 심 추가·수정 직후와 탭 숨김·종료 시에 저장한다.
-   다음에 이 브라우저가 호스트가 되면(먼저 열거나 혼자 보기) 저장본으로 동네를 이어서 시작한다. */
+/* ================= Persistence: snapshot on the server + localStorage ================= */
+/* 정본은 서버(town-worker.js, Cloudflare KV)에 둔다. 호스트가 3분마다, 변경 직후(10초에 1회), 탭 종료 시 올리고,
+   새 호스트가 시작할 때 서버 스냅샷을 받아 이어간다. 브라우저 저장소는 서버가 안 될 때의 예비다. */
+const TOWN_ENDPOINT = "";   // 예: "https://citizen-town.<계정>.workers.dev"  (비우면 브라우저 저장소만 사용)
+const TOWN_KEY = "";        // Worker 에 TOWN_KEY 를 설정했다면 같은 값
 const SAVE_KEY = "citizen-sim:snapshot:" + ROOM;
-let lastSaved = 0;
+const townUrl = () => TOWN_ENDPOINT.replace(/\/$/, "") + "/town?room=" + encodeURIComponent(ROOM) + (TOWN_KEY ? "&key=" + encodeURIComponent(TOWN_KEY) : "");
+let lastSaved = 0, lastUploaded = 0, uploadTimer = null, serverSnap = null, serverState = TOWN_ENDPOINT ? "pending" : "off";
+const hhmmss = ms => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`; };
+function buildSnapshot(){ return { v:1, savedAt:Date.now(), room:ROOM, init:roomInit(), state:roomState() }; }
+function showSaveStatus(){
+  let s = `동네는 이 브라우저에 자동 저장돼요.` + (lastSaved ? ` 마지막 저장 ${hhmmss(lastSaved)}` : "");
+  if(TOWN_ENDPOINT){
+    s = serverState === "ok" ? `동네는 서버에 저장돼요. 서버 저장 ${lastUploaded ? hhmmss(lastUploaded) : "대기 중"}`
+      : serverState === "error" ? `서버 저장에 실패해 이 브라우저에만 저장 중이에요.` + (lastSaved ? ` 마지막 저장 ${hhmmss(lastSaved)}` : "")
+      : serverState === "viewer" ? `동네는 호스트가 서버에 저장해요.`
+      : `서버 연결 확인 중…`;
+  }
+  document.getElementById("saveStatus").textContent = s;
+}
 function saveSnapshot(){
   if(net.role === "connecting" || citizens.length === 0) return;
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(buildSnapshot())); lastSaved = Date.now(); } catch {}
+  if(TOWN_ENDPOINT && net.role === "viewer") serverState = "viewer";
+  showSaveStatus();
+  scheduleUpload();
+}
+/* 서버 업로드: 호스트·혼자 보기만. 변경 직후는 10초에 1회로 묶고, 그 외에는 3분 주기 */
+function scheduleUpload(){
+  if(!TOWN_ENDPOINT || (net.role !== "host" && net.role !== "solo") || citizens.length === 0) return;
+  if(uploadTimer) return;
+  const wait = Math.max(0, 10000 - (Date.now() - lastUploaded));
+  uploadTimer = setTimeout(() => { uploadTimer = null; uploadSnapshot(); }, wait);
+}
+async function uploadSnapshot(useBeacon = false){
+  if(!TOWN_ENDPOINT || (net.role !== "host" && net.role !== "solo") || citizens.length === 0) return;
+  const body = JSON.stringify(buildSnapshot());
+  if(useBeacon && navigator.sendBeacon){ navigator.sendBeacon(townUrl(), new Blob([body], { type:"application/json" })); lastUploaded = Date.now(); return; }
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ v:1, savedAt:Date.now(), init:roomInit(), state:roomState() }));
-    lastSaved = Date.now();
-    const d = new Date(lastSaved);
-    document.getElementById("saveStatus").textContent = `동네는 이 브라우저에 자동 저장돼요. 마지막 저장 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
-  } catch {}
+    const r = await fetch(townUrl(), { method:"PUT", headers:{ "Content-Type":"application/json" }, body, keepalive:true });
+    if(r.ok || r.status === 409){ lastUploaded = Date.now(); serverState = "ok"; }
+    else { serverState = "error"; console.warn("동네 서버 저장 실패:", r.status); }
+  } catch(e) { serverState = "error"; console.warn("동네 서버 저장 실패:", e.message); }
+  showSaveStatus();
+}
+async function fetchServerSnapshot(){
+  if(!TOWN_ENDPOINT) return null;
+  try {
+    const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 5000);
+    const r = await fetch(townUrl(), { signal: ctrl.signal, cache:"no-store" });
+    clearTimeout(timer);
+    if(r.status === 404){ serverState = "ok"; return null; }
+    if(!r.ok) throw new Error("http " + r.status);
+    const s = await r.json();
+    serverState = "ok";
+    return s && s.v === 1 && s.init && s.state ? s : null;
+  } catch(e) { serverState = "error"; console.warn("동네 서버에서 받지 못했어요:", e.message); return null; }
 }
 function loadSnapshot(){
   try { const s = JSON.parse(localStorage.getItem(SAVE_KEY) || "null"); return s && s.v === 1 && s.init && s.state ? s : null; }
   catch { return null; }
 }
 /* 저장본으로 동네를 만든다. 관전자가 호스트를 이어받을 때와 같은 경로(정의 → 상태 → 내부 상태 초기화)를 쓴다 */
+/* 서버 스냅샷과 브라우저 저장본 중 더 최신 것을 쓴다. 돌려주는 값: "server" | "local" | false */
 function restoreSnapshot(){
-  const s = loadSnapshot();
-  if(!s || !s.init.citizens || !s.init.citizens.length) return false;
+  const local = loadSnapshot();
+  const ok = s => s && s.init && s.init.citizens && s.init.citizens.length;
+  let s = null, from = false;
+  if(ok(serverSnap) && (!ok(local) || serverSnap.savedAt >= local.savedAt)){ s = serverSnap; from = "server"; }
+  else if(ok(local)){ s = local; from = "local"; }
+  if(!s) return false;
   applyInit(s.init); applyState(s.state); takeOverState();
   renderLists();
-  return true;
+  if(from === "local") scheduleUpload();   // 브라우저 저장본이 더 최신이면 서버에도 올려 둔다
+  return from;
 }
+const restoredMsg = from => `${from === "server" ? "서버에 저장된" : "이 브라우저에 저장된"} 동네를 이어서 시작해요 (${Math.floor(simMin / 1440) + 1}일차)`;
 function clearTown(){
   clearSelection();
   for(const c of citizens){ scene.remove(c.root); c.tagEl.remove(); c.bubbleEl.parentElement?.remove(); }
@@ -1918,7 +1970,7 @@ function resetTown(){
   nameCount.m = nameCount.f = 0; for(const k in petCount) petCount[k] = 0;
   seedTown();
   if(net.role === "host"){ broadcast({ t:"reset" }); broadcast(roomInit()); }
-  saveSnapshot();
+  saveSnapshot(); uploadSnapshot();
   toast("동네를 처음부터 다시 시작했어요");
 }
 {
@@ -1931,19 +1983,20 @@ function resetTown(){
   });
 }
 setInterval(saveSnapshot, 5000);
-document.addEventListener("visibilitychange", () => { if(document.hidden) saveSnapshot(); });
+setInterval(() => uploadSnapshot(), 180000);
+document.addEventListener("visibilitychange", () => { if(document.hidden){ saveSnapshot(); uploadSnapshot(true); } });
 /* 탭을 닫을 때: 저장하고, 닫으면 동네가 멈추는 경우(호스트인데 관전자 없음, 또는 혼자 보기)에만 브라우저 확인창을 띄운다 */
 addEventListener("beforeunload", e => {
   saveSnapshot();
   const townStops = net.role === "solo" || (net.role === "host" && net.conns.length === 0);
   if(townStops && citizens.length){ e.preventDefault(); e.returnValue = ""; }
 });
-addEventListener("pagehide", () => { saveSnapshot(); if(net.peer) net.peer.destroy(); });
+addEventListener("pagehide", () => { saveSnapshot(); uploadSnapshot(true); if(net.peer) net.peer.destroy(); });
 
 /* ================= Start ================= */
 renderLists();
 if(typeof Peer === "undefined") goSolo("PeerJS 로드 실패");
-else loadTurn().then(() => claimHost(false));
+else Promise.all([loadTurn(), fetchServerSnapshot().then(s => { serverSnap = s; })]).then(() => claimHost(false));
 
 function resize(){
   const w = stage.clientWidth, h = stage.clientHeight;
