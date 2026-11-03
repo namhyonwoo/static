@@ -47,6 +47,10 @@ body{
 .placeTag{ background:rgba(26,33,44,.78); color:#fff; border-radius:999px; padding:.2rem .7rem; font-size:12px; font-weight:600; white-space:nowrap; pointer-events:none; }
 .honk{ background:#FFFFFF; color:#1A212C; border-radius:10px; padding:.2rem .5rem; font-size:12px; font-weight:700; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.2); }
 .bubbleWrap{ position:relative; width:0; height:0; }
+.noteWrap{ position:relative; width:0; height:0; pointer-events:none; }
+.note{ position:absolute; left:-8px; bottom:0; color:#1A212C; font-weight:700; font-size:20px; opacity:0; text-shadow:0 1px 0 #fff, 0 0 6px #fff; }
+.note.fly{ animation:noteFly 1.8s ease-out forwards; }
+@keyframes noteFly{ 0%{ opacity:0; transform:translateY(0) } 15%{ opacity:1 } 100%{ opacity:0; transform:translateY(-36px) } }
 .bubble{
   position:absolute; left:50%; bottom:1.3rem; transform:translateX(-50%); background:#FFFFFF; color:#1A212C;
   border-radius:12px; padding:.32rem .65rem; font-size:12px; white-space:nowrap; box-shadow:0 2px 10px rgba(0,0,0,.18);
@@ -431,6 +435,10 @@ const ACTS = {
   blocks:   { label:"블록 쌓는 중",      emoji:"🧱", pose:"play",   need:"fun",     gains:{ fun:3, social:.8 },            max:25, hours:[9, 16], age:"tot" },
   vendor:   { label:"장사하는 중",       emoji:"🧺", pose:"vendor", need:null,      gains:{},                          max:999 }, // NPC 전용
   idle:     { label:"서 있는 중",        emoji:"🙂", pose:"idle",   need:null,      gains:{},                          max:999 }, // NPC 전용
+  busk:     { label:"버스킹 중",         emoji:"🎸", pose:"strum",  need:null,      gains:{},                          max:999 }, // NPC 전용
+  wave:     { label:"수신호 중",         emoji:"👮", pose:"wave",   need:null,      gains:{},                          max:999 }, // NPC 전용
+  sweep:    { label:"청소하는 중",       emoji:"🧹", pose:"garden", need:null,      gains:{},                          max:999 }, // NPC 전용
+  sit:      { label:"앉아 있는 중",      emoji:"🪑", pose:"tv",     need:null,      gains:{},                          max:999 }, // NPC 전용
   wander:   { label:"돌아다니는 중",     emoji:"🚶", pose:"idle",   need:null,      gains:{},                          max:3 },
   go:       { label:"이동하는 중",       emoji:"👟", pose:"idle",   need:null,      gains:{},                          max:2 },
 };
@@ -954,7 +962,13 @@ class Citizen {
   }
   mood(){ const ks = needKeys(this); return ks.reduce((s,[k]) => s + this.needs[k], 0) / ks.length; }
   sleeping(){ return this.state === "act" && this.act === "sleep"; }
+  musicBoost(){ // 공원에서 쉬거나 산책 중인데 버스커가 가까이서 연주 중이면
+    return !!(busker && busker.root.visible && (this.act === "bench" || this.act === "fountain" || this.act === "stroll") && (this.state === "act" || this.state === "walk") && busker.pos.distanceTo(this.pos) < 9);
+  }
   actLabel(){
+    const l = this.actLabel0(); return this.musicBoost() ? l + " 🎵" : l;
+  }
+  actLabel0(){
     if(this.state === "walk"){
       if(this.act === "stroll") return "🌳 공원 산책 중";
       if(this.act === "wander") return "🚶 돌아다니는 중";
@@ -1087,7 +1101,7 @@ class Citizen {
     const paused = (this.act === "chat" && this.partner && this.partner.state !== "act") || (this.act === "pet" && this.state !== "act");
     for(const [k] of needKeys(this)){
       let v = this.needs[k] - DECAY[k] * sdt * (k === "energy" && isNight(hour) ? 1.6 : 1);
-      if(a && a.gains[k] && !paused) v += (a.gains[k] + DECAY[k]) * sdt;
+      if(a && a.gains[k] && !paused) v += (a.gains[k] + DECAY[k]) * sdt * (k === "fun" && this.musicBoost() ? 1.6 : 1); // 버스킹 근처면 재미가 더 빨리 찬다
       this.needs[k] = clamp(v, 0, 100);
     }
     if(this.state === "idle"){
@@ -1198,6 +1212,8 @@ class Citizen {
       case "petCrouch": { const k = Math.sin(t*4); T.hipL = T.hipR = -1.35; T.kneeL = T.kneeR = 2.2; T.bodyY = -0.42; T.chest = 0.5; T.head = 0.45;
         T.shR = -1.05 + k*.2; T.elR = -0.35; T.shL = -0.4; T.elL = -0.8; break; }
       case "petBird": T.shR = -1.75 + wave(3, .12); T.elR = -0.7; T.head = -0.2; T.shL = -0.1; break;
+      case "strum": { T.shL = -1.05; T.elL = -1.35; T.shR = -0.75 + Math.sin(t*7) * .22; T.elR = -1.5; T.armOut = 0.3; T.head = wave(1.4, .08) - 0.1; T.chest = 0.05; break; }
+      case "wave": { const up = Math.sin(t * 1.1) > 0; T.shR = up ? -2.6 + wave(6, .25) : -0.35; T.elR = up ? -0.3 : -0.9; T.shL = -0.2; T.elL = -0.3; T.head = wave(.9, .1); T.armOut = 0.2; break; }
       case "play": { const k = Math.sin(t*4.5); T.hipL = T.hipR = -1.35; T.kneeL = T.kneeR = 2.2; T.bodyY = -0.42; T.chest = 0.4; T.head = 0.4;
         T.shR = -1.1 + k*.3; T.elR = -0.5; T.shL = -1.1 - k*.3; T.elL = -0.5; break; }
       default: T.chest = wave(1.6, .015); T.head = wave(.7, .05);
@@ -1218,9 +1234,12 @@ class Citizen {
 const npcs = [];
 class Npc {
   constructor(o){
-    this.name = o.name; this.place = o.place; this.hours = o.hours; this.lines = o.lines; this.gender = o.gender;
+    this.name = o.name; this.place = o.place; this.lines = o.lines; this.gender = o.gender;
+    this.hoursList = Array.isArray(o.hours[0]) ? o.hours : [o.hours];   // 근무 시간대가 둘 이상일 수도 있다(교통 경찰)
+    this.passLines = o.passLines || null; this.passT = rand(6, 14); this.motion = o.motion || null; this.tick = o.tick || null;
     this.p = buildPerson(o.look, o.gender); this.root = this.p.root; this.root.position.set(o.x, 0.05, o.z); this.root.rotation.y = o.face;
     this.state = "act"; this.act = o.act; this.t = Math.random() * 10; this.walkPhase = 0; this.petTarget = null; this.idx = npcs.length;
+    if(o.build) o.build(this.p, this);                                    // 소품(기타, 빗자루, 모자 등)
     this.root.traverse(m => { if(m.isMesh && m !== this.p.orb){ m.userData.npc = this; m.userData.ground = true; } });
     this.p.orb.visible = false;
     const el = document.createElement("div"); el.className = "tag"; el.textContent = o.name; this.tagEl = el;
@@ -1238,15 +1257,24 @@ class Npc {
     this.sayT1 = setTimeout(() => { this.bubbleEl.textContent = text; this.bubbleEl.classList.add("show");
       this.sayT2 = setTimeout(() => this.bubbleEl.classList.remove("show"), 2600); }, delay * 1000);
   }
+  onDuty(){ return this.hoursList.some(h => hourNow >= h[0] && hourNow < h[1]); }
+  chatter(text){ if(net.role === "viewer" || this.passT > 0) return; this.passT = rand(14, 26); this.say(text); } // 호스트만, 20초쯤에 한 번
   update(dt){
-    const open = isOpen(this, hourNow);
+    if(this.tick) this.tick(this);
+    const open = this.onDuty();
     this.root.visible = open; if(!open) return;
-    this.t += dt;
+    this.t += dt; this.passT -= dt;
+    if(this.motion) this.motion(this, dt);                               // 시각(simMin)으로 정해지는 이동이라 호스트·관전자가 같은 자리를 본다
     Citizen.prototype.animate.call(this, dt);
+    if(this.passLines && this.passT <= 0){                                // 바로 옆을 지나는 시민에게 말 걸기
+      const c = citizens.find(c => c.pos.distanceTo(this.pos) < 2.6);
+      if(c) this.chatter(pick(this.passLines).replace("{n}", c.name));
+    }
   }
 }
 /* 손님이나 동료가 자리에 앉으면 가까운 NPC 가 인사한다(호스트에서만 호출) */
-const NPC_PLACE = { shop:"market", work:"office", school:"school", daycare:"kinder", blocks:"kinder" };
+const NPC_PLACE = { shop:"market", work:"office", school:"school", daycare:"kinder", blocks:"kinder", bench:"park", fountain:"park" };
+let busker = null, police = null; // 효과가 있는 NPC: 버스커(재미 1.6배), 교통 경찰(교차로 감속)
 function npcGreet(c){
   const place = NPC_PLACE[c.act]; if(!place) return;
   const near = npcs.filter(n => n.place === place && n.root.visible && n.pos.distanceTo(c.pos) < 5);
@@ -1278,6 +1306,70 @@ function npcGreet(c){
     place:"school", hours:[9, 15], act:"idle", x:SCHOOL.x - 4.5, z:SCHOOL.z - 3.3, face:0 });
   new Npc({ name:"유치원 선생님", gender:"f", look:L("#F2C14E", "#B8475B", "#E3B08A", "#2A2018", { hairStyle:"pony", skirt:"#B8475B" }), lines:["{n}, 손 씻고 오자!", "간식 시간이에요", "같이 노래 부를까?", "{n}, 잘 왔어요!"],
     place:"kinder", hours:[9, 16], act:"idle", x:KINDER.x + 3.5, z:KINDER.z - 3.0, face:0 });
+
+  /* ----- 공원 버스커: 11~20시 동쪽 입구에서 기타를 친다. 음표가 떠오르고, 근처에서 쉬거나 산책하는 시민은 재미가 1.6배로 찬다 ----- */
+  busker = new Npc({ name:"버스커 지훈", gender:"m", look:L("#2E3440", "#55565C", "#F1C9A5", "#8A5A2B"), lines:["{n} 님, 신청곡 받아요!", "오늘 밤 신곡 공개합니다", "박수 한 번!"],
+    passLines:["{n} 님, 한 곡 듣고 가요", "동전 말고 박수도 좋아요"], place:"park", hours:[11, 20], act:"busk", x:PARK.x + 3.9, z:PARK.z, face:-Math.PI / 2,
+    build:(P, n) => {
+      const g = box(P.chest, .5, .2, .1, "#A47A52", .02, .12, .2); g.rotation.z = .45;
+      const neck = box(P.chest, .5, .05, .05, "#5A3A22", .36, .33, .2); neck.rotation.z = .45;
+      box(P.chest, .12, .1, .11, "#1B1B1B", .04, .13, .25).rotation.z = .45;
+      box(n.root, .5, .4, .9, "#3B4350", 0, .15, -.9); box(n.root, .3, .08, .4, "#F2C14E", .7, 0, .7); // 앰프, 기타 케이스(근무 중에만 보임)
+      n.notes = [0, 1, 2].map(i => { const wrap = document.createElement("div"); wrap.className = "noteWrap"; const el = document.createElement("span"); el.className = "note"; wrap.appendChild(el);
+        const o = new CSS2DObject(wrap); o.position.set((i - 1) * .35, 2.0, 0); n.root.add(o); return el; }); // 애니메이션은 안쪽 span 에만(바깥 div 는 CSS2D 가 위치를 잡는다)
+      n.noteT = 0; n.noteI = 0;
+    },
+    motion:(n, dt) => { n.noteT -= dt; if(n.noteT <= 0){ n.noteT = 1.3; const el = n.notes[n.noteI++ % 3]; el.textContent = pick(["♪", "♫", "♬"]); el.classList.remove("fly"); void el.offsetWidth; el.classList.add("fly"); } } });
+
+  /* ----- 공원 관리인: 7~11시 공원 둘레를 돌며 2분 걷고 1분 쓸기를 반복한다. 위치는 시각으로 정해진다 ----- */
+  new Npc({ name:"관리인 박씨", gender:"m", look:L("#4F6E95", "#3C4A3A", "#C98D66", "#55565C"), lines:[], passLines:["{n}, 쓰레기는 쓰레기통에!", "아침 공기 좋지요?", "잔디 밟지 마세요~"],
+    place:"park", hours:[7, 11], act:"sweep", x:PARK.x - 7.8, z:PARK.z, face:0,
+    build:P => { box(P.elR, .04, 1.1, .04, "#A47A52", .05, -.35, .12); box(P.elR, .24, .14, .08, "#D9A441", .05, -.9, .12); },
+    motion:(n, dt) => {
+      const m = Math.max(0, simMin % 1440 - 7 * 60), cyc = m % 3, walked = Math.floor(m / 3) * 2 + Math.min(cyc, 2);
+      const ang = Math.PI + walked * 0.08, r = 7.9, x = PARK.x + Math.cos(ang) * r, z = PARK.z + Math.sin(ang) * r;
+      n.pos.set(x, 0.05, z);
+      if(cyc < 2){ n.state = "walk"; n.act = "wander"; n.root.rotation.y = Math.atan2(-Math.sin(ang), Math.cos(ang)); n.walkPhase += dt * speed * 5.5; }
+      else { n.state = "act"; n.act = "sweep"; n.root.rotation.y = Math.atan2(PARK.x - x, PARK.z - z); }
+    } });
+
+  /* ----- 우체부: 10~13시 1·2·3호집 현관을 차례로 돌며 편지를 놓고 간다. 편지를 받은 집 주민은 교류가 오른다 ----- */
+  {
+    const S = [-10, 10.2], doors = HOUSES.map(H => [H.ox, H.oz + 7.9]), pts = [S, doors[0], doors[1], doors[2], S], segs = [];
+    let acc = 0; const v = 0.8; // m / 게임 분
+    for(let i = 0; i < 4; i++){
+      const d = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]);
+      segs.push({ a:pts[i], b:pts[i + 1], t0:acc, t1:acc + d / v }); acc += d / v;
+      if(i < 3){ segs.push({ at:pts[i + 1], house:i, t0:acc, t1:acc + 12 }); acc += 12; }
+    }
+    const letters = HOUSES.map(H => { const g = new THREE.Group(); g.position.set(H.ox + .55, 0, H.oz + 7.6); scene.add(g); box(g, .34, .04, .24, "#FFFFFF", 0, .04, 0); box(g, .1, .045, .08, "#D9533E", .09, .045, -.05); g.visible = false; return g; });
+    new Npc({ name:"우체부 민호", gender:"m", look:L("#D9533E", "#24486B", "#E3B08A", "#2A2018"), lines:[], passLines:["{n} 님, 등기 받으세요", "오늘은 광고지뿐이네요"],
+      place:"street", hours:[10, 13], act:"idle", x:S[0], z:S[1], face:0,
+      build:(P, n) => { box(P.head, .36, .1, .34, "#D9533E", 0, .38, 0); box(P.pelvis, .3, .3, .14, "#D9A441", .24, -.02, 0); n.done = new Set(); },
+      tick:n => { if(simMin % 1440 < 10 * 60 && n.done.size){ n.done.clear(); letters.forEach(l => l.visible = false); } },
+      motion:(n, dt) => {
+        const m = simMin % 1440 - 10 * 60, sg = segs.find(x => m >= x.t0 && m < x.t1);
+        if(!sg){ n.pos.set(S[0], 0.05, S[1]); n.state = "act"; n.act = "idle"; return; }
+        if(sg.a){ const k = (m - sg.t0) / (sg.t1 - sg.t0); n.pos.set(lerp(sg.a[0], sg.b[0], k), 0.05, lerp(sg.a[1], sg.b[1], k));
+          n.state = "walk"; n.act = "wander"; n.root.rotation.y = Math.atan2(sg.b[0] - sg.a[0], sg.b[1] - sg.a[1]); n.walkPhase += dt * speed * 6; return; }
+        n.pos.set(sg.at[0], 0.05, sg.at[1]); n.state = "act"; n.act = "idle"; n.root.rotation.y = Math.PI;
+        if(!n.done.has(sg.house)){
+          n.done.add(sg.house); letters[sg.house].visible = true;
+          if(net.role !== "viewer"){ n.say(`${HOUSES[sg.house].label} 편지 왔어요!`); for(const c of citizens) if(c.home === sg.house) c.needs.social = Math.min(100, c.needs.social + 6); }
+        }
+      } });
+  }
+
+  /* ----- 교통 경찰: 출퇴근 시간에 교차로 모퉁이에서 수신호. 근무 중엔 교차로 근처 차들이 속도를 줄인다 ----- */
+  police = new Npc({ name:"경찰관 수진", gender:"f", look:L("#24486B", "#1B2238", "#F1C9A5", "#1B1B1B", { hairStyle:"pony" }), lines:[], passLines:["{n} 님, 횡단보도로 건너세요!", "좌우 살피고!"],
+    place:"street", hours:[[7.5, 9.5], [17.5, 19.5]], act:"wave", x:-13.0, z:10.0, face:-Math.PI / 4,
+    build:P => { box(P.head, .37, .1, .35, "#24486B", 0, .38, 0); box(P.head, .37, .04, .16, "#1B1B1B", 0, .34, .2); box(P.head, .1, .06, .02, "#F2C14E", 0, .4, .18);
+      box(P.elR, .3, .3, .03, "#D9533E", 0, -.5, .12); box(P.elR, .03, .3, .03, "#DDDDDD", 0, -.3, .12); } });
+
+  /* ----- 정류장 할머니: 9~18시 남쪽 정류장 벤치에 앉아 버스가 올 때마다 한마디 ----- */
+  new Npc({ name:"정류장 할머니", gender:"f", look:L("#8E5BD3", "#55565C", "#E3B08A", "#CFCAC0", { hairStyle:"bob" }), lines:["드디어 왔네~", "기사 양반, 천천히 가요", "아이고 다리야", "이 버스 시장 가나?"],
+    passLines:["{n}아, 밥은 먹고 다니니?", "{n}, 할머니 좀 보고 가", "젊은이, 요즘 바쁘지?"], place:"stop0", hours:[9, 18], act:"sit", x:17.45, z:16.1, face:Math.PI,
+    build:(P, n) => { box(n.root, .32, .26, .16, "#8E5BD3", .95, .58, 0); box(n.root, .04, 1.0, .04, "#A47A52", -.5, .45, .35); } }); // 손가방, 지팡이
 }
 
 /* ================= Cars: 도로를 따라 무작위로 지나가는 차 ================= */
@@ -1361,11 +1453,17 @@ class Car {
   }
   update(dt, sdt){
     let { want, honk } = this.ahead();
+    if(police && police.root.visible){ // 교통 경찰 근무 중: 교차로 근처는 서행, 가끔 한마디 듣는다
+      const dc = Math.hypot(this.group.position.x + 16, this.group.position.z - 13);
+      if(dc < 9){ want = Math.min(want, 2.4); if(dc < 5 && Math.random() < sdt * 0.05) police.chatter(pick(["천천히 가세요!", "서행!", "보행자 먼저요"])); }
+    }
     if(this.kind === 2){ // 버스: 정류장 앞에서 2.5초 정차
       const st = BUS_STOPS.find(x => ROADS[x.road] === this.road && this.road.lanes[x.lane] === this.lane);
       if(st && !this.stopped){
         const d = (st.p - this.p) * this.dir;
-        if(d < 0.3 && d > -1){ this.wait = (this.wait ?? 2.5) - sdt; want = 0; if(this.wait <= 0) this.stopped = true; }
+        if(d < 0.3 && d > -1){
+          if(this.wait === undefined){ const g = npcs.find(n => n.place === "stop" + BUS_STOPS.indexOf(st)); if(g && g.root.visible && net.role !== "viewer") g.say(pick(g.lines)); } // 정류장 NPC 반응
+          this.wait = (this.wait ?? 2.5) - sdt; want = 0; if(this.wait <= 0) this.stopped = true; }
         else if(d < 3.5 && d >= 0.3) want = Math.min(want, this.speed * d / 3.5 + 0.3);
       }
     }
