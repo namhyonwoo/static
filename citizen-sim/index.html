@@ -112,7 +112,10 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
 .tabs .tab[aria-selected="true"]{ color:var(--ink); font-weight:600; border-bottom-color:var(--accent); }
 .guest{ list-style:none; margin:0 0 .5rem; padding:0; display:grid; gap:.4rem; max-height:14rem; overflow:auto; }
 .guest li{ background:var(--card); border:1px solid var(--card-line); border-radius:8px; padding:.5rem .65rem; font-size:.88rem; line-height:1.5; word-break:break-word; color:var(--ink); box-shadow:0 1px 3px rgba(0,0,0,.08); }
-.guest .who{ display:flex; justify-content:space-between; gap:.5rem; color:var(--muted); font-size:.74rem; margin-bottom:.25rem; padding-bottom:.25rem; border-bottom:1px dashed var(--card-line); }
+.guest .who{ display:flex; align-items:center; gap:.5rem; color:var(--muted); font-size:.74rem; margin-bottom:.25rem; padding-bottom:.25rem; border-bottom:1px dashed var(--card-line); }
+.guest .who span{ margin-left:auto; }
+.guest .gbdel{ border:0; background:none; color:var(--muted); cursor:pointer; font-size:.8rem; line-height:1; padding:.1rem .2rem; border-radius:4px; }
+.guest .gbdel:hover,.guest .gbdel:focus-visible{ color:var(--bad); background:var(--track); }
 .guest .who b{ color:var(--accent); font-weight:600; font-size:.8rem; }
 .guest-empty{ color:var(--muted); font-size:.82rem; margin:.2rem 0 .6rem; }
 .miniform select{ font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:.4rem .55rem; min-width:0; }
@@ -222,6 +225,7 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
     <div class="notewin-info" data-pane="guest" hidden>
       <ul class="guest" id="guestList"></ul>
       <p class="guest-empty" id="guestEmpty">아직 남긴 글이 없어요. 첫 글을 남겨 보세요.</p>
+      <div class="row-btns" id="guestClearRow" hidden><button class="btn danger" id="guestClear" type="button">방명록 모두 지우기</button></div>
       <form class="miniform" id="guestForm">
         <label>작성자 <select id="guestBy" aria-label="작성자"></select></label>
         <label>내용 <input id="guestText" maxlength="120" autocomplete="off" placeholder="방명록에 남길 말" required></label>
@@ -245,6 +249,8 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
     <button type="button" data-view="park">공원</button>
     <button type="button" data-view="office">회사</button>
     <button type="button" data-view="market">시장</button>
+    <button type="button" data-view="school">학교</button>
+    <button type="button" data-view="kinder">유치원</button>
   </div>
   <div class="toast" id="toast" role="status"></div>
   <div class="netpill" id="netPill" hidden><span class="dot"></span><span id="netPillText">연결 중…</span></div>
@@ -259,7 +265,7 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
     <button type="button" data-s="8" aria-pressed="false">8×</button>
   </div>
 
-  <div class="row-btns fxrow"><button class="btn" id="fxBtn" type="button" aria-pressed="true">🎞️ 미니어처 효과 켜짐</button></div>
+  <div class="row-btns fxrow"><button class="btn" id="fxBtn" type="button" aria-pressed="false">🎞️ 미니어처 효과 꺼짐</button></div>
   <p class="help" id="netStatus">함께 보기 · 연결 중…</p>
 
   <h2>시민</h2>
@@ -271,6 +277,7 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
   <form class="miniform" id="addForm" hidden>
     <div class="meta" id="addFormTitle">새 시민</div>
     <label>이름 <input id="addName" maxlength="12" placeholder="비우면 자동으로 정해요" autocomplete="off"></label>
+    <label>나이 <select id="addAge"><option value="adult">어른</option><option value="kid">초등학생 (학교에 가요)</option><option value="tot">유치원생 (유치원에 가요)</option></select></label>
     <label>인사말 <input id="addGreet" maxlength="40" autocomplete="off"></label>
     <div class="row-btns">
       <button class="btn primary" type="submit">추가</button>
@@ -322,6 +329,8 @@ const VIEWS = {
   park:  { pos:[34, 21, 26], target:[19, 0.5, 2] },
   office:{ pos:[8.5, 19.5, 43], target:[-5, 0.5, 22] },
   market:{ pos:[25.5, 18, 40.5], target:[12, 0.5, 21] },
+  school:{ pos:[43.5, 19.5, -1], target:[30, 0.5, -22] },
+  kinder:{ pos:[-16.5, 19.5, -1], target:[-30, 0.5, -22] },
 };
 let camAnim = null;
 function goView(name){
@@ -415,8 +424,11 @@ const ACTS = {
   fountain: { label:"분수 구경하는 중",  emoji:"⛲", pose:"look",   need:"fun",     gains:{ fun:3.2 },                 max:14, park:true },
   stroll:   { label:"공원 산책 중",      emoji:"🌳", pose:"idle",   need:"fun",     gains:{ fun:2.6, social:.4 },      max:999 },
   pet:      { label:"반려동물과 노는 중",emoji:"🐾", pose:"pet",    need:"fun",     gains:{ fun:3.2, social:2.5 },     max:10 },
-  work:     { label:"일하는 중",         emoji:"💼", pose:"work",   need:"money",   gains:{ money:2.6, fun:-.15, social:.3 }, max:70, hours:[9, 18] },
-  shop:     { label:"장 보는 중",        emoji:"🛒", pose:"look",   need:"fun",     gains:{ fun:3, hunger:1.6, money:-1.3 }, max:14, hours:[8, 20], cost:15 },
+  work:     { label:"일하는 중",         emoji:"💼", pose:"work",   need:"money",   gains:{ money:2.6, fun:-.15, social:.3 }, max:70, hours:[9, 18], age:"adult" },
+  shop:     { label:"장 보는 중",        emoji:"🛒", pose:"look",   need:"fun",     gains:{ fun:3, hunger:1.6, money:-1.3 }, max:14, hours:[8, 20], cost:15, age:"adult" },
+  school:   { label:"수업 듣는 중",      emoji:"🏫", pose:"work",   need:"fun",     gains:{ fun:1.4, social:1.4 },         max:70, hours:[9, 15], age:"kid" },
+  daycare:  { label:"유치원에서 노는 중",emoji:"🧸", pose:"tv",     need:"fun",     gains:{ fun:2.4, social:1.4 },         max:40, hours:[9, 16], age:"tot" },
+  blocks:   { label:"블록 쌓는 중",      emoji:"🧱", pose:"play",   need:"fun",     gains:{ fun:3, social:.8 },            max:25, hours:[9, 16], age:"tot" },
   vendor:   { label:"장사하는 중",       emoji:"🧺", pose:"vendor", need:null,      gains:{},                          max:999 }, // NPC 전용
   idle:     { label:"서 있는 중",        emoji:"🙂", pose:"idle",   need:null,      gains:{},                          max:999 }, // NPC 전용
   wander:   { label:"돌아다니는 중",     emoji:"🚶", pose:"idle",   need:null,      gains:{},                          max:3 },
@@ -705,6 +717,73 @@ const MARKET = new THREE.Vector3(12, 0, 21);
 buildHouse(0, 0, "1호집"); buildHouse(-29, 1, "2호집"); buildHouse(0, -21, "3호집");
 tree(-20, -14, 1.1); tree(-38, -10, 1.2); tree(-39, 8, 1); tree(12, -22, 1.1); tree(-11, -30, 1.2);
 tree(-42, 24, 1.1); tree(-30, 30, 1); tree(28, 30, 1.2); tree(40, 24, 1); tree(44, -8, 1.1); tree(38, -24, 1.2); tree(24, -30, 1);
+/* ----- 학교: 초등학생이 9~15시에 수업을 듣는다. 칠판, 교탁, 책상 6개, 국기 게양대 ----- */
+const SCHOOL = new THREE.Vector3(30, 0, -22);
+{
+  const sx = SCHOOL.x, sz = SCHOOL.z;
+  const fl = box(scene, 14, 0.1, 8.5, "#E9E4D8", sx, 0.05, sz); fl.castShadow = false; fl.userData.ground = true;
+  box(scene, 14.3, 2.2, 0.25, "#F3D9A4", sx, 1.1, sz - 4.35);                        // 북쪽 벽
+  box(scene, 0.25, 2.2, 8.7, "#F3D9A4", sx + 7.1, 1.1, sz);                          // 동쪽 벽
+  box(scene, 14.3, 0.14, 0.32, "#D9A441", sx, 2.27, sz - 4.35); box(scene, 0.32, 0.14, 8.7, "#D9A441", sx + 7.1, 2.27, sz);
+  for(let i = -3; i <= 3; i += 3) box(scene, 0.1, 1.0, 1.4, "#9CC7EE", sx + 7.03, 1.3, sz + i, { roughness:.2 });   // 창
+  box(scene, 5.5, 1.5, 0.1, "#2F5D4A", sx + 1, 1.45, sz - 4.17);                     // 칠판
+  box(scene, 5.7, 0.08, 0.16, "#A47A52", sx + 1, 0.68, sz - 4.15);
+  box(scene, 1.0, 0.06, 0.04, "#FFFFFF", sx + 0.4, 1.8, sz - 4.11); box(scene, 1.8, 0.06, 0.04, "#FFFFFF", sx + 0.8, 1.5, sz - 4.11); box(scene, 0.9, 0.06, 0.04, "#F2C14E", sx + 2.4, 1.2, sz - 4.11);
+  box(scene, 1.5, 0.9, 0.6, "#A47A52", sx - 4.5, 0.45, sz - 2.6);                    // 교탁
+  box(scene, 0.5, 0.04, 0.35, "#E8566B", sx - 4.5, 0.92, sz - 2.6);
+  for(let r = 0; r < 2; r++) for(let c = 0; c < 3; c++){                              // 학생 책상(북쪽 칠판을 보고 앉음)
+    const dx = sx - 2.6 + c * 2.6, dz = sz - 1.4 + r * 2.3;
+    addObject("학교 책상", "school", [[dx, dz + 0.62, Math.PI]], g => {
+      box(g, 1.1, 0.05, 0.6, "#D9C4A5", dx, 0.6, dz);
+      for(const ax of [-0.48, 0.48]) for(const az of [-0.22, 0.22]) box(g, 0.05, 0.58, 0.05, "#6B6E75", dx + ax, 0.3, dz + az);
+      box(g, 0.4, 0.02, 0.3, "#F5F1E8", dx - 0.1, 0.63, dz + 0.05); box(g, 0.12, 0.03, 0.03, "#F2C14E", dx + 0.3, 0.63, dz + 0.1);
+      const col = ["#D9533E", "#3E7BD6", "#3FA46A"][c];
+      box(g, 0.45, 0.05, 0.45, col, dx, 0.3, dz + 0.62); box(g, 0.45, 0.45, 0.05, col, dx, 0.55, dz + 0.84);
+      box(g, 0.05, 0.28, 0.05, "#3B4350", dx, 0.14, dz + 0.62);
+    });
+  }
+  box(scene, 0.12, 5, 0.12, "#CFCAC0", sx - 8.5, 2.5, sz + 3.5);                     // 게양대
+  box(scene, 0.04, 0.8, 1.3, "#FFFFFF", sx - 8.5, 4.5, sz + 4.2); box(scene, 0.06, 0.36, 0.36, "#D9533E", sx - 8.5, 4.56, sz + 4.2); box(scene, 0.07, 0.18, 0.36, "#3E7BD6", sx - 8.5, 4.3, sz + 4.2);
+  box(scene, 3.2, 0.9, 0.45, "#D9A441", sx, 2.75, sz - 4.35);                        // 간판
+  tree(sx - 8, sz - 3, 1); tree(sx + 9.5, sz + 4, 1.1);
+  placeTag("🏫 학교 · 9시~15시", sx, 3.6, sz - 4.35);
+}
+/* ----- 유치원: 유치원생이 9~16시에 탁자에서 놀거나 매트에서 블록을 쌓는다. 미끄럼틀은 장식 ----- */
+const KINDER = new THREE.Vector3(-30, 0, -22);
+{
+  const kx = KINDER.x, kz = KINDER.z;
+  const fl = box(scene, 12, 0.1, 8, "#FBE9D7", kx, 0.05, kz); fl.castShadow = false; fl.userData.ground = true;
+  box(scene, 12.3, 1.8, 0.25, "#F7C6D0", kx, 0.9, kz - 4.1);                         // 북쪽 벽
+  box(scene, 0.25, 1.8, 8.2, "#BFE3D6", kx - 6.1, 0.9, kz);                          // 서쪽 벽
+  box(scene, 12.3, 0.14, 0.32, "#E58AA2", kx, 1.87, kz - 4.1); box(scene, 0.32, 0.14, 8.2, "#7FC8AE", kx - 6.1, 1.87, kz);
+  ["#F2C14E", "#6FB6D9", "#8BC34A", "#E8566B"].forEach((c, i) => box(scene, 0.7, 0.7, 0.06, c, kx - 3 + i * 2, 1.1, kz - 3.95)); // 벽 그림
+  [[kx - 2.5, kz - 1.2], [kx + 2.5, kz - 1.2]].forEach(([tx, tz]) => {               // 탁자 2개, 각 3자리
+    addObject("유치원 탁자", "daycare", [[tx - 0.95, tz, Math.PI / 2], [tx + 0.95, tz, -Math.PI / 2], [tx, tz + 0.95, Math.PI]], g => {
+      add(g, mesh(vCyl(0.75, 0.75, 0.05, 8), "#F7D36B"), tx, 0.5, tz); add(g, mesh(vCyl(0.1, 0.12, 0.48), "#D9A441"), tx, 0.25, tz);
+      [[tx - 0.95, tz, 0], [tx + 0.95, tz, 1], [tx, tz + 0.95, 2]].forEach(([cx, cz, k], i) => {
+        const col = ["#E8566B", "#6FB6D9", "#8BC34A"][i];
+        box(g, 0.4, 0.05, 0.4, col, cx, 0.26, cz);
+        if(k === 2) box(g, 0.4, 0.4, 0.05, col, cx, 0.46, cz + 0.2); else box(g, 0.05, 0.4, 0.4, col, cx + (k === 0 ? -0.2 : 0.2), 0.46, cz);
+        box(g, 0.05, 0.24, 0.05, "#3B4350", cx, 0.12, cz);
+      });
+      box(g, 0.3, 0.02, 0.22, "#FFFFFF", tx - 0.2, 0.53, tz + 0.1); box(g, 0.08, 0.08, 0.08, "#E8566B", tx + 0.25, 0.57, tz - 0.1); box(g, 0.08, 0.08, 0.08, "#3E7BD6", tx + 0.35, 0.57, tz + 0.05);
+    });
+  });
+  addObject("블록 매트", "blocks", [[kx - 1.1, kz + 2.9, Math.PI], [kx + 1.1, kz + 2.9, Math.PI], [kx, kz + 1.5, 0]], g => {
+    box(g, 4.4, 0.03, 2.6, "#BFE3D6", kx, 0.07, kz + 2.3).castShadow = false;
+    const cols = ["#E8566B", "#F2C14E", "#6FB6D9", "#8BC34A", "#B97BE0"];
+    [[-0.5, 2.2, 3], [0.3, 2.4, 2], [0.9, 2.1, 1], [-0.1, 2.0, 1]].forEach(([dx, dz, n], i) => { for(let k = 0; k < n; k++) box(g, 0.22, 0.22, 0.22, cols[(i + k) % 5], kx + dx, 0.2 + k * 0.22, kz + dz); });
+  });
+  { const px = kx + 4.2, pz = kz + 2.2;                                               // 미끄럼틀
+    box(scene, 0.8, 1.4, 0.8, "#6FB6D9", px, 0.7, pz - 1.2);
+    for(let i = 0; i < 4; i++) box(scene, 0.6, 0.04, 0.05, "#3B4350", px, 0.3 + i * 0.3, pz - 1.65);
+    box(scene, 0.8, 0.08, 2.4, "#F2C14E", px, 0.72, pz + 0.2).rotation.x = 0.5;
+    for(const sd of [-0.42, 0.42]) box(scene, 0.06, 0.2, 2.4, "#F2C14E", px + sd, 0.8, pz + 0.2).rotation.x = 0.5;
+  }
+  box(scene, 3.2, 0.8, 0.45, "#E58AA2", kx, 2.3, kz - 4.1);                          // 간판
+  tree(kx - 8.5, kz + 3, 1); tree(kx + 8, kz - 3, 1.1);
+  placeTag("🧸 유치원 · 9시~16시", kx, 3.1, kz - 4.1);
+}
 /* ----- 도심 소품: 보도 가로등(밤에 켜짐), 쓰레기통, 소화전 ----- */
 {
   const streetLamp = (x, z) => {
@@ -738,12 +817,14 @@ const NAMES = {
   f:["서연","하은","지우","민서","수아","지민","예린","채원","유나","소율"],
 };
 const nameCount = { m:0, f:0 };
+/* 나이: 어른은 회사·시장, 초등학생은 학교, 유치원생은 유치원에 간다. 아이는 몸이 작고 머리가 크다 */
+const AGES = { adult:{ label:"어른", scale:1, head:1 }, kid:{ label:"초등학생", scale:.74, head:1.2 }, tot:{ label:"유치원생", scale:.6, head:1.32 } };
 /* 복셀 사람: 모든 부위가 각진 박스. 관절(골반·고관절·무릎·가슴·어깨·팔꿈치·머리)은 그대로라 animate() 포즈가 그대로 먹는다 */
-function buildPerson(look, gender){
-  const F = gender === "f";
+function buildPerson(look, gender, age = "adult"){
+  const F = gender === "f", A = AGES[age] || AGES.adult;
   const root = new THREE.Group();
   const body = new THREE.Group(); root.add(body);
-  if(F) body.scale.setScalar(0.96);
+  body.scale.setScalar(A.scale * (F ? 0.96 : 1));
   const pelvis = new THREE.Group(); pelvis.position.y = 0.86; body.add(pelvis);
   box(pelvis, F ? .3 : .32, .16, F ? .2 : .21, look.pants, 0, 0.03, 0);
   if(look.skirt){ add(pelvis, mesh(vCyl(0.15, 0.24, 0.36), look.skirt), 0, -0.12, 0); }
@@ -771,7 +852,7 @@ function buildPerson(look, gender){
     P["sh"+k] = sh; P["el"+k] = el;
     if(k === "R"){ const book = box(el, 0.22, 0.03, 0.17, "#C7564A", 0.12, -0.31, 0.06); book.visible = false; P.book = book; }
   }
-  const head = new THREE.Group(); head.position.y = 0.54; chest.add(head); P.head = head;
+  const head = new THREE.Group(); head.position.y = 0.54; chest.add(head); P.head = head; head.scale.setScalar(A.head);
   const hw = F ? .32 : .34, hd = F ? .3 : .32;
   box(head, hw, .34, hd, look.skin, 0, 0.17, 0);
   box(head, hw + .03, .12, hd + .03, look.hair, 0, 0.31, 0);                   // 머리 윗부분
@@ -795,7 +876,7 @@ function buildPerson(look, gender){
   box(head, .04, .035, .03, look.skin, 0, 0.13, hd / 2 + 0.01);                // 코
   box(head, .07, .016, .02, F ? "#C4555F" : "#8C3B3B", 0, 0.08, hd / 2 + 0.005);
   const orb = new THREE.Mesh(new THREE.OctahedronGeometry(0.1), new THREE.MeshStandardMaterial({ color:"#3DAA63", emissive:"#3DAA63", emissiveIntensity:.6, roughness:.3 }));
-  orb.position.y = 2.1; root.add(orb); P.orb = orb;
+  orb.position.y = 2.1 * A.scale; root.add(orb); P.orb = orb;
   return P;
 }
 
@@ -812,6 +893,8 @@ const GREETINGS = ["안녕!", "좋은 하루야 😊", "오늘 뭐 해?", "반�
 
 /* ================= Citizens ================= */
 const NEED_KEYS = [["hunger","배부름"],["energy","에너지"],["fun","재미"],["hygiene","청결"],["social","교류"],["money","지갑"]];
+const KID_NEEDS = NEED_KEYS.filter(([k]) => k !== "money");
+const needKeys = c => c.age === "adult" ? NEED_KEYS : KID_NEEDS; // 아이는 지갑이 없다
 const PET_NEEDS = [["hunger","배부름"],["energy","에너지"],["love","애정"]];
 const DECAY = { hunger:.32, energy:.2, fun:.4, hygiene:.22, social:.3, money:.03 };
 const citizens = [], pets = [];
@@ -836,13 +919,15 @@ class Citizen {
       };
     }
     this.home = clamp(Number.isInteger(def && def.home) ? def.home : 0, 0, HOUSES.length - 1);
-    this.p = buildPerson(this.look, gender);
+    this.age = def && AGES[def.age] ? def.age : "adult";
+    this.p = buildPerson(this.look, gender, this.age);
     this.root = this.p.root; this.root.position.set(x, 0.05, z);
     this.netTarget = this.root.position.clone();
     this.root.rotation.y = rand(-Math.PI, Math.PI);
     this.root.traverse(m => { if(m.isMesh && m !== this.p.orb) m.userData.citizen = this; });
     scene.add(this.root);
     this.needs = Object.fromEntries(NEED_KEYS.map(([k]) => [k, rand(45, 90)]));
+    if(this.age !== "adult") this.needs.money = 100;
     this.state = "idle"; this.idleT = rand(0.5, 2);
     this.act = null; this.spot = null; this.target = null; this.face = this.root.rotation.y;
     this.timer = 0; this.walkPhase = Math.random()*6; this.partner = null; this.petTarget = null; this.route = null; this.t = Math.random()*10;
@@ -850,10 +935,10 @@ class Citizen {
     this.note = (def && def.note) || "";
     this.guestbook = (def && Array.isArray(def.guestbook)) ? def.guestbook : [];
     const el = document.createElement("div"); el.className = "tag"; this.tagEl = el;
-    this.tag = new CSS2DObject(el); this.tag.position.y = 2.38; this.root.add(this.tag);
+    this.tag = new CSS2DObject(el); this.tag.position.y = 2.38 * AGES[this.age].scale; this.root.add(this.tag);
     const wrap = document.createElement("div"); wrap.className = "bubbleWrap";
     this.bubbleEl = document.createElement("div"); this.bubbleEl.className = "bubble"; wrap.appendChild(this.bubbleEl);
-    this.bubble = new CSS2DObject(wrap); this.bubble.position.y = 2.38; this.root.add(this.bubble);
+    this.bubble = new CSS2DObject(wrap); this.bubble.position.y = 2.38 * AGES[this.age].scale; this.root.add(this.bubble);
     this.updateTag();
   }
   get pos(){ return this.root.position; }
@@ -867,7 +952,7 @@ class Citizen {
       this.sayT2 = setTimeout(() => this.bubbleEl.classList.remove("show"), 3000);
     }, delay * 1000);
   }
-  mood(){ return NEED_KEYS.reduce((s,[k]) => s + this.needs[k], 0) / NEED_KEYS.length; }
+  mood(){ const ks = needKeys(this); return ks.reduce((s,[k]) => s + this.needs[k], 0) / ks.length; }
   sleeping(){ return this.state === "act" && this.act === "sleep"; }
   actLabel(){
     if(this.state === "walk"){
@@ -907,6 +992,7 @@ class Citizen {
   }
   order(obj){
     if(ACTS[obj.act]?.park && isNight(hourNow)) return "night";
+    if(ACTS[obj.act].age && ACTS[obj.act].age !== this.age) return "age";
     if(!isOpen(ACTS[obj.act], hourNow)) return "closed";
     if(ACTS[obj.act].cost && this.needs.money < ACTS[obj.act].cost) return "broke";
     const spot = obj.spots.find(s => !s.occ);
@@ -951,18 +1037,19 @@ class Citizen {
       const a = ACTS[obj.act];
       if(a.park && (night || hour >= 21)) continue;
       if(!isOpen(a, hour)) continue;
+      if(a.age && a.age !== this.age) continue;                                     // 어른은 학교에, 아이는 회사에 안 간다
       if(a.cost && this.needs.money < a.cost) continue;
       if(obj.home != null && obj.home !== this.home && obj.act === "sleep") continue; // 남의 집 침대에선 안 잔다
       let u = urg(a.need);
       if(obj.home != null && obj.home !== this.home) u *= 0.8;                       // 남의 집 물건은 덜 끌린다
       if(obj.act === "sleep") u += night ? 0.45 : -0.15;
-      if(obj.act === "work") u = Math.min(1, u + 0.18 + (hour < 11 ? 0.12 : 0)); // 출근 시간대엔 일하러 가고 싶어진다
+      if(a.age) u = hour < 12 ? Math.max(u, 0.72) : Math.min(1, u + 0.18);        // 오전엔 출근·등교가 거의 의무, 오후엔 가벼운 끌림
       if(obj.act === "shop") u = Math.max(u, urg("hunger") * .8) * (this.needs.money > 50 ? 1 : .8);
       if(a.park) u *= 0.92;
       for(const s of obj.spots){
         if(s.occ) continue;
         const d = Math.hypot(s.x - this.pos.x, s.z - this.pos.z);
-        consider(u*u + rand(0, .12) - d*.005, () => { s.occ = this; this.walkTo(s.x, s.z, obj.act, s, s.face); });
+        consider(u*u + rand(0, .12) - d*(a.age ? .0025 : .005), () => { s.occ = this; this.walkTo(s.x, s.z, obj.act, s, s.face); }); // 회사·학교는 멀어도 간다
       }
     }
     if(!night){
@@ -998,7 +1085,7 @@ class Citizen {
     if(this.state === "act") a = ACTS[this.act];
     else if(this.state === "walk" && this.act === "stroll") a = ACTS.stroll;
     const paused = (this.act === "chat" && this.partner && this.partner.state !== "act") || (this.act === "pet" && this.state !== "act");
-    for(const [k] of NEED_KEYS){
+    for(const [k] of needKeys(this)){
       let v = this.needs[k] - DECAY[k] * sdt * (k === "energy" && isNight(hour) ? 1.6 : 1);
       if(a && a.gains[k] && !paused) v += (a.gains[k] + DECAY[k]) * sdt;
       this.needs[k] = clamp(v, 0, 100);
@@ -1013,7 +1100,7 @@ class Citizen {
       if(this.act === "chat" && this.partner){
         const pp = this.partner.pos; this.partner.face = Math.atan2(this.pos.x - pp.x, this.pos.z - pp.z);
       }
-      const step = 1.35 * sdt;
+      const step = (this.age === "adult" ? 1.35 : this.age === "kid" ? 1.2 : 1.0) * sdt;
       if(dist <= step || dist < 0.04){
         this.pos.x = this.target.x; this.pos.z = this.target.z;
         if(this.act === "stroll" && this.route && this.route.length){ const n = this.route.shift(); this.target.set(n.x, 0.05, n.z); return; }
@@ -1026,7 +1113,7 @@ class Citizen {
         }
         else if(this.act === "pet"){ const pp = this.petTarget.pos; this.face = Math.atan2(pp.x - this.pos.x, pp.z - this.pos.z); }
         else if(this.targetFace != null) this.face = this.targetFace;
-        if(this.act === "shop" || this.act === "work") npcGreet(this);
+        if(NPC_PLACE[this.act]) npcGreet(this);
         this.updateTag();
       } else {
         to.divideScalar(dist);
@@ -1111,6 +1198,8 @@ class Citizen {
       case "petCrouch": { const k = Math.sin(t*4); T.hipL = T.hipR = -1.35; T.kneeL = T.kneeR = 2.2; T.bodyY = -0.42; T.chest = 0.5; T.head = 0.45;
         T.shR = -1.05 + k*.2; T.elR = -0.35; T.shL = -0.4; T.elL = -0.8; break; }
       case "petBird": T.shR = -1.75 + wave(3, .12); T.elR = -0.7; T.head = -0.2; T.shL = -0.1; break;
+      case "play": { const k = Math.sin(t*4.5); T.hipL = T.hipR = -1.35; T.kneeL = T.kneeR = 2.2; T.bodyY = -0.42; T.chest = 0.4; T.head = 0.4;
+        T.shR = -1.1 + k*.3; T.elR = -0.5; T.shL = -1.1 - k*.3; T.elL = -0.5; break; }
       default: T.chest = wave(1.6, .015); T.head = wave(.7, .05);
     }
     if(pose !== "read") P.book.visible = false;
@@ -1157,8 +1246,9 @@ class Npc {
   }
 }
 /* 손님이나 동료가 자리에 앉으면 가까운 NPC 가 인사한다(호스트에서만 호출) */
+const NPC_PLACE = { shop:"market", work:"office", school:"school", daycare:"kinder", blocks:"kinder" };
 function npcGreet(c){
-  const place = c.act === "shop" ? "market" : c.act === "work" ? "office" : null; if(!place) return;
+  const place = NPC_PLACE[c.act]; if(!place) return;
   const near = npcs.filter(n => n.place === place && n.root.visible && n.pos.distanceTo(c.pos) < 5);
   if(!near.length || Math.random() < .25) return;
   const n = pick(near); n.say(pick(n.lines).replace("{n}", c.name), 0.4);
@@ -1183,6 +1273,11 @@ function npcGreet(c){
     place:"office", hours:[9, 18], act:"idle", x:ox - 3.4, z:oz - 1.7, face:Math.PI });
   new Npc({ name:"부장 김철수", gender:"m", look:L("#55626F", "#2F3A52", "#E3B08A", "#1B1B1B"), lines:["{n} 씨, 보고서는요?", "커피 한잔 하고 합시다", "이번 분기도 잘 부탁해요"],
     place:"office", hours:[9, 18], act:"work", x:ox + 4.4, z:oz + 2.25, face:Math.PI });
+  // 학교 담임(교탁 뒤에서 남쪽을 봄)과 유치원 선생님
+  new Npc({ name:"담임 선생님", gender:"f", look:L("#4FB38A", "#2F3A52", "#F1C9A5", "#5A3A22", { hairStyle:"long" }), lines:["{n}, 자리에 앉아요", "오늘은 받아쓰기 시간!", "조용히 하세요~", "{n}, 숙제는 했나요?"],
+    place:"school", hours:[9, 15], act:"idle", x:SCHOOL.x - 4.5, z:SCHOOL.z - 3.3, face:0 });
+  new Npc({ name:"유치원 선생님", gender:"f", look:L("#F2C14E", "#B8475B", "#E3B08A", "#2A2018", { hairStyle:"pony", skirt:"#B8475B" }), lines:["{n}, 손 씻고 오자!", "간식 시간이에요", "같이 노래 부를까?", "{n}, 잘 왔어요!"],
+    place:"kinder", hours:[9, 16], act:"idle", x:KINDER.x + 3.5, z:KINDER.z - 3.0, face:0 });
 }
 
 /* ================= Cars: 도로를 따라 무작위로 지나가는 차 ================= */
@@ -1691,7 +1786,7 @@ function renderLists(){
     const li = document.createElement("li");
     const b = document.createElement("button"); b.className = "person"; b.type = "button";
     b.innerHTML = `<span class="chip" style="background:${c.look.shirt};color:${c.look.shirt === "#FFFFFF" ? "#1A212C" : "#fff"}">${c.gender === "f" ? "여" : "남"}</span><span><span class="nm"></span><br><span class="sub"></span></span><span class="mood"></span>`;
-    b.querySelector(".nm").textContent = c.name;
+    b.querySelector(".nm").textContent = c.name + (c.age !== "adult" ? ` · ${AGES[c.age].label}` : "");
     b.addEventListener("click", () => c === selected ? clearSelection() : selectCitizen(c));
     c.listBtn = b; li.appendChild(b); peopleEl.appendChild(li);
   }
@@ -1732,7 +1827,7 @@ function syncSelectionUI(){
   const subj = selected || selectedPet;
   document.getElementById("greetRow").hidden = !selected;
   if(selected){
-    document.getElementById("dName").textContent = `${selected.name} (${selected.gender === "f" ? "여" : "남"})`;
+    document.getElementById("dName").textContent = `${selected.name} (${selected.gender === "f" ? "여" : "남"}${selected.age !== "adult" ? " · " + AGES[selected.age].label : ""})`;
     document.getElementById("editName").value = selected.name; document.getElementById("editGreet").value = selected.greeting;
     document.getElementById("editNote").value = selected.note;
     const owned = selected.pets.map(p => p.emoji + " " + p.name).join(", ");
@@ -1749,7 +1844,7 @@ function syncSelectionUI(){
   pets.forEach(x => { x.updateTag(); x.listBtn?.setAttribute("aria-pressed", x === selectedPet); });
   refreshUI();
 }
-function selectCitizen(c){ selected = c; selectedPet = null; buildNeedRows(NEED_KEYS); syncSelectionUI(); }
+function selectCitizen(c){ selected = c; selectedPet = null; buildNeedRows(needKeys(c)); syncSelectionUI(); }
 /* ----- 소개창: 선택한 시민·반려동물의 모든 정보와 조작이 한곳에 ----- */
 const noteWin = document.getElementById("noteWin"), noteView = document.getElementById("noteView");
 /* 좁은 화면에서는 소개창을 아래 패널 맨 위로 옮겨 현황 목록을 가리지 않게 한다. 넓어지면 다시 3D 화면 위로 되돌린다 */
@@ -1789,11 +1884,17 @@ function renderGuestbook(){
     const li = document.createElement("li");
     const who = document.createElement("div"); who.className = "who";
     const b = document.createElement("b"); b.textContent = g.name; const t = document.createElement("span"); t.textContent = fmtTime(g.at);
-    who.append(b, t);
+    const del = document.createElement("button"); del.type = "button"; del.className = "gbdel"; del.textContent = "✕"; del.title = "이 글 지우기"; del.setAttribute("aria-label", "이 글 지우기");
+    del.addEventListener("click", () => {
+      if(net.role === "viewer") sendCmd({ k:"gdel", cid:selected.id, at:g.at, by:g.by });
+      else { const r = removeGuestEntry(selected, g.at, g.by); if(r) toast(r); }
+    });
+    who.append(b, t, del);
     const body = document.createElement("div"); body.textContent = g.text;
     li.append(who, body); list.appendChild(li);
   }
   document.getElementById("guestEmpty").hidden = selected.guestbook.length > 0;
+  document.getElementById("guestClearRow").hidden = selected.guestbook.length === 0;
   const sel = document.getElementById("guestBy"); const prev = +sel.value;
   sel.innerHTML = "";
   for(const c of citizens){ const o = document.createElement("option"); o.value = c.id; o.textContent = c.name + (c === selected ? " (본인)" : ""); sel.appendChild(o); }
@@ -1809,6 +1910,23 @@ function addGuestEntry(c, byId, text){
   if(c === selected) renderGuestbook();
   return announce(`${author.name} 님이 ${c.name}의 방명록에 글을 남겼어요`);
 }
+/* 방명록 지우기: 글 하나(작성 시각+작성자로 찾음) 또는 전부. 호스트가 지우고 전원에게 알린다 */
+function removeGuestEntry(c, at, by){
+  const n = c.guestbook.length; c.guestbook = c.guestbook.filter(g => !(g.at === at && g.by === by));
+  if(c.guestbook.length === n) return null;
+  if(c === selected) renderGuestbook();
+  return announce(`${c.name}의 방명록에서 글 하나를 지웠어요`);
+}
+function clearGuestbook(c){
+  if(!c.guestbook.length) return null;
+  c.guestbook = []; if(c === selected) renderGuestbook();
+  return announce(`${c.name}의 방명록을 모두 지웠어요`);
+}
+armDelete(document.getElementById("guestClear"), "방명록 모두 지우기", () => {
+  if(!selected) return;
+  if(net.role === "viewer") sendCmd({ k:"gclear", cid:selected.id });
+  else { const r = clearGuestbook(selected); if(r) toast(r); }
+});
 document.getElementById("guestForm").addEventListener("submit", e => {
   e.preventDefault();
   if(!selected) return;
@@ -1824,9 +1942,10 @@ const _hp = new THREE.Vector3(), _ct = new THREE.Vector3();
 const noteShot = document.getElementById("noteShot"), shotCtx = noteShot.getContext("2d");
 function aimPortrait(subj, w, h){
   const isC = subj === selected;
-  (isC ? subj.p.head : subj.m.head).getWorldPosition(_hp); _hp.y += isC ? 0.17 : 0.03;
+  const as = isC ? AGES[subj.age].scale : 1;
+  (isC ? subj.p.head : subj.m.head).getWorldPosition(_hp); _hp.y += isC ? 0.17 * as : 0.03;
   const ry = subj.root.rotation.y, fx = Math.sin(ry), fz = Math.cos(ry);
-  const dist = isC ? 1.6 : subj.kind === "parrot" ? 0.55 : subj.kind === "cat" ? 0.9 : 1.1;
+  const dist = isC ? 1.6 * (0.5 + 0.5 * as) : subj.kind === "parrot" ? 0.55 : subj.kind === "cat" ? 0.9 : 1.1;
   // 세로 공간이 넉넉한 정사각 창(데스크톱)은 머리를 창의 왼쪽 아래에, 납작한 가로 창(모바일)은 세로 중앙에 둔다
   const wide = w / h > 1.3;
   const side = (isC ? 0.22 : dist * 0.14) * (wide ? 1.4 : 1), up = wide ? dist * 0.05 : isC ? 0.25 : dist * 0.16;
@@ -1901,6 +2020,7 @@ function orderResult(c, obj){
   if(res === "night") return "밤에는 공원 시설을 쓰지 않아요";
   if(res === "closed") return `${obj.name}은(는) 지금 닫혀 있어요 (${ACTS[obj.act].hours[0]}시~${ACTS[obj.act].hours[1]}시)`;
   if(res === "broke") return `${c.name}: 지갑이 비어서 장을 볼 수 없어요. 회사에서 일하면 채워져요`;
+  if(res === "age") return `${obj.name}은(는) ${AGES[ACTS[obj.act].age].label}만 쓸 수 있어요`;
   return obj.name + "에 빈자리가 없어요";
 }
 function petResult(c, p){
@@ -1913,9 +2033,9 @@ function emptiestHouse(){ // 새 주민은 가장 한산한 집으로 이사 온
   const n = HOUSES.map(() => 0); for(const c of citizens) n[c.home]++;
   return n.indexOf(Math.min(...n));
 }
-function addCitizen(g, select = true, name = "", greeting = ""){
+function addCitizen(g, select = true, name = "", greeting = "", age = "adult"){
   const home = emptiestHouse(), H = HOUSES[home];
-  const c = new Citizen(H.ox + rand(-1, 1), H.oz + rand(5, 6.5), g, { name:cleanName(name), greeting:cleanGreet(greeting), home }); citizens.push(c); renderLists();
+  const c = new Citizen(H.ox + rand(-1, 1), H.oz + rand(5, 6.5), g, { name:cleanName(name), greeting:cleanGreet(greeting), home, age:AGES[age] ? age : "adult" }); citizens.push(c); renderLists();
   if(select) selectCitizen(c);
   return announce(`${c.name} 님이 이사 왔어요`);
 }
@@ -1940,10 +2060,10 @@ function openAddForm(g){
 document.getElementById("addCancel").addEventListener("click", () => { addForm.hidden = true; });
 addForm.addEventListener("submit", e => {
   e.preventDefault();
-  const name = document.getElementById("addName").value, greet = document.getElementById("addGreet").value;
+  const name = document.getElementById("addName").value, greet = document.getElementById("addGreet").value, age = document.getElementById("addAge").value;
   addForm.hidden = true;
-  if(net.role === "viewer") sendCmd({ k:"addC", g:addGender, name, greet });
-  else toast(addCitizen(addGender, true, name, greet));
+  if(net.role === "viewer") sendCmd({ k:"addC", g:addGender, name, greet, age });
+  else toast(addCitizen(addGender, true, name, greet, age));
 });
 document.getElementById("editForm").addEventListener("submit", e => {
   e.preventDefault();
@@ -2158,7 +2278,7 @@ const roomLabel = ROOM === "TOWN" ? "" : ` · 방 ${ROOM}`;
 
 function roomInit(){
   return { t:"init", simMin, speed,
-    citizens: citizens.map(c => ({ id:c.id, gender:c.gender, name:c.name, greeting:c.greeting, note:c.note, guestbook:c.guestbook, look:c.look, home:c.home, x:c.pos.x, z:c.pos.z })),
+    citizens: citizens.map(c => ({ id:c.id, gender:c.gender, age:c.age, name:c.name, greeting:c.greeting, note:c.note, guestbook:c.guestbook, look:c.look, home:c.home, x:c.pos.x, z:c.pos.z })),
     pets: pets.map(p => ({ id:p.id, kind:p.kind, name:p.name, color:p.color, idx:p.idx, owner:p.owner ? p.owner.id : 0, home:p.home, x:p.pos.x, y:p.pos.y, z:p.pos.z })) };
 }
 function roomState(){ return { t:"state", simMin, speed, c:citizens.map(c => c.netState()), p:pets.map(p => p.netState()), v:cars.map(c => c.netState()) }; }
@@ -2179,12 +2299,14 @@ function handleCommand(conn, m){
     case "move": if(c && Number.isFinite(m.x) && Number.isFinite(m.z)) c.orderMove(clamp(m.x, -14, 32), clamp(m.z, -5.5, 16)); break;
     case "pet": { const p = pets.find(x => x.id === m.pid); if(c && p) msg = petResult(c, p); break; }
     case "stop": if(c) msg = stopResult(c); break;
-    case "addC": if(m.g === "m" || m.g === "f") toast(addCitizen(m.g, false, m.name, m.greet)); break;   // 토스트는 announce()가 전원에게 보냄
+    case "addC": if(m.g === "m" || m.g === "f") toast(addCitizen(m.g, false, m.name, m.greet, m.age)); break;   // 토스트는 announce()가 전원에게 보냄
     case "edit": if(c){ msg = editCitizen(c, m.name, m.greet, m.note); toast(msg); } break;
     case "addP": if(PET_INFO[m.kind]) toast(addPet(m.kind, citizens.find(x => x.id === m.owner), false)); break;
     case "speed": if([0, 1, 3, 8].includes(m.s)) setSpeed(m.s); break;
     case "reset": resetTown(); break;
     case "guest": if(c){ const r = addGuestEntry(c, +m.by, m.text); if(r) toast(r); } break;
+    case "gdel": if(c){ const r = removeGuestEntry(c, +m.at, +m.by); if(r) toast(r); } break;
+    case "gclear": if(c){ const r = clearGuestbook(c); if(r) toast(r); } break;
     case "delC": if(c){ const r = removeCitizen(c); if(r) toast(r); } break;
     case "delP": { const p = pets.find(x => x.id === m.pid); if(p){ const r = removePet(p); if(r) toast(r); } break; }
   }
@@ -2197,11 +2319,12 @@ function sendCmd(cmd){
 
 /* ----- 호스트 ----- */
 function seedTown(){
-  const c1 = new Citizen(-1, 3, "m"), c2 = new Citizen(1.5, 4.5, "f"), c3 = new Citizen(3, 2, "m"), c4 = new Citizen(-2.5, 5, "f");
+  // 집마다 침대가 4개라 한 집에 4명까지. 1호집 어른 3명+초등학생, 2호집 어른 2명+유치원생, 3호집 어른 2명+초등학생
+  const c1 = new Citizen(-1, 3, "m"), c2 = new Citizen(1.5, 4.5, "f"), c3 = new Citizen(3, 2, "m"), c4 = new Citizen(-2.5, 5, "f", { age:"kid" });
   const H1 = HOUSES[1], H2 = HOUSES[2];
-  const c5 = new Citizen(H1.ox - 1, H1.oz + 3, "f", { home:1 }), c6 = new Citizen(H1.ox + 2, H1.oz + 4, "m", { home:1 });
-  const c7 = new Citizen(H2.ox + 1, H2.oz + 3, "m", { home:2 }), c8 = new Citizen(H2.ox - 2, H2.oz + 4.5, "f", { home:2 });
-  citizens.push(c1, c2, c3, c4, c5, c6, c7, c8);
+  const c5 = new Citizen(H1.ox - 1, H1.oz + 3, "f", { home:1 }), c6 = new Citizen(H1.ox + 2, H1.oz + 4, "m", { home:1 }), k1 = new Citizen(H1.ox + 0.5, H1.oz + 5.2, "m", { home:1, age:"tot" });
+  const c7 = new Citizen(H2.ox + 1, H2.oz + 3, "m", { home:2 }), c8 = new Citizen(H2.ox - 2, H2.oz + 4.5, "f", { home:2 }), k2 = new Citizen(H2.ox - 0.5, H2.oz + 5.5, "f", { home:2, age:"kid" });
+  citizens.push(c1, c2, c3, c4, c5, c6, c7, c8, k1, k2);
   pets.push(new Pet("dog", 0, 4, c1), new Pet("cat", -3, 3.5, c2), new Pet("parrot", 0, 0, c3), new Pet("dog", H1.ox + 1, H1.oz + 3, c5), new Pet("cat", H2.ox - 1, H2.oz + 2, c8));
   renderLists();
 }
@@ -2490,7 +2613,7 @@ const TiltShader = {
     }`,
 };
 const FX_KEY = "citizen-sim:fx";
-let fxOn = true; try { fxOn = localStorage.getItem(FX_KEY) !== "0"; } catch {}
+let fxOn = false; try { fxOn = localStorage.getItem(FX_KEY) === "1"; } catch {} // 기본은 꺼짐(흐림이 눈에 부담될 수 있어서)
 const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(2, 2, { type:THREE.HalfFloatType, samples:4 }));
 const tiltH = new ShaderPass(TiltShader), tiltV = new ShaderPass(TiltShader);
 tiltV.uniforms.dir.value.set(0, 1); tiltV.uniforms.sat.value = 1.12; tiltV.uniforms.vig.value = .16;
