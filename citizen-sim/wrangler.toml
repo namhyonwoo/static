@@ -1,0 +1,14 @@
+# citizen-sim 동네 저장 Worker 배포 설정
+#   배포: cd citizen-sim && npx wrangler deploy --keep-vars
+#   --keep-vars 는 대시보드에서 직접 넣은 다른 변수를 지우지 않는다.
+# 여기 적힌 KV 네임스페이스 id 와 클라이언트 ID 는 비밀이 아니다(계정 인증 없이는 쓸 수 없다).
+name = "citizen-town"
+main = "town-worker.js"
+compatibility_date = "2024-11-01"
+
+[[kv_namespaces]]
+binding = "TOWN"
+id = "b1489819ec8e4eec83bd3080d0f6a0ea"
+
+[vars]
+GOOGLE_CLIENT_ID = "306608444474-3sr87a7qekdipnolkob0uhb1vgc2bf46.apps.googleusercontent.com"

@@ -170,8 +170,8 @@ three.js로 만든 브라우저용 3D 생활 시뮬레이션입니다. 복셀 �
 2. **API 및 서비스 → OAuth 동의 화면**: 앱 이름과 지원 이메일을 넣고, 범위는 `openid`·`email`·`profile`만 둡니다. 개발 중에는 "테스트" 상태로 두고 테스트 사용자를 등록합니다.
 3. **사용자 인증 정보 → OAuth 클라이언트 ID → 웹 애플리케이션**을 만듭니다. 승인된 JavaScript 원본에 `https://namhyonwoo.github.io`와 (로컬 확인용) `http://localhost:8765`를 넣습니다. 리디렉션 URI와 클라이언트 보안 비밀은 쓰지 않습니다.
 4. 발급된 **클라이언트 ID**를 `index.html`의 `GOOGLE_CLIENT_ID`에 넣습니다. 공개돼도 되는 값입니다.
-5. **`town-worker.js`를 다시 배포합니다.** 구글 토큰을 확인하는 `/auth` 경로가 이 파일에 새로 들어갔기 때문에, 이미 배포해 둔 Worker에는 아직 없습니다. Cloudflare의 Worker 편집기에 이 파일 내용을 다시 붙여 넣고 Deploy 하세요.
-6. Worker → Settings → Variables에 **`GOOGLE_CLIENT_ID`**를 같은 값으로 넣습니다. 토큰의 발급 대상(`aud`)을 확인하는 데 씁니다.
+5. **`town-worker.js`를 다시 배포합니다.** 구글 토큰을 확인하는 `/auth` 경로가 이 파일에 들어 있습니다. `citizen-sim/wrangler.toml`이 있으므로 `cd citizen-sim && npx wrangler deploy --keep-vars` 한 번이면 됩니다(처음 한 번은 `npx wrangler login` 필요). 대시보드 편집기에 붙여 넣고 Deploy 해도 됩니다.
+6. Worker에 **`GOOGLE_CLIENT_ID`** 변수를 같은 값으로 넣습니다(`wrangler.toml`의 `[vars]`에 적혀 있어 위 배포로 함께 들어갑니다). 토큰의 발급 대상(`aud`)을 확인하는 데 씁니다.
 7. 공개 배포 전에는 수집 항목(구글 계정 id, 이름, 이메일)을 알리는 안내 문구를 준비하는 것을 권합니다.
 
 로컬에서 확인할 때는 `http://localhost:8765`로 열어야 합니다. 구글은 `127.0.0.1`과 `localhost`를 다른 원본으로 보기 때문에, 승인된 원본에 넣은 쪽 주소로 접속해야 로그인이 열립니다.
