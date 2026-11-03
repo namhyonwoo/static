@@ -60,7 +60,7 @@ body{
 .bubble::after{ content:""; position:absolute; left:50%; bottom:-6px; transform:translateX(-50%); border:6px solid transparent; border-top-color:#FFFFFF; border-bottom:0; }
 .bubble.show{ opacity:1; }
 .toast{
-  position:absolute; left:50%; bottom:1.2rem; transform:translateX(-50%); background:var(--panel); color:var(--ink);
+  position:absolute; left:50%; bottom:1.2rem; z-index:5; transform:translateX(-50%); background:var(--panel); color:var(--ink);
   border:1px solid var(--line); border-radius:10px; padding:.55rem .9rem; box-shadow:0 8px 24px rgba(0,0,0,.15);
   opacity:0; transition:opacity .25s; pointer-events:none; white-space:nowrap;
 }
@@ -77,7 +77,7 @@ body{
 .buildbar-items button .em{ font-size:1.35rem; line-height:1.25; }
 .buildbar-items button[aria-pressed="true"]{ border-color:var(--accent); background:var(--accent); color:var(--accent-ink); font-weight:600; }
 .stage.building .toast{ bottom:8rem; } .stage.building .buildtoggle{ display:none; }
-.places{ position:absolute; top:.8rem; left:.8rem; display:flex; gap:.3rem; }
+.places{ position:absolute; top:.8rem; left:.8rem; display:flex; gap:.3rem; z-index:2; }
 .places button{
   font:inherit; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:999px;
   padding:.4rem .85rem; cursor:pointer; box-shadow:0 4px 14px rgba(20,30,50,.1);
@@ -179,7 +179,8 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
 .modalhead{ display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem; }
 .modalhead strong{ font-size:1.05rem; }
 .modalhead .cnt{ color:var(--muted); font-size:.8rem; margin-left:auto; }
-.modalfoot{ display:flex; gap:.4rem; margin-top:.8rem; }
+/* 창이 길어져도 '이 심으로 시작' 은 늘 보이게 아래에 붙여 둔다 */
+.modalfoot{ display:flex; gap:.4rem; margin-top:.5rem; position:sticky; bottom:0; background:var(--panel); padding:.5rem 0 .1rem; }
 .modalfoot .btn{ flex:1; }
 .seg{ display:flex; gap:.3rem; margin:.1rem 0 .5rem; }
 .seg button{ flex:1; font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:.45rem; cursor:pointer; }
@@ -221,7 +222,7 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
   border-radius:8px; padding:.4rem .55rem;
 }
 .netpill{
-  position:absolute; top:.8rem; right:.8rem; background:var(--panel); color:var(--ink); border:1px solid var(--line);
+  position:absolute; top:.8rem; right:.8rem; z-index:2; background:var(--panel); color:var(--ink); border:1px solid var(--line);
   border-radius:999px; padding:.4rem .85rem; box-shadow:0 4px 14px rgba(20,30,50,.1); font-size:.85rem;
 }
 .netpill .dot{ display:inline-block; width:.55rem; height:.55rem; border-radius:50%; background:var(--mid); margin-right:.4rem; vertical-align:middle; }
@@ -2267,7 +2268,8 @@ function syncSelectionUI(){
   } else if(selectedPet){
     document.getElementById("dName").textContent = `${selectedPet.emoji} ${selectedPet.name} (${PET_INFO[selectedPet.kind].label})`;
     document.getElementById("detailHelp").textContent = selectedPet.owner ? `주인: ${selectedPet.owner.name}` + (selectedPet.kind === "dog" ? " · 주인이 산책하거나 외출하면 따라나서요." : selectedPet.kind === "parrot" ? " · 가끔 날아가서 주인 어깨에 앉아요." : " · 마음 내킬 때만 주인을 따라가요.") : "";
-    document.getElementById("stopBtn").hidden = true; document.getElementById("delPetBtn").hidden = false;
+    document.getElementById("stopBtn").hidden = true;
+    document.getElementById("delPetBtn").hidden = !(!selectedPet.owner || canManage(selectedPet.owner));
   }
   syncNoteWin();
   if(typeof buildMode !== "undefined" && buildMode) updateBuildHint(); // 누가 짓는지 안내 갱신
@@ -2660,9 +2662,10 @@ addEventListener("keydown", e => {
   if(!mySimsWin.hidden){ mySimsWin.hidden = true; }
 });
 
-function addPet(kind, owner, select = true){
-  owner = owner || pick(citizens);
+function addPet(kind, owner, select = true, who = ""){
+  owner = owner || pick(citizens.filter(c => !c.owner || c.owner === who)) || pick(citizens);
   if(!owner) return "반려동물을 데려오려면 시민이 먼저 있어야 해요";
+  if(owner.owner && owner.owner !== who) return `${owner.name}은(는) 만든 사람만 반려동물을 들일 수 있어요`;
   const H = HOUSES[owner.home];
   const p = new Pet(kind, H.ox + rand(-2, 2), H.oz + rand(3, 5), owner);
   pets.push(p); renderLists();
@@ -2693,8 +2696,9 @@ function removeCitizen(c, who = ""){
   renderLists();
   return announce(`${name} 님이 동네를 떠났어요` + (orphans ? ` · 반려동물 ${orphans}마리는 주인 없이 남았어요` : ""));
 }
-function removePet(p){
+function removePet(p, who = ""){
   if(!pets.includes(p)) return null;
+  if(p.owner && p.owner.owner && p.owner.owner !== who) return `${p.name}은(는) ${p.owner.name}을(를) 만든 사람만 보낼 수 있어요`;
   const label = `${p.emoji} ${p.name}`;
   if(p === selectedPet) clearSelection();
   detachPet(p);
@@ -2719,7 +2723,7 @@ armDelete(document.getElementById("delBtn"), "이 시민 삭제", () => {
 armDelete(document.getElementById("delPetBtn"), "삭제", () => {
   if(!selectedPet) return;
   if(net.role === "viewer") sendCmd({ k:"delP", pid:selectedPet.id });
-  else { const msg = removePet(selectedPet); if(msg) toast(msg); }
+  else { const msg = removePet(selectedPet, me.id); if(msg) toast(msg); }
 });
 /* 시민·반려동물이 늘어나면 호스트가 새 정의와 안내 토스트를 모든 관전자에게 전파한다 */
 function announce(msg){
@@ -2730,7 +2734,7 @@ function announce(msg){
 }
 document.querySelectorAll("[data-addpet]").forEach(b => b.addEventListener("click", () => {
   if(net.role === "viewer"){ sendCmd({ k:"addP", kind:b.dataset.addpet, owner:selected ? selected.id : 0 }); return; }
-  toast(addPet(b.dataset.addpet, selected));
+  toast(addPet(b.dataset.addpet, selected, true, me.id));
 }));
 document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => goView(b.dataset.view)));
 let speed = 1;
@@ -3122,7 +3126,7 @@ function handleCommand(conn, m){
     case "stop": if(c) msg = stopResult(c); break;
     case "addC": if(m.g === "m" || m.g === "f"){ const r = addCitizen(m.g, false, m.name, m.greet, m.age, m.type, String(m.who || "").slice(0, 64)); if(/명까지/.test(r)) msg = r; else toast(r); } break;   // 토스트는 announce()가 전원에게 보냄
     case "edit": if(c){ msg = editCitizen(c, m.name, m.greet, m.note, m.type, String(m.who || "")); if(!/만든 사람만/.test(msg)) toast(msg); } break;
-    case "addP": if(PET_INFO[m.kind]) toast(addPet(m.kind, citizens.find(x => x.id === m.owner), false)); break;
+    case "addP": if(PET_INFO[m.kind]){ const r = addPet(m.kind, citizens.find(x => x.id === m.owner), false, String(m.who || "")); if(/만든 사람만/.test(r)) msg = r; else toast(r); } break;
     case "speed": if([0, 1, 3, 8].includes(m.s)) setSpeed(m.s); break;
     case "reset": resetTown(); break;
     case "guest": if(c){ const r = addGuestEntry(c, +m.by, m.text); if(r) toast(r); } break;
@@ -3131,7 +3135,7 @@ function handleCommand(conn, m){
     case "build": if(BUILD_KINDS[m.kind] && Number.isFinite(m.x) && Number.isFinite(m.z)){ const r = placeResult(m.kind, m.x, m.z, +m.r || 0, +m.by || 0); if(r.ok) toast(r.msg); else msg = r.msg; } break;
     case "unbuild": { const b = builds.find(x => x.id === m.bid); if(b) toast(unbuildResult(b)); break; }
     case "delC": if(c){ const r = removeCitizen(c, String(m.who || "")); if(r){ if(/만든 사람만/.test(r)) msg = r; else toast(r); } } break;
-    case "delP": { const p = pets.find(x => x.id === m.pid); if(p){ const r = removePet(p); if(r) toast(r); } break; }
+    case "delP": { const p = pets.find(x => x.id === m.pid); if(p){ const r = removePet(p, String(m.who || "")); if(r){ if(/만든 사람만/.test(r)) msg = r; else toast(r); } } break; }
   }
   if(msg && conn.open) conn.send({ t:"toast", msg });
 }
