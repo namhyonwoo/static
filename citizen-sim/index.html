@@ -1147,7 +1147,7 @@ class Citizen {
     const m = this.mood(), orb = this.p.orb;
     const col = m > 62 ? "#3DAA63" : m > 35 ? "#E2B33A" : "#D9533E";
     orb.material.color.set(col); orb.material.emissive.set(col);
-    orb.position.y = (this.sleeping() ? 1.25 : 2.1) + Math.sin(this.t * 2) * 0.04;
+    orb.position.y = (this.sleeping() ? 1.25 : 2.1) * AGES[this.age].scale + Math.sin(this.t * 2) * 0.04; // 아이는 키에 맞춰 낮게
     this.tag.position.y = orb.position.y + 0.28; this.bubble.position.y = this.tag.position.y;
   }
   /* --- 네트워크 동기화 --- */
