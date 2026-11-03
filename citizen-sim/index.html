@@ -1129,8 +1129,9 @@ class Citizen {
     this.bubbleEl = document.createElement("div"); this.bubbleEl.className = "bubble"; wrap.appendChild(this.bubbleEl);
     this.bubble = new CSS2DObject(wrap); this.bubble.position.y = 2.38 * AGES[this.age].scale; this.root.add(this.bubble);
     // 가장 부족한 욕구 아이콘(40 아래일 때만)과, 청결이 낮을 때 몸 주변을 도는 냄새 구름
-    this.badgeEl = document.createElement("div"); this.badgeEl.className = "badge"; this.badgeEl.hidden = true;
-    this.badge = new CSS2DObject(this.badgeEl); this.badge.position.set(.45, 1.95 * AGES[this.age].scale, 0); this.root.add(this.badge);
+    this.badgeEl = document.createElement("div"); this.badgeEl.className = "badge";
+    this.badge = new CSS2DObject(this.badgeEl); this.badge.visible = false;
+    this.badge.position.set(.45, 1.95 * AGES[this.age].scale, 0); this.root.add(this.badge);
     this.stink = new THREE.Group(); this.stink.visible = false; this.root.add(this.stink);
     for(let i = 0; i < 3; i++) this.stink.add(new THREE.Mesh(vSphere(.07), mat("#8A8F94", { transparent:true, opacity:.55 })));
     this.updateTag();
@@ -1338,9 +1339,9 @@ class Citizen {
       const need = ACTS[this.act].need;
       const full = need && this.needs[need] >= 99.5;
       const listening = this.act === "chat" && this.partner && this.partner.state === "walk";
-      if(this.act === "pet" && !this.petTarget){ this.finish(); return; }
-      if(this.act === "build"){ if(this.timer > 4) this.finish(); return; } // 4초 망치질 뒤 완성(finish → release 에서 처리)
-      if(!listening && (this.timer > ACTS[this.act].max || (full && this.timer > 3))){
+      if(this.act === "pet" && !this.petTarget) this.finish();
+      else if(this.act === "build"){ if(this.timer > 4) this.finish(); }   // 4초 망치질 뒤 완성(finish → release 에서 처리). present() 는 계속 돌아야 망치질이 보인다
+      else if(!listening && (this.timer > ACTS[this.act].max || (full && this.timer > 3))){
         if(this.act === "sleep" && isNight(hour) && this.timer < 200){ /* sleep in until morning */ }
         else this.finish();
       }
@@ -1358,7 +1359,7 @@ class Citizen {
     this.tag.position.y = orb.position.y + 0.28; this.bubble.position.y = this.tag.position.y;
     // 상태 표식: 가장 낮은 욕구 아이콘, 냄새 구름
     let low = null, lv = 40; for(const [k] of needKeys(this)) if(this.needs[k] < lv){ lv = this.needs[k]; low = k; }
-    this.badgeEl.hidden = !low; if(low) this.badgeEl.textContent = NEED_ICON[low];
+    this.badge.visible = !!low; if(low) this.badgeEl.textContent = NEED_ICON[low];
     this.stink.visible = this.needs.hygiene < 35;
     if(this.stink.visible) this.stink.children.forEach((m, i) => m.position.set(Math.cos(this.t * 1.5 + i * 2.1) * .36, (1.2 + Math.sin(this.t * 2 + i) * .12) * AGES[this.age].scale, Math.sin(this.t * 1.5 + i * 2.1) * .36));
     // 공사 진행: 물건이 땅에서 자라나고, 망치가 닿으면 들썩인다
@@ -2379,6 +2380,7 @@ function editCitizen(c, name, greeting, note, type){
   if(greeting) c.greeting = greeting;
   if(note !== c.note) c.note = note;
   c.updateTag(); renderLists(); hostBroadcastInit(); saveSnapshot();
+  if(c === selected) selectCitizen(c);   // 성향·이름이 바뀌면 소개창(육각형 포함)을 다시 그린다
   return `${c.name}: 정보를 저장했어요`;
 }
 /* 성향 선택 상자(추가·설정 폼)와 육각형 미리보기 */
@@ -2634,6 +2636,7 @@ function addBuild(d){
 }
 function completeBuild(rec){
   rec.done = true; setGhost(rec.group, false);
+  rec.pulse = 0; rec.group.scale.set(1, 1, 1);   // 자라던 크기를 되돌린다
   if(rec.tag){ rec.group.remove(rec.tag); rec.tag.element.remove(); rec.tag = null; }
   const K = BUILD_KINDS[rec.k];
   if(K.act && !rec.obj){ // 쓸 수 있는 물건: 자리를 회전에 맞춰 등록
@@ -2976,9 +2979,10 @@ function applyInit(m){
   for(const d of m.citizens){
     const c = citizens.find(x => x.id === d.id);
     if(c){
-      const note = d.note || "", gb = Array.isArray(d.guestbook) ? d.guestbook : [];
-      if(c.name !== d.name || c.greeting !== d.greeting || c.note !== note || JSON.stringify(c.guestbook) !== JSON.stringify(gb)){
-        c.name = d.name; c.greeting = d.greeting; c.note = note; c.guestbook = gb; c.updateTag(); changed = true;
+      const note = d.note || "", gb = Array.isArray(d.guestbook) ? d.guestbook : [], ty = TYPES[d.type] ? d.type : c.type;
+      if(c.name !== d.name || c.greeting !== d.greeting || c.note !== note || c.type !== ty || JSON.stringify(c.guestbook) !== JSON.stringify(gb)){
+        c.name = d.name; c.greeting = d.greeting; c.note = note; c.type = ty; c.guestbook = gb; c.updateTag(); changed = true;
+        if(c === selected) selectCitizen(c);   // 성향이 바뀌면 육각형 점선도 다시 그린다
       }
       continue;
     }
