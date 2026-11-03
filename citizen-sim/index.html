@@ -64,6 +64,18 @@ body{
   opacity:0; transition:opacity .25s; pointer-events:none; white-space:nowrap;
 }
 .toast.show{ opacity:1; }
+.buildtoggle{ position:absolute; left:.8rem; bottom:.8rem; z-index:6; font:inherit; font-weight:600; background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:999px; padding:.45rem .9rem; box-shadow:0 4px 14px rgba(20,30,50,.12); cursor:pointer; }
+.buildbar{ position:absolute; left:.6rem; right:.6rem; bottom:.6rem; z-index:6; background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:14px; box-shadow:0 8px 24px rgba(0,0,0,.15); padding:.5rem .6rem .55rem; }
+.buildbar-head{ display:flex; align-items:center; gap:.45rem; margin-bottom:.45rem; }
+.buildbar-hint{ color:var(--muted); font-size:.8rem; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.buildbar .btn.icon[aria-pressed="true"]{ border-color:var(--bad); color:var(--bad); font-weight:600; }
+.buildbar-items{ display:flex; align-items:stretch; gap:.35rem; overflow-x:auto; padding-bottom:.2rem; scrollbar-width:thin; }
+.buildbar-items .cat{ flex:0 0 auto; align-self:center; color:var(--muted); font-size:.7rem; padding:0 .15rem 0 .45rem; border-left:1px solid var(--line); }
+.buildbar-items .cat:first-child{ border-left:0; padding-left:.1rem; }
+.buildbar-items button{ flex:0 0 auto; font:inherit; font-size:.76rem; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:.3rem .4rem; min-width:4.3rem; display:flex; flex-direction:column; align-items:center; gap:.05rem; cursor:pointer; }
+.buildbar-items button .em{ font-size:1.35rem; line-height:1.25; }
+.buildbar-items button[aria-pressed="true"]{ border-color:var(--accent); background:var(--accent); color:var(--accent-ink); font-weight:600; }
+.stage.building .toast{ bottom:8rem; } .stage.building .buildtoggle{ display:none; }
 .places{ position:absolute; top:.8rem; left:.8rem; display:flex; gap:.3rem; }
 .places button{
   font:inherit; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:999px;
@@ -179,6 +191,10 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
   .clock .time{ font-size:2rem; }
   .places{ flex-wrap:wrap; max-width:calc(100% - 1.6rem); }
   .netpill{ top:auto; bottom:.7rem; right:.6rem; left:.6rem; font-size:.78rem; padding:.3rem .7rem; text-align:center; }
+  .buildtoggle{ bottom:2.9rem; padding:.35rem .7rem; font-size:.85rem; }
+  .stage.building .netpill{ display:none; }
+  .buildbar{ left:.4rem; right:.4rem; bottom:.4rem; padding:.4rem .45rem .45rem; }
+  .buildbar-hint{ white-space:normal; font-size:.72rem; line-height:1.25; max-height:2.5em; }
   /* 소개창은 왼쪽에 띄우지 않고 아래 패널의 맨 위에 끼워 넣는다(JS가 옮김). 현황 목록은 그 아래로 이어져 함께 스크롤된다 */
   .notewin{
     position:static; width:auto; max-height:none; overflow:visible; margin:0 0 1rem; z-index:auto;
@@ -256,6 +272,17 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
     <button type="button" data-view="school">학교</button>
     <button type="button" data-view="kinder">유치원</button>
   </div>
+  <div class="buildbar" id="buildBar" hidden>
+    <div class="buildbar-head">
+      <strong>🔨 꾸미기</strong>
+      <span class="buildbar-hint" id="buildHint"></span>
+      <button class="btn icon" id="buildRotate" type="button" title="회전 (R)">⟳ 회전</button>
+      <button class="btn icon" id="buildErase" type="button" aria-pressed="false">🧹 치우기</button>
+      <button class="btn icon" id="buildClose" type="button" aria-label="꾸미기 닫기">✕</button>
+    </div>
+    <div class="buildbar-items" id="buildItems"></div>
+  </div>
+  <button class="buildtoggle" id="buildToggle" type="button">🔨 꾸미기</button>
   <div class="toast" id="toast" role="status"></div>
   <div class="netpill" id="netPill" hidden><span class="dot"></span><span id="netPillText">연결 중…</span></div>
 </main>
@@ -433,6 +460,10 @@ const ACTS = {
   school:   { label:"수업 듣는 중",      emoji:"🏫", pose:"work",   need:"fun",     gains:{ fun:1.4, social:1.4 },         max:70, hours:[9, 15], age:"kid" },
   daycare:  { label:"유치원에서 노는 중",emoji:"🧸", pose:"tv",     need:"fun",     gains:{ fun:2.4, social:1.4 },         max:40, hours:[9, 16], age:"tot" },
   blocks:   { label:"블록 쌓는 중",      emoji:"🧱", pose:"play",   need:"fun",     gains:{ fun:3, social:.8 },            max:25, hours:[9, 16], age:"tot" },
+  vend:     { label:"간식 사 먹는 중",   emoji:"🥤", pose:"look",   need:"hunger",  gains:{ hunger:3, fun:1.2, money:-.8 }, max:8,  cost:5 },           // 꾸미기: 자판기
+  swing:    { label:"그네 타는 중",      emoji:"🎠", pose:"tv",     need:"fun",     gains:{ fun:3.5, social:.3 },          max:12, park:true },         // 꾸미기: 그네
+  picnic:   { label:"피크닉 중",         emoji:"🧺", pose:"eat",    need:"hunger",  gains:{ hunger:3.6, social:1.5, fun:1 }, max:14, park:true },       // 꾸미기: 피크닉 테이블
+  build:    { label:"공사하는 중",       emoji:"🔨", pose:"hammer", need:null,      gains:{ fun:.5 },                      max:999 },                   // 꾸미기: 시민이 물건을 짓는다
   vendor:   { label:"장사하는 중",       emoji:"🧺", pose:"vendor", need:null,      gains:{},                          max:999 }, // NPC 전용
   idle:     { label:"서 있는 중",        emoji:"🙂", pose:"idle",   need:null,      gains:{},                          max:999 }, // NPC 전용
   busk:     { label:"버스킹 중",         emoji:"🎸", pose:"strum",  need:null,      gains:{},                          max:999 }, // NPC 전용
@@ -858,7 +889,10 @@ function buildPerson(look, gender, age = "adult"){
     box(el, .09, .22, .09, look.skin, 0, -0.12, 0);
     box(el, .1, .1, .1, look.skin, 0, -0.28, 0);
     P["sh"+k] = sh; P["el"+k] = el;
-    if(k === "R"){ const book = box(el, 0.22, 0.03, 0.17, "#C7564A", 0.12, -0.31, 0.06); book.visible = false; P.book = book; }
+    if(k === "R"){
+      const book = box(el, 0.22, 0.03, 0.17, "#C7564A", 0.12, -0.31, 0.06); book.visible = false; P.book = book;
+      P.hammer = [box(el, .05, .42, .05, "#A47A52", .03, -.4, .1), box(el, .2, .1, .1, "#55565C", .03, -.62, .1)]; P.hammer.forEach(h => h.visible = false);
+    }
   }
   const head = new THREE.Group(); head.position.y = 0.54; chest.add(head); P.head = head; head.scale.setScalar(A.head);
   const hw = F ? .32 : .34, hd = F ? .3 : .32;
@@ -989,6 +1023,11 @@ class Citizen {
     this.tagEl.classList.toggle("show", this === selected || this === hovered);
   }
   release(){
+    if(this.buildRec){ // 짓다 말아도 물건은 완성된다(공사 중인 채로 남지 않게)
+      const r = this.buildRec; this.buildRec = null;
+      if(!r.done && builds.includes(r)){ completeBuild(r); this.needs.fun = Math.min(100, this.needs.fun + 4);
+        if(net.role !== "viewer") toast(announce(`${this.name} 님이 ${BUILD_KINDS[r.k].label}${eul(BUILD_KINDS[r.k].label)} 완성했어요`)); }
+    }
     if(this.spot){ this.spot.occ = null; this.spot = null; }
     this.route = null;
     if(this.partner){ const p = this.partner; this.partner = null; if(p.partner === this){ p.partner = null; p.finish(); } }
@@ -1147,6 +1186,7 @@ class Citizen {
       const full = need && this.needs[need] >= 99.5;
       const listening = this.act === "chat" && this.partner && this.partner.state === "walk";
       if(this.act === "pet" && !this.petTarget){ this.finish(); return; }
+      if(this.act === "build"){ if(this.timer > 4) this.finish(); return; } // 4초 망치질 뒤 완성(finish → release 에서 처리)
       if(!listening && (this.timer > ACTS[this.act].max || (full && this.timer > 3))){
         if(this.act === "sleep" && isNight(hour) && this.timer < 200){ /* sleep in until morning */ }
         else this.finish();
@@ -1214,11 +1254,13 @@ class Citizen {
       case "petBird": T.shR = -1.75 + wave(3, .12); T.elR = -0.7; T.head = -0.2; T.shL = -0.1; break;
       case "strum": { T.shL = -1.05; T.elL = -1.35; T.shR = -0.75 + Math.sin(t*7) * .22; T.elR = -1.5; T.armOut = 0.3; T.head = wave(1.4, .08) - 0.1; T.chest = 0.05; break; }
       case "wave": { const up = Math.sin(t * 1.1) > 0; T.shR = up ? -2.6 + wave(6, .25) : -0.35; T.elR = up ? -0.3 : -0.9; T.shL = -0.2; T.elL = -0.3; T.head = wave(.9, .1); T.armOut = 0.2; break; }
+      case "hammer": { const k = Math.sin(t*9); T.chest = .35; T.hipL = T.hipR = -.3; T.kneeL = T.kneeR = .5; T.bodyY = -.1; T.head = -.3; T.shR = -1.5 + k*.5; T.elR = -.8; T.shL = -.5; T.elL = -.6; break; }
       case "play": { const k = Math.sin(t*4.5); T.hipL = T.hipR = -1.35; T.kneeL = T.kneeR = 2.2; T.bodyY = -0.42; T.chest = 0.4; T.head = 0.4;
         T.shR = -1.1 + k*.3; T.elR = -0.5; T.shL = -1.1 - k*.3; T.elL = -0.5; break; }
       default: T.chest = wave(1.6, .015); T.head = wave(.7, .05);
     }
     if(pose !== "read") P.book.visible = false;
+    if(P.hammer) P.hammer.forEach(h => h.visible = pose === "hammer");
     const k = 1 - Math.exp(-dt * (pose === "walk" ? 16 : 7));
     for(const n of ["hipL","hipR","kneeL","kneeR","shL","shR","elL","elR","chest","head"]) P[n].rotation.x = lerp(P[n].rotation.x, T[n], k);
     P.shL.rotation.z = lerp(P.shL.rotation.z, T.armOut, k); P.shR.rotation.z = lerp(P.shR.rotation.z, -T.armOut, k);
@@ -1938,6 +1980,7 @@ function syncSelectionUI(){
     document.getElementById("stopBtn").hidden = true; document.getElementById("delPetBtn").hidden = false;
   }
   syncNoteWin();
+  if(typeof buildMode !== "undefined" && buildMode) updateBuildHint(); // 누가 짓는지 안내 갱신
   citizens.forEach(x => { x.updateTag(); x.listBtn?.setAttribute("aria-pressed", x === selected); });
   pets.forEach(x => { x.updateTag(); x.listBtn?.setAttribute("aria-pressed", x === selectedPet); });
   refreshUI();
@@ -2253,7 +2296,7 @@ document.querySelectorAll(".speed button").forEach(b => b.addEventListener("clic
   if(net.role === "viewer"){ sendCmd({ k:"speed", s:+b.dataset.s }); return; }
   setSpeed(+b.dataset.s);
 }));
-addEventListener("keydown", e => { if(e.key === "Escape") clearSelection(); });
+addEventListener("keydown", e => { if(e.key === "Escape" && !buildMode) clearSelection(); });
 
 /* picking */
 const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
@@ -2268,6 +2311,7 @@ function pickAt(clientX, clientY){
 let hoverT = 0;
 canvas.addEventListener("pointermove", e => {
   const now = performance.now(); if(now - hoverT < 40) return; hoverT = now;
+  if(buildMode && ghost){ moveGhost(e.clientX, e.clientY); return; }
   const hit = pickAt(e.clientX, e.clientY);
   const next = hit ? (hit.object.userData.citizen || hit.object.userData.pet || hit.object.userData.npc || null) : null;
   if(next === hovered) return;
@@ -2281,6 +2325,7 @@ canvas.addEventListener("pointerup", e => {
   if(!downAt) return;
   const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]); downAt = null;
   if(moved > 6) return;
+  if(buildMode && buildClick(e)) return;
   const hit = pickAt(e.clientX, e.clientY);
   if(!hit) return;
   const u = hit.object.userData;
@@ -2303,6 +2348,204 @@ canvas.addEventListener("pointerup", e => {
      켜려면 위 u.ground 분기를 지우고 아래를 복원:
      const p = hit.point, x = clamp(p.x, -14, 32), z = clamp(p.z, -5.5, 16);
      net.role === "viewer" ? sendCmd({ k:"move", cid:selected.id, x, z }) : selected.orderMove(x, z); */
+});
+
+/* ================= Build mode: 동네 꾸미기 ================= */
+/* 하단 팔레트에서 물건을 고르고 바닥을 클릭해 놓는다. 시민을 선택해 두면 그 시민이 걸어가 망치질로 완성하고, 아니면 바로 놓인다.
+   놓은 물건은 저장·동기화되며, 벤치·자판기·그네·피크닉 테이블·텃밭은 시민이 실제로 쓴다. 관전자의 꾸미기는 호스트가 대신 처리한다 */
+const BUILD_KINDS = {
+  path:   { label:"보도블록", emoji:"🟫", cat:"길·조명", r:1.0, build:g => { for(const [x, z] of [[-.5,-.5],[.5,-.5],[-.5,.5],[.5,.5]]){ const t = box(g, .96, .05, .96, (x + z) ? "#D8CFBD" : "#CFC5B2", x, .025, z); t.castShadow = false; } } },
+  lamp:   { label:"가로등", emoji:"💡", cat:"길·조명", r:.4, build:g => {
+    box(g, .4, .12, .4, "#3B4350", 0, .06, 0); box(g, .12, 3.2, .12, "#3B4350", 0, 1.6, 0); box(g, .44, .08, .44, "#3B4350", 0, 3.48, 0);
+    const h = new THREE.Mesh(new THREE.BoxGeometry(.36, .26, .36), new THREE.MeshStandardMaterial({ color:"#FFF4D6", emissive:"#FFD38A", emissiveIntensity:0 }));
+    h.position.y = 3.3; h.castShadow = true; g.add(h); lampHeads.push(h); g.userData.lampHead = h; } },
+  bench:  { label:"벤치", emoji:"🪑", cat:"가구", r:1.0, act:"bench", spots:[[-.42, 0, 0], [.42, 0, 0]], build:g => {
+    box(g, 1.7, .07, .5, "#A9744B", 0, .45, 0); box(g, 1.7, .45, .06, "#A9744B", 0, .74, -.26);
+    for(const sd of [-.72, .72]){ box(g, .07, .44, .45, "#3B4350", sd, .22, 0); box(g, .07, .5, .06, "#3B4350", sd, .7, -.27); } } },
+  picnic: { label:"피크닉 테이블", emoji:"🧺", cat:"가구", r:1.3, act:"picnic", spots:[[0, -.75, 0], [0, .75, Math.PI]], build:g => {
+    box(g, 1.8, .08, .8, "#A9744B", 0, .72, 0); for(const sd of [-1, 1]) box(g, 1.8, .06, .35, "#A9744B", 0, .45, sd * .75);
+    for(const x of [-.6, .6]){ box(g, .08, .7, .08, "#8A6748", x, .36, 0); for(const sd of [-1, 1]) box(g, .08, .45, .08, "#8A6748", x, .22, sd * .75); }
+    box(g, .4, .06, .3, "#F5F1E8", -.3, .79, 0); box(g, .25, .14, .25, "#E8566B", .4, .83, .05); } },
+  swing:  { label:"그네", emoji:"🎠", cat:"가구", r:1.2, act:"swing", spots:[[0, 0, 0]], build:g => {
+    for(const sd of [-1, 1]) for(const z of [-.35, .35]) box(g, .1, 2.2, .1, "#3B4350", sd, 1.1, z);
+    box(g, 2.3, .1, .1, "#3B4350", 0, 2.2, 0); for(const sd of [-.25, .25]) box(g, .03, 1.55, .03, "#8D97A3", sd, 1.4, 0); box(g, .7, .06, .3, "#A9744B", 0, .6, 0); } },
+  vending:{ label:"자판기", emoji:"🥤", cat:"가구", r:.6, act:"vend", spots:[[0, .9, Math.PI]], build:g => {
+    box(g, .9, 1.9, .7, "#D9533E", 0, .95, 0); box(g, .6, 1.0, .04, "#9CC7EE", 0, 1.2, .36, { emissive:"#5A8FD0", emissiveIntensity:.35 });
+    for(let i = 0; i < 6; i++) box(g, .12, .18, .02, ["#F2C14E", "#3E7BD6", "#3FA46A", "#FFFFFF", "#E8566B", "#8E5BD3"][i], -.2 + (i % 3) * .2, 1.45 - Math.floor(i / 3) * .3, .39);
+    box(g, .5, .3, .04, "#2E3440", 0, .45, .36); } },
+  tree:   { label:"나무", emoji:"🌳", cat:"자연", r:1.1, build:g => { box(g, .32, 1.4, .32, "#7A5A3C", 0, .7, 0); box(g, 2.0, .8, 2.0, "#4F9A55", 0, 1.6, 0); box(g, 1.5, .7, 1.5, "#4F9A55", 0, 2.3, 0); box(g, .9, .6, .9, "#7DB35E", 0, 2.9, 0); } },
+  cherry: { label:"벚나무", emoji:"🌸", cat:"자연", r:1.1, build:g => { box(g, .32, 1.4, .32, "#7A5A3C", 0, .7, 0); box(g, 2.0, .8, 2.0, "#F3A9C4", 0, 1.6, 0); box(g, 1.5, .7, 1.5, "#F7C6D0", 0, 2.3, 0); box(g, .9, .6, .9, "#FBD9E2", 0, 2.9, 0); } },
+  bush:   { label:"덤불", emoji:"🌿", cat:"자연", r:.6, build:g => { box(g, 1.0, .7, 1.0, "#5AA65E", 0, .35, 0); box(g, .6, .4, .6, "#6BB26A", 0, .8, 0); } },
+  flowers:{ label:"화단", emoji:"🌷", cat:"자연", r:1.2, build:g => {
+    box(g, 2.4, .25, 1.1, "#7A5A3C", 0, .12, 0); box(g, 2.2, .06, .9, "#5A3E28", 0, .27, 0).castShadow = false;
+    const petals = ["#E8566B", "#F2C14E", "#B97BE0", "#FF8E4D", "#FFFFFF"];
+    for(let i = 0; i < 8; i++){ const x = -.9 + (i % 4) * .6, z = -.25 + Math.floor(i / 4) * .5; box(g, .03, .4, .03, "#3E8A45", x, .48, z); add(g, mesh(vSphere(.1), petals[i % 5]), x, .72, z); } } },
+  garden: { label:"텃밭", emoji:"🥕", cat:"자연", r:1.3, act:"garden", spots:[[-.6, 1.1, Math.PI], [.6, 1.1, Math.PI]], build:g => {
+    box(g, 2.6, .22, 1.6, "#5A3E28", 0, .11, 0); for(let i = 0; i < 3; i++) box(g, 2.4, .1, .25, "#7A5A3C", 0, .26, -.5 + i * .5);
+    for(let i = 0; i < 12; i++){ const x = -1.0 + (i % 4) * .66, z = -.5 + Math.floor(i / 4) * .5; box(g, .14, .3, .14, "#3E8A45", x, .42, z); box(g, .16, .08, .16, i % 2 ? "#FF8E4D" : "#8BC34A", x, .3, z); } } },
+  pond:   { label:"연못", emoji:"💧", cat:"자연", r:1.7, build:g => {
+    add(g, mesh(vCyl(1.7, 1.8, .16, 8), "#B9B3A8"), 0, .08, 0);
+    add(g, new THREE.Mesh(vCyl(1.5, 1.5, .04, 8), mat("#6FB2D9", { transparent:true, opacity:.85, roughness:.1 })), 0, .17, 0);
+    add(g, mesh(vSphere(.16), "#4F9A55"), .5, .2, .3); add(g, mesh(vSphere(.12), "#E8566B"), -.4, .22, -.2); add(g, mesh(vSphere(.1), "#F2C14E"), .1, .22, -.6); } },
+  rock:   { label:"바위", emoji:"🪨", cat:"자연", r:.7, build:g => { box(g, 1.1, .6, .9, "#8C8A86", 0, .3, 0); box(g, .6, .4, .5, "#A3A09B", .2, .7, -.1); } },
+  fence:  { label:"울타리", emoji:"🚧", cat:"소품", r:1.0, build:g => { for(const x of [-.9, 0, .9]) box(g, .1, .8, .1, "#F5F1E8", x, .4, 0); box(g, 2.0, .08, .06, "#F5F1E8", 0, .62, 0); box(g, 2.0, .08, .06, "#F5F1E8", 0, .3, 0); } },
+  mailbox:{ label:"우체통", emoji:"📮", cat:"소품", r:.4, build:g => { box(g, .08, .9, .08, "#3B4350", 0, .45, 0); box(g, .5, .4, .36, "#D9533E", 0, 1.1, 0); box(g, .3, .05, .02, "#1B1B1B", 0, 1.2, .19); } },
+  bin:    { label:"쓰레기통", emoji:"🗑️", cat:"소품", r:.4, build:g => { add(g, mesh(vCyl(.22, .2, .55), "#4F6E95"), 0, .28, 0); box(g, .5, .06, .5, "#3B4350", 0, .58, 0); } },
+};
+const builds = []; let buildSeq = 1;
+const eul = w => ((w.charCodeAt(w.length - 1) - 0xAC00) % 28) ? "을" : "를"; // 받침에 맞는 목적격 조사
+function placeTagOn(group, text){ const el = document.createElement("div"); el.className = "placeTag"; el.textContent = text; const o = new CSS2DObject(el); o.position.set(0, 2.2, 0); group.add(o); return o; }
+function buildBounds(x, z){ // 받침 안, 도로·건물 바닥·분수 밖이어야 한다
+  if(x < BASE.x0 + 1 || x > BASE.x1 - 1 || z < BASE.z0 + 1 || z > BASE.z1 - 1) return "받침 밖에는 지을 수 없어요";
+  if(Math.abs(z - 13) < 3.6 || Math.abs(x + 16) < 3.6) return "도로 위에는 지을 수 없어요";
+  const rects = [...HOUSES.map(H => [H.ox - 8.3, H.ox + 8.3, H.oz - 6.3, H.oz + 6.3]), [OFFICE.x - 5.8, OFFICE.x + 5.8, OFFICE.z - 3.5, OFFICE.z + 3.5],
+    [MARKET.x - 5.8, MARKET.x + 5.8, MARKET.z - 3.3, MARKET.z + 3.3], [SCHOOL.x - 7.3, SCHOOL.x + 7.3, SCHOOL.z - 4.5, SCHOOL.z + 4.5], [KINDER.x - 6.3, KINDER.x + 6.3, KINDER.z - 4.3, KINDER.z + 4.3]];
+  if(rects.some(([a, b, c, d]) => x > a && x < b && z > c && z < d)) return "건물 안에는 지을 수 없어요";
+  if(Math.hypot(x - PARK.x, z - PARK.z) < 3.4) return "분수 자리예요";
+  return null;
+}
+function buildBlocked(k, x, z){
+  const K = BUILD_KINDS[k]; if(!K) return "모르는 물건이에요";
+  const why = buildBounds(x, z); if(why) return why;
+  if(k !== "path"){ if(builds.some(b => b.k !== "path" && Math.hypot(b.x - x, b.z - z) < K.r + BUILD_KINDS[b.k].r)) return "다른 물건과 겹쳐요"; } // 길은 다른 물건과 겹쳐도 된다
+  else if(builds.some(b => b.k === "path" && Math.hypot(b.x - x, b.z - z) < 1.5)) return "이미 길이 있어요";
+  return null;
+}
+function makeBuildGroup(k, r){ const g = new THREE.Group(); BUILD_KINDS[k].build(g); g.rotation.y = r; return g; }
+function setGhost(g, on){
+  g.traverse(m => { if(!m.isMesh) return;
+    if(on){ if(!m.userData.mat0){ m.userData.mat0 = m.material; m.material = m.material.clone(); m.material.transparent = true; m.material.opacity = .45; } }
+    else if(m.userData.mat0){ m.material.dispose(); m.material = m.userData.mat0; delete m.userData.mat0; } });
+}
+function addBuild(d){
+  const K = BUILD_KINDS[d.k]; if(!K) return null;
+  const rec = { id:d.id, k:d.k, x:d.x, z:d.z, r:d.r || 0, done:!!d.done, by:d.by || 0, group:makeBuildGroup(d.k, d.r || 0), obj:null, tag:null };
+  rec.group.position.set(d.x, 0, d.z); scene.add(rec.group);
+  rec.group.traverse(m => { if(m.isMesh){ m.userData.build = rec; if(!K.act) m.userData.ground = true; } }); // 장식은 배경처럼 취급(클릭하면 선택 해제)
+  builds.push(rec);
+  if(rec.done) completeBuild(rec); else { setGhost(rec.group, true); rec.tag = placeTagOn(rec.group, "🚧 공사 중"); }
+  return rec;
+}
+function completeBuild(rec){
+  rec.done = true; setGhost(rec.group, false);
+  if(rec.tag){ rec.group.remove(rec.tag); rec.tag.element.remove(); rec.tag = null; }
+  const K = BUILD_KINDS[rec.k];
+  if(K.act && !rec.obj){ // 쓸 수 있는 물건: 자리를 회전에 맞춰 등록
+    const cr = Math.cos(rec.r), sr = Math.sin(rec.r);
+    const obj = { name:K.label, act:K.act, group:rec.group, home:null, build:rec, spots:K.spots.map(([dx, dz, f]) => ({ x:rec.x + dx * cr + dz * sr, z:rec.z - dx * sr + dz * cr, face:f + rec.r, occ:null })) };
+    rec.group.traverse(m => { if(m.isMesh){ m.userData.obj = obj; pickables.push(m); } });
+    objects.push(obj); rec.obj = obj;
+  }
+}
+function removeBuild(rec){
+  const i = builds.indexOf(rec); if(i < 0) return;
+  builds.splice(i, 1);
+  for(const c of citizens) if(c.buildRec === rec){ c.buildRec = null; c.finish(); }
+  if(rec.obj){ for(const sp of rec.obj.spots) if(sp.occ) sp.occ.finish(); const oi = objects.indexOf(rec.obj); if(oi >= 0) objects.splice(oi, 1); }
+  rec.group.traverse(m => { if(m.isMesh){ const pi = pickables.indexOf(m); if(pi >= 0) pickables.splice(pi, 1); } });
+  if(rec.group.userData.lampHead){ const li = lampHeads.indexOf(rec.group.userData.lampHead); if(li >= 0) lampHeads.splice(li, 1); }
+  if(rec.tag) rec.tag.element.remove();
+  scene.remove(rec.group);
+}
+function syncBuilds(list){ // 호스트가 보낸 목록에 맞춘다(추가·완성·삭제)
+  const seen = new Set();
+  for(const d of list){ seen.add(d.id); const b = builds.find(x => x.id === d.id); if(!b) addBuild(d); else if(d.done && !b.done) completeBuild(b); }
+  for(const b of [...builds]) if(!seen.has(b.id)) removeBuild(b);
+}
+/* 호스트: 검증 후 놓는다. by 가 시민이면 그 시민이 걸어가 짓고, 아니면 바로 완성 */
+function placeResult(k, x, z, r, by){
+  const why = buildBlocked(k, x, z); if(why) return { ok:false, msg:why };
+  const c = citizens.find(c => c.id === by) || null;
+  const rec = addBuild({ id:buildSeq++, k, x, z, r, done:!c, by:c ? c.id : 0 });
+  if(c){ c.release(); c.buildRec = rec; const d = Math.max(.9, BUILD_KINDS[k].r + .5); c.walkTo(x + Math.sin(r) * d, z + Math.cos(r) * d, "build", null, r + Math.PI); }
+  return { ok:true, msg:announce(c ? `${c.name} 님이 ${BUILD_KINDS[k].label} 공사를 시작했어요` : `${BUILD_KINDS[k].label}${eul(BUILD_KINDS[k].label)} 놓았어요`) };
+}
+function unbuildResult(rec){ removeBuild(rec); return announce(`${BUILD_KINDS[rec.k].label}${eul(BUILD_KINDS[rec.k].label)} 치웠어요`); }
+
+/* ----- 꾸미기 UI(하단 팔레트) ----- */
+const buildBar = document.getElementById("buildBar"), buildItems = document.getElementById("buildItems"), buildHint = document.getElementById("buildHint");
+let buildMode = false, buildKind = null, buildRot = 0, eraseMode = false, ghost = null;
+{
+  let lastCat = null;
+  for(const [k, K] of Object.entries(BUILD_KINDS)){
+    if(K.cat !== lastCat){ const c = document.createElement("span"); c.className = "cat"; c.textContent = K.cat; buildItems.appendChild(c); lastCat = K.cat; }
+    const b = document.createElement("button"); b.type = "button"; b.dataset.k = k; b.setAttribute("aria-pressed", "false"); b.title = K.act ? "시민이 쓸 수 있어요" : "장식";
+    b.innerHTML = `<span class="em">${K.emoji}</span><span>${K.label}</span>`;
+    b.addEventListener("click", () => selectBuildKind(buildKind === k ? null : k));
+    buildItems.appendChild(b);
+  }
+}
+function updateBuildHint(){
+  if(eraseMode) buildHint.textContent = "치울 물건을 클릭하세요 (꾸미기로 놓은 것만)";
+  else if(buildKind) buildHint.textContent = `${BUILD_KINDS[buildKind].label}: 바닥을 클릭해 놓기 · R 또는 ⟳ 회전 · ` + (selected ? `${selected.name} 님이 지어요` : "바로 놓여요 (시민을 선택하면 그 시민이 지어요)");
+  else buildHint.textContent = "아래에서 물건을 고르세요. 시민을 선택해 두면 그 시민이 걸어가서 지어요";
+}
+function makeGhost(){
+  if(ghost){ scene.remove(ghost); ghost = null; }
+  if(!buildKind) return;
+  ghost = makeBuildGroup(buildKind, buildRot); setGhost(ghost, true); ghost.visible = false;
+  ghost.traverse(m => { if(m.isMesh){ m.raycast = () => {}; m.castShadow = false; } }); // 미리보기는 클릭 판정에서 제외
+  scene.add(ghost);
+}
+function selectBuildKind(k){
+  buildKind = k; if(k){ eraseMode = false; document.getElementById("buildErase").setAttribute("aria-pressed", "false"); }
+  buildItems.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.k === k)));
+  makeGhost(); updateBuildHint();
+}
+function setBuildMode(on){
+  buildMode = on; buildBar.hidden = !on; stage.classList.toggle("building", on);
+  if(!on){ selectBuildKind(null); eraseMode = false; document.getElementById("buildErase").setAttribute("aria-pressed", "false"); canvas.style.cursor = ""; }
+  else updateBuildHint();
+}
+function rotateBuild(){ buildRot = (buildRot + Math.PI / 2) % (Math.PI * 2); if(ghost) ghost.rotation.y = buildRot; }
+document.getElementById("buildToggle").addEventListener("click", () => setBuildMode(true));
+document.getElementById("buildClose").addEventListener("click", () => setBuildMode(false));
+document.getElementById("buildRotate").addEventListener("click", rotateBuild);
+document.getElementById("buildErase").addEventListener("click", e => {
+  eraseMode = !eraseMode; e.currentTarget.setAttribute("aria-pressed", String(eraseMode));
+  if(eraseMode){ buildKind = null; buildItems.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", "false")); makeGhost(); }
+  updateBuildHint();
+});
+function groundAt(clientX, clientY){ // 바닥 위 지점(0.5m 격자에 맞춤)
+  const r = canvas.getBoundingClientRect();
+  ptr.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ptr, camera);
+  const hit = ray.intersectObjects(scene.children, true).find(h => h.object.isMesh && h.object.visible && h.object.userData.ground && !h.object.userData.build);
+  if(!hit) return null;
+  return { x:Math.round(hit.point.x * 2) / 2, z:Math.round(hit.point.z * 2) / 2 };
+}
+function moveGhost(clientX, clientY){
+  if(!ghost) return;
+  const p = groundAt(clientX, clientY);
+  ghost.visible = !!p; if(!p) return;
+  ghost.position.set(p.x, 0, p.z);
+  const bad = buildBlocked(buildKind, p.x, p.z);
+  ghost.traverse(m => { if(m.isMesh && m.userData.mat0) m.material.color.copy(bad ? new THREE.Color("#D9533E") : m.userData.mat0.color); });
+  canvas.style.cursor = bad ? "not-allowed" : "copy";
+}
+function buildClick(e){ // 꾸미기 모드에서의 클릭. true 를 돌려주면 일반 선택 처리는 건너뛴다
+  if(eraseMode){
+    const hit = pickAt(e.clientX, e.clientY); let rec = hit && hit.object.userData.build;
+    if(!rec){ // 물건을 정확히 못 맞혀도 클릭한 바닥 지점에서 가장 가까운 것을 고른다
+      const p = groundAt(e.clientX, e.clientY);
+      if(p){ let bd = 1.3; for(const b of builds){ const d = Math.hypot(b.x - p.x, b.z - p.z) - BUILD_KINDS[b.k].r; if(d < bd){ bd = d; rec = b; } } }
+    }
+    if(!rec){ toast("꾸미기로 놓은 물건만 치울 수 있어요"); return true; }
+    if(net.role === "viewer") sendCmd({ k:"unbuild", bid:rec.id }); else toast(unbuildResult(rec));
+    return true;
+  }
+  if(!buildKind) return false;
+  const p = groundAt(e.clientX, e.clientY); if(!p) return true;
+  const why = buildBlocked(buildKind, p.x, p.z); if(why){ toast(why); return true; }
+  const by = selected ? selected.id : 0;
+  if(net.role === "viewer") sendCmd({ k:"build", kind:buildKind, x:p.x, z:p.z, r:buildRot, by });
+  else { const r = placeResult(buildKind, p.x, p.z, buildRot, by); toast(r.msg); }
+  return true;
+}
+addEventListener("keydown", e => {
+  if(/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+  if(e.key === "r" || e.key === "R"){ if(buildMode) rotateBuild(); }
+  else if(e.key === "Escape" && buildMode){ if(buildKind || eraseMode){ eraseMode = false; document.getElementById("buildErase").setAttribute("aria-pressed", "false"); selectBuildKind(null); } else setBuildMode(false); }
 });
 
 /* ================= Time & lighting ================= */
@@ -2377,7 +2620,8 @@ const roomLabel = ROOM === "TOWN" ? "" : ` · 방 ${ROOM}`;
 function roomInit(){
   return { t:"init", simMin, speed,
     citizens: citizens.map(c => ({ id:c.id, gender:c.gender, age:c.age, name:c.name, greeting:c.greeting, note:c.note, guestbook:c.guestbook, look:c.look, home:c.home, x:c.pos.x, z:c.pos.z })),
-    pets: pets.map(p => ({ id:p.id, kind:p.kind, name:p.name, color:p.color, idx:p.idx, owner:p.owner ? p.owner.id : 0, home:p.home, x:p.pos.x, y:p.pos.y, z:p.pos.z })) };
+    pets: pets.map(p => ({ id:p.id, kind:p.kind, name:p.name, color:p.color, idx:p.idx, owner:p.owner ? p.owner.id : 0, home:p.home, x:p.pos.x, y:p.pos.y, z:p.pos.z })),
+    builds: builds.map(b => ({ id:b.id, k:b.k, x:b.x, z:b.z, r:b.r, done:b.done, by:b.by })) };
 }
 function roomState(){ return { t:"state", simMin, speed, c:citizens.map(c => c.netState()), p:pets.map(p => p.netState()), v:cars.map(c => c.netState()) }; }
 function broadcast(msg){ for(const c of net.conns) if(c.open) c.send(msg); }
@@ -2405,6 +2649,8 @@ function handleCommand(conn, m){
     case "guest": if(c){ const r = addGuestEntry(c, +m.by, m.text); if(r) toast(r); } break;
     case "gdel": if(c){ const r = removeGuestEntry(c, +m.at, +m.by); if(r) toast(r); } break;
     case "gclear": if(c){ const r = clearGuestbook(c); if(r) toast(r); } break;
+    case "build": if(BUILD_KINDS[m.kind] && Number.isFinite(m.x) && Number.isFinite(m.z)){ const r = placeResult(m.kind, m.x, m.z, +m.r || 0, +m.by || 0); if(r.ok) toast(r.msg); else msg = r.msg; } break;
+    case "unbuild": { const b = builds.find(x => x.id === m.bid); if(b) toast(unbuildResult(b)); break; }
     case "delC": if(c){ const r = removeCitizen(c); if(r) toast(r); } break;
     case "delP": { const p = pets.find(x => x.id === m.pid); if(p){ const r = removePet(p); if(r) toast(r); } break; }
   }
@@ -2433,6 +2679,8 @@ function takeOverState(){
   for(const k in petCount) petCount[k] = pets.filter(p => p.kind === k).length;
   for(const obj of objects) for(const s of obj.spots) s.occ = null;
   carSeq = Math.max(0, ...cars.map(c => c.id)) + 1;
+  buildSeq = Math.max(0, ...builds.map(b => b.id)) + 1;
+  for(const b of builds) if(!b.done) completeBuild(b); // 짓던 사람이 없어졌으니 바로 완성
   for(const c of citizens){ c.pos.copy(c.netTarget); c.partner = null; c.petTarget = null; c.spot = null; c.route = null; c.target = null; c.finish(); }
   for(const p of pets){
     p.pos.copy(p.netTarget); p.petter = null; p.moving = false; p.route = []; p.next = null; p.target = null;
@@ -2488,6 +2736,7 @@ function claimHost(tookOver = false){
 function applyInit(m){
   simMin = m.simMin; setSpeed(m.speed);
   let changed = false;
+  if(Array.isArray(m.builds)) syncBuilds(m.builds);
   for(const d of m.citizens){
     const c = citizens.find(x => x.id === d.id);
     if(c){
@@ -2652,6 +2901,7 @@ function clearTown(){
   for(const c of citizens){ scene.remove(c.root); c.tagEl.remove(); c.bubbleEl.parentElement?.remove(); }
   for(const p of pets){ scene.remove(p.root); p.tagEl.remove(); }
   citizens.length = 0; pets.length = 0;
+  for(const b of [...builds]) removeBuild(b);
   for(const obj of objects) for(const sp of obj.spots) sp.occ = null;
   renderLists();
 }
