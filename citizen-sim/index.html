@@ -1254,7 +1254,12 @@ class Citizen {
       case "petBird": T.shR = -1.75 + wave(3, .12); T.elR = -0.7; T.head = -0.2; T.shL = -0.1; break;
       case "strum": { T.shL = -1.05; T.elL = -1.35; T.shR = -0.75 + Math.sin(t*7) * .22; T.elR = -1.5; T.armOut = 0.3; T.head = wave(1.4, .08) - 0.1; T.chest = 0.05; break; }
       case "wave": { const up = Math.sin(t * 1.1) > 0; T.shR = up ? -2.6 + wave(6, .25) : -0.35; T.elR = up ? -0.3 : -0.9; T.shL = -0.2; T.elL = -0.3; T.head = wave(.9, .1); T.armOut = 0.2; break; }
-      case "hammer": { const k = Math.sin(t*9); T.chest = .35; T.hipL = T.hipR = -.3; T.kneeL = T.kneeR = .5; T.bodyY = -.1; T.head = -.3; T.shR = -1.5 + k*.5; T.elR = -.8; T.shL = -.5; T.elL = -.6; break; }
+      case "hammer": { // 한 번에 0.45초: 70%는 들어 올리고 30%에 내리친다. 내리치는 순간 뚝딱 효과
+        const p = (t * 2.2) % 1, ease = x => 1 - (1 - x) * (1 - x);
+        const lift = p < .7 ? ease(p / .7) : 1 - (p - .7) / .3;
+        T.shR = -0.7 - 1.9 * lift; T.elR = -0.45 - .5 * lift; T.shL = -.45; T.elL = -.7; T.armOut = .12;
+        T.chest = .22 + (1 - lift) * .2; T.head = .25 - lift * .15; T.bodyY = -(1 - lift) * .04; T.hipL = T.hipR = -.15; T.kneeL = T.kneeR = .25;
+        if(this.hamPrev != null && p < this.hamPrev) buildHit(this); this.hamPrev = p; break; }
       case "play": { const k = Math.sin(t*4.5); T.hipL = T.hipR = -1.35; T.kneeL = T.kneeR = 2.2; T.bodyY = -0.42; T.chest = 0.4; T.head = 0.4;
         T.shR = -1.1 + k*.3; T.elR = -0.5; T.shL = -1.1 - k*.3; T.elL = -0.5; break; }
       default: T.chest = wave(1.6, .015); T.head = wave(.7, .05);
@@ -2324,7 +2329,7 @@ canvas.addEventListener("pointerdown", e => { downAt = [e.clientX, e.clientY]; }
 canvas.addEventListener("pointerup", e => {
   if(!downAt) return;
   const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]); downAt = null;
-  if(moved > 6) return;
+  if(moved > 6 || e.button !== 0) return; // 우클릭·휠 클릭은 카메라 조작 전용
   if(buildMode && buildClick(e)) return;
   const hit = pickAt(e.clientX, e.clientY);
   if(!hit) return;
@@ -2460,6 +2465,14 @@ function placeResult(k, x, z, r, by){
   if(c){ c.release(); c.buildRec = rec; const d = Math.max(.9, BUILD_KINDS[k].r + .5); c.walkTo(x + Math.sin(r) * d, z + Math.cos(r) * d, "build", null, r + Math.PI); }
   return { ok:true, msg:announce(c ? `${c.name} 님이 ${BUILD_KINDS[k].label} 공사를 시작했어요` : `${BUILD_KINDS[k].label}${eul(BUILD_KINDS[k].label)} 놓았어요`) };
 }
+/* 망치가 닿는 순간: 공사 중 표시가 '뚝딱!' 으로 깜빡이고 물건이 살짝 들썩인다(호스트·관전자 모두 로컬 연출) */
+function buildHit(c){
+  let rec = c.buildRec || null;
+  if(!rec){ let bd = 3; for(const b of builds) if(!b.done){ const d = Math.hypot(b.x - c.pos.x, b.z - c.pos.z); if(d < bd){ bd = d; rec = b; } } }
+  if(!rec || rec.done) return;
+  if(rec.tag){ rec.tag.element.textContent = "🔨 뚝딱!"; clearTimeout(rec.tagT); rec.tagT = setTimeout(() => { if(rec.tag) rec.tag.element.textContent = "🚧 공사 중"; }, 260); }
+  rec.group.scale.set(1.07, .93, 1.07); clearTimeout(rec.hitT); rec.hitT = setTimeout(() => rec.group.scale.set(1, 1, 1), 110);
+}
 function unbuildResult(rec){ removeBuild(rec); return announce(`${BUILD_KINDS[rec.k].label}${eul(BUILD_KINDS[rec.k].label)} 치웠어요`); }
 
 /* ----- 꾸미기 UI(하단 팔레트) ----- */
@@ -2531,6 +2544,7 @@ function buildClick(e){ // 꾸미기 모드에서의 클릭. true 를 돌려주�
       if(p){ let bd = 1.3; for(const b of builds){ const d = Math.hypot(b.x - p.x, b.z - p.z) - BUILD_KINDS[b.k].r; if(d < bd){ bd = d; rec = b; } } }
     }
     if(!rec){ toast("꾸미기로 놓은 물건만 치울 수 있어요"); return true; }
+    if(!rec.done){ toast("공사 중인 물건은 완성될 때까지 치울 수 없어요"); return true; }
     if(net.role === "viewer") sendCmd({ k:"unbuild", bid:rec.id }); else toast(unbuildResult(rec));
     return true;
   }
@@ -2539,7 +2553,8 @@ function buildClick(e){ // 꾸미기 모드에서의 클릭. true 를 돌려주�
   const why = buildBlocked(buildKind, p.x, p.z); if(why){ toast(why); return true; }
   const by = selected ? selected.id : 0;
   if(net.role === "viewer") sendCmd({ k:"build", kind:buildKind, x:p.x, z:p.z, r:buildRot, by });
-  else { const r = placeResult(buildKind, p.x, p.z, buildRot, by); toast(r.msg); }
+  else { const r = placeResult(buildKind, p.x, p.z, buildRot, by); toast(r.msg); if(!r.ok) return true; }
+  selectBuildKind(null); canvas.style.cursor = ""; // 확정되면 미리보기는 사라진다. 다시 놓으려면 물건을 다시 고른다
   return true;
 }
 addEventListener("keydown", e => {
