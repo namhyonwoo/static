@@ -516,7 +516,7 @@ const isNight = h => h >= 22 || h < 6;
 /* 심을 만들면 만든 사람의 id 가 주인으로 기록된다. '내 심들' 목록과 생성 개수 제한(게스트 1명, 회원 3명)에 쓰이고,
    주인이 있는 심은 만든 사람만 이름·성향을 바꾸거나 내보낼 수 있다. 주인이 없는 기본 주민은 누구나 돌볼 수 있다.
    구글 로그인은 Worker 의 /auth 가 구글에 토큰을 확인한 뒤 계정 id 를 돌려줄 때만 열린다. */
-const GOOGLE_CLIENT_ID = "";   // Google Cloud 에서 만든 "웹 애플리케이션" 클라이언트 ID. 비워 두면 게스트로만 시작한다
+const GOOGLE_CLIENT_ID = "306608444474-3sr87a7qekdipnolkob0uhb1vgc2bf46.apps.googleusercontent.com";   // Google Cloud 의 "웹 애플리케이션" 클라이언트 ID(공개돼도 되는 값). 비우면 게스트로만 시작한다
 const MODE_KEY = "citizen-sim:mode", GUEST_KEY = "citizen-sim:guest", MEMBER_KEY = "citizen-sim:member";
 const me = { mode:null, id:"", name:"" };
 const MAX_CHARS = owner => String(owner || "").startsWith("u") ? 3 : 1;   // 회원 id 는 u…, 게스트 id 는 g…
