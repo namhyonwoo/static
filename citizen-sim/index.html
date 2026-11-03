@@ -138,6 +138,7 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
   padding:.45rem .75rem; cursor:pointer; min-height:2.3rem;
 }
 .btn[aria-pressed="true"]{ border-color:var(--ink); font-weight:600; }
+.fxrow{ margin:.2rem 0 .4rem; } .fxrow .btn{ font-size:12px; } .fxrow .btn[aria-pressed="false"]{ color:var(--muted); font-weight:400; }
 .btn.primary{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:600; }
 .btn.danger{ color:var(--bad); border-color:var(--bad); }
 .miniform{ display:grid; gap:.45rem; margin-top:.6rem; padding:.7rem .8rem .8rem; border:1px solid var(--line); border-radius:10px; }
@@ -258,6 +259,7 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
     <button type="button" data-s="8" aria-pressed="false">8×</button>
   </div>
 
+  <div class="row-btns fxrow"><button class="btn" id="fxBtn" type="button" aria-pressed="true">🎞️ 미니어처 효과 켜짐</button></div>
   <p class="help" id="netStatus">함께 보기 · 연결 중…</p>
 
   <h2>시민</h2>
@@ -293,6 +295,10 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 
 /* ================= Renderer & scene ================= */
 const canvas = document.getElementById("c");
@@ -300,20 +306,22 @@ const stage = canvas.parentElement;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = 1.08;
 const labelRenderer = new CSS2DRenderer({ element: document.getElementById("labels") });
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 300);
+/* 좁은 화각 + 먼 카메라: 미니어처 디오라마를 내려다보는 아이소메트릭에 가까운 구도 */
+const camera = new THREE.PerspectiveCamera(27, 1, 0.5, 500);
 const orbit = new OrbitControls(camera, canvas);
 orbit.enableDamping = true;
-orbit.maxPolarAngle = Math.PI * 0.47; orbit.minDistance = 4; orbit.maxDistance = 95;
+orbit.maxPolarAngle = Math.PI * 0.47; orbit.minDistance = 6; orbit.maxDistance = 150;
 const VIEWS = {
-  all:   { pos:[24, 46, 60], target:[-4, 0.5, 2] },
-  house: { pos:[11, 13, 17], target:[0, 0.5, 1.5] },
-  park:  { pos:[29, 14, 18], target:[19, 0.5, 2] },
-  office:{ pos:[4, 13, 36], target:[-5, 0.5, 22] },
-  market:{ pos:[21, 12, 34], target:[12, 0.5, 21] },
+  all:   { pos:[38, 68.5, 89], target:[-4, 0.5, 2] },
+  house: { pos:[16.5, 19.5, 24.5], target:[0, 0.5, 1.5] },
+  park:  { pos:[34, 21, 26], target:[19, 0.5, 2] },
+  office:{ pos:[8.5, 19.5, 43], target:[-5, 0.5, 22] },
+  market:{ pos:[25.5, 18, 40.5], target:[12, 0.5, 21] },
 };
 let camAnim = null;
 function goView(name){
@@ -323,26 +331,37 @@ function goView(name){
 }
 camera.position.set(...VIEWS.all.pos); orbit.target.set(...VIEWS.all.target);
 
-const hemi = new THREE.HemisphereLight(0xffffff, 0x7d8a6a, 1.2);
+const hemi = new THREE.HemisphereLight(0xffffff, 0xb9c9a8, 1.1);
 scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff3e0, 2.4);
-sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left:-50, right:44, top:46, bottom:-46, near:1, far:110 });
-sun.shadow.bias = -0.0005;
+sun.castShadow = true; sun.shadow.mapSize.set(innerWidth > 760 ? 3072 : 2048, innerWidth > 760 ? 3072 : 2048);
+Object.assign(sun.shadow.camera, { left:-56, right:58, top:50, bottom:-50, near:1, far:140 });
+sun.shadow.bias = -0.0005; sun.shadow.radius = 2.5; // 부드러운 그림자 가장자리
 scene.add(sun, sun.target);
 sun.target.position.set(-2, 0, 2);
 const houseLamps = []; // 집마다 하나씩, buildHouse() 에서 채운다
 const parkLight = new THREE.PointLight(0xffd9a0, 0, 0, 1.4); parkLight.position.set(19, 4, 2); scene.add(parkLight);
-const SKY_DAY = new THREE.Color("#AFCFE8"), SKY_DUSK = new THREE.Color("#E9B48E"), SKY_NIGHT = new THREE.Color("#1A2240");
+/* 배경은 하늘이 아니라 단색 받침(isolated on a solid light gray background): 낮엔 UI 바탕과 같은 연회색 */
+const SKY_DAY = new THREE.Color("#E3E8EC"), SKY_DUSK = new THREE.Color("#F0C9A4"), SKY_NIGHT = new THREE.Color("#1A2240");
 scene.background = SKY_DAY.clone();
 
 /* ================= Helpers ================= */
-const matCache = new Map();
+/* ----- 비주얼 컨셉: MagicaVoxel 풍 복셀 디오라마 -----
+   모든 물체를 각진 박스로 만들고(둥근 기본 도형은 아래 v* 래퍼가 사각기둥·피라미드로 바꾼다), 색은 조금 더 선명하게,
+   재질은 무광으로 통일한다. 카메라는 좁은 화각으로 멀리서 내려다보고, 후처리로 틸트시프트 미니어처 효과를 준다. */
+const matCache = new Map(), _vc = new THREE.Color(), _hsl = { h:0, s:0, l:0 };
+function vivid(color){ // 채도를 살짝 올려 팔레트를 통일한다. 회색·흰색은 그대로
+  _vc.set(color).getHSL(_hsl);
+  return _hsl.s < .08 ? color : "#" + _vc.setHSL(_hsl.h, Math.min(1, _hsl.s * 1.15 + .03), _hsl.l).getHexString();
+}
 function mat(color, extra){
   const key = color + (extra ? JSON.stringify(extra) : "");
-  if(!matCache.has(key)) matCache.set(key, new THREE.MeshStandardMaterial({ color, roughness:.7, metalness:0, ...extra }));
+  if(!matCache.has(key)) matCache.set(key, new THREE.MeshStandardMaterial({ color: vivid(color), roughness:.92, metalness:0, ...extra }));
   return matCache.get(key);
 }
+const vSphere = r => new THREE.BoxGeometry(r * 1.7, r * 1.7, r * 1.7);                            // 공 → 정육면체
+const vCyl = (rt, rb, h, seg = 4) => new THREE.CylinderGeometry(rt * (seg === 4 ? 1.25 : 1.05), rb * (seg === 4 ? 1.25 : 1.05), h, seg).rotateY(Math.PI / seg); // 원기둥 → 사각기둥(팔각 가능)
+const vCone = (r, h) => new THREE.ConeGeometry(r * 1.25, h, 4).rotateY(Math.PI / 4);               // 원뿔 → 피라미드
 function mesh(geo, color, extra){ const m = new THREE.Mesh(geo, mat(color, extra)); m.castShadow = true; m.receiveShadow = true; return m; }
 function box(parent, w, h, d, color, x, y, z, extra){
   const m = mesh(new THREE.BoxGeometry(w, h, d), color, extra); m.position.set(x, y, z); parent.add(m); return m;
@@ -355,13 +374,30 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const isNight = h => h >= 22 || h < 6;
 
 /* ================= World: house ================= */
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), mat("#8FBF6C"));
-ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; ground.userData.ground = true;
-scene.add(ground);
+/* 끝없는 땅 대신 허공에 뜬 디오라마 받침: 잔디 윗면(1칸 격자) + 흙 단면 + 바닥 돌 */
+const BASE = { x0:-46, x1:52, z0:-36, z1:34 };
+const ground = (() => {
+  const w = BASE.x1 - BASE.x0, d = BASE.z1 - BASE.z0, cx = (BASE.x0 + BASE.x1) / 2, cz = (BASE.z0 + BASE.z1) / 2;
+  const cv = document.createElement("canvas"); cv.width = cv.height = 64; const c2 = cv.getContext("2d");
+  c2.fillStyle = "#8FBF6C"; c2.fillRect(0, 0, 64, 64); c2.fillStyle = "rgba(0,0,0,.055)"; c2.fillRect(0, 0, 64, 1); c2.fillRect(0, 0, 1, 64);
+  const tex = new THREE.CanvasTexture(cv); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(w, d); tex.colorSpace = THREE.SRGBColorSpace;
+  tex.magFilter = THREE.NearestFilter; tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  const grassMat = new THREE.MeshStandardMaterial({ map:tex, roughness:.95, metalness:0 });
+  const soilMat = mat("#9A7656"), rockMat = mat("#6C5A4C");
+  const top = new THREE.Mesh(new THREE.BoxGeometry(w, .5, d), [soilMat, soilMat, grassMat, soilMat, soilMat, soilMat]);
+  top.position.set(cx, -.25, cz); top.receiveShadow = true; top.userData.ground = true; scene.add(top);
+  const soil = new THREE.Mesh(new THREE.BoxGeometry(w, 2.4, d), soilMat); soil.position.set(cx, -1.7, cz); soil.userData.ground = true; scene.add(soil);
+  const rock = new THREE.Mesh(new THREE.BoxGeometry(w - .8, .9, d - .8), rockMat); rock.position.set(cx, -3.3, cz); rock.userData.ground = true; scene.add(rock);
+  return top;
+})();
+/* 복셀 나무: 각진 기둥 위에 잎 블록을 3단으로 쌓는다 */
 function tree(x, z, s = 1){
   const t = new THREE.Group(); t.position.set(x, 0, z); t.scale.setScalar(s);
-  add(t, mesh(new THREE.CylinderGeometry(.14, .2, 1.4, 10), "#7A5A3C"), 0, .7, 0);
-  add(t, mesh(new THREE.IcosahedronGeometry(1, 1), pick(["#4F9A55","#5AA65E","#47904D"]), { flatShading:true }), 0, 2.1, 0);
+  const c = pick(["#4F9A55","#5AA65E","#47904D","#62AE63"]), top = new THREE.Color(c).lerp(new THREE.Color("#C9E26B"), .25).getStyle();
+  box(t, .32, 1.4, .32, "#7A5A3C", 0, .7, 0);
+  box(t, 2.0, .8, 2.0, c, 0, 1.6, 0);
+  box(t, 1.5, .7, 1.5, c, 0, 2.3, 0);
+  box(t, .9, .6, .9, top, 0, 2.9, 0);
   scene.add(t);
 }
 tree(-11, -8, 1.3); tree(10.5, -10, 1.1); tree(-12, 6, 1); tree(-10, 9.2, 1.15); tree(5.5, 9.4, .9);
@@ -476,7 +512,7 @@ function buildHouse(ox, oz, label){
     for(let i = 0; i < 16; i++){
       const x = -2.1 + (i % 8) * 0.6, z = 9.1 + Math.floor(i/8) * 0.7;
       box(g, 0.03, 0.4, 0.03, "#3E8A45", x, 0.48, z);
-      add(g, mesh(new THREE.SphereGeometry(.1, 10, 8), pick(petals)), x, 0.72, z);
+      add(g, mesh(vSphere(.1), pick(petals)), x, 0.72, z);
     }
   });
   
@@ -489,23 +525,23 @@ function buildHouse(ox, oz, label){
     perch:    new THREE.Vector3(ox + 2.6, 1.5, oz + 4.6),
   };
   addObject(home, "개 방석", null, [], g => {
-    add(g, mesh(new THREE.CylinderGeometry(.6, .62, .14, 24), "#B5574B"), -1.7, .1, -5.0);
-    add(g, mesh(new THREE.TorusGeometry(.55, .1, 10, 24), "#9C4A40"), -1.7, .16, -5.0).rotation.x = Math.PI/2;
+    box(g, 1.3, .18, 1.3, "#9C4A40", -1.7, .09, -5.0);
+    box(g, 1.0, .1, 1.0, "#B5574B", -1.7, .2, -5.0);
   });
   addObject(home, "고양이 쿠션", null, [], g => {
-    add(g, mesh(new THREE.CylinderGeometry(.42, .44, .12, 24), "#8A7BC4"), -6.6, .1, 4.9);
+    add(g, mesh(vCyl(.42, .44, .12), "#8A7BC4"), -6.6, .1, 4.9);
   });
   addObject(home, "밥그릇", null, [], g => {
     for(const z of [-3.6, -2.8]){
-      add(g, mesh(new THREE.CylinderGeometry(.16, .12, .08, 18), z < -3 ? "#D9573E" : "#3E8FD4"), 7.45, .09, z);
-      add(g, mesh(new THREE.CylinderGeometry(.13, .13, .02, 18), "#8C6239"), 7.45, .13, z);
+      add(g, mesh(vCyl(.16, .12, .08), z < -3 ? "#D9573E" : "#3E8FD4"), 7.45, .09, z);
+      add(g, mesh(vCyl(.13, .13, .02), "#8C6239"), 7.45, .13, z);
     }
   });
   addObject(home, "횃대", null, [], g => {
-    add(g, mesh(new THREE.CylinderGeometry(.35, .4, .06, 20), "#6B5644"), 2.6, .08, 4.6);
-    add(g, mesh(new THREE.CylinderGeometry(.03, .03, 1.42, 10), "#8A6748"), 2.6, .78, 4.6);
-    const bar = add(g, mesh(new THREE.CylinderGeometry(.025, .025, .8, 10), "#8A6748"), 2.6, 1.46, 4.6); bar.rotation.z = Math.PI/2;
-    add(g, mesh(new THREE.CylinderGeometry(.08, .06, .06, 14), "#E1B342"), 2.95, 1.5, 4.6);
+    add(g, mesh(vCyl(.35, .4, .06), "#6B5644"), 2.6, .08, 4.6);
+    add(g, mesh(vCyl(.03, .03, 1.42), "#8A6748"), 2.6, .78, 4.6);
+    const bar = add(g, mesh(vCyl(.025, .025, .8), "#8A6748"), 2.6, 1.46, 4.6); bar.rotation.z = Math.PI/2;
+    add(g, mesh(vCyl(.08, .06, .06), "#E1B342"), 2.95, 1.5, 4.6);
   });
   const lamp = new THREE.PointLight(0xffc98a, 0, 0, 1.6); lamp.position.set(ox, 3.2, oz); scene.add(lamp); houseLamps.push(lamp);
   placeTag("🏠 " + label, ox, 2.4, oz - 6.1);
@@ -515,11 +551,11 @@ function buildHouse(ox, oz, label){
 /* ================= World: park ================= */
 const PARK = new THREE.Vector3(19, 0, 2);
 {
-  const lawn = new THREE.Mesh(new THREE.CircleGeometry(10, 64), mat("#7DB35E"));
-  lawn.rotation.x = -Math.PI/2; lawn.position.set(PARK.x, 0.01, PARK.z); lawn.receiveShadow = true; lawn.userData.ground = true;
+  const lawn = new THREE.Mesh(new THREE.CircleGeometry(10, 8), mat("#7DB35E"));
+  lawn.rotation.x = -Math.PI/2; lawn.rotation.z = Math.PI/8; lawn.position.set(PARK.x, 0.01, PARK.z); lawn.receiveShadow = true; lawn.userData.ground = true;
   scene.add(lawn);
-  const ring = new THREE.Mesh(new THREE.RingGeometry(4.6, 5.7, 72), mat("#DCD2BF"));
-  ring.rotation.x = -Math.PI/2; ring.position.set(PARK.x, 0.02, PARK.z); ring.receiveShadow = true; ring.userData.ground = true;
+  const ring = new THREE.Mesh(new THREE.RingGeometry(4.6, 5.7, 8), mat("#DCD2BF"));
+  ring.rotation.x = -Math.PI/2; ring.rotation.z = Math.PI/8; ring.position.set(PARK.x, 0.02, PARK.z); ring.receiveShadow = true; ring.userData.ground = true;
   scene.add(ring);
   const link = box(scene, 6.2, 0.02, 1.3, "#DCD2BF", 11.2, 0.015, 2); link.castShadow = false; link.userData.ground = true;
   // trees & flower beds
@@ -532,20 +568,20 @@ const PARK = new THREE.Vector3(19, 0, 2);
   for(let i = 0; i < 4; i++){
     const a = i / 4 * Math.PI * 2 + Math.PI/4;
     const cx = PARK.x + Math.cos(a) * 3.2, cz = PARK.z + Math.sin(a) * 3.2;
-    add(scene, mesh(new THREE.CylinderGeometry(.75, .8, .2, 20), "#7A5A3C"), cx, .1, cz);
+    add(scene, mesh(vCyl(.75, .8, .2), "#7A5A3C"), cx, .1, cz);
     for(let k = 0; k < 7; k++){
       const b = k / 7 * Math.PI * 2;
-      add(scene, mesh(new THREE.SphereGeometry(.12, 10, 8), pick(petals)), cx + Math.cos(b)*.45, .3, cz + Math.sin(b)*.45);
+      add(scene, mesh(vSphere(.12), pick(petals)), cx + Math.cos(b)*.45, .3, cz + Math.sin(b)*.45);
     }
-    add(scene, mesh(new THREE.SphereGeometry(.28, 12, 10), "#4F9A55"), cx, .35, cz);
+    add(scene, mesh(vSphere(.28), "#4F9A55"), cx, .35, cz);
   }
 }
 const lampHeads = [];
 for(let i = 0; i < 4; i++){
   const a = i / 4 * Math.PI * 2;
   const x = PARK.x + Math.cos(a) * 6.3, z = PARK.z + Math.sin(a) * 6.3;
-  add(scene, mesh(new THREE.CylinderGeometry(.05, .07, 2.6, 10), "#3B4350"), x, 1.3, z);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(.18, 14, 10), new THREE.MeshStandardMaterial({ color:"#FFF4D6", emissive:"#FFD38A", emissiveIntensity:0 }));
+  add(scene, mesh(vCyl(.05, .07, 2.6), "#3B4350"), x, 1.3, z);
+  const head = new THREE.Mesh(vSphere(.18), new THREE.MeshStandardMaterial({ color:"#FFF4D6", emissive:"#FFD38A", emissiveIntensity:0 }));
   head.position.set(x, 2.68, z); scene.add(head); lampHeads.push(head);
 }
 // fountain
@@ -554,11 +590,11 @@ addObject("분수", "fountain", [0, 1, 2, 3].map(i => {
   const a = i / 4 * Math.PI * 2 + Math.PI/4;
   return [PARK.x + Math.cos(a) * 2.25, PARK.z + Math.sin(a) * 2.25, Math.atan2(-Math.cos(a), -Math.sin(a))];
 }), g => {
-  add(g, mesh(new THREE.CylinderGeometry(1.6, 1.7, .45, 40), "#B9B3A8"), PARK.x, .22, PARK.z);
-  add(g, new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.45, .05, 40), mat("#6FB2D9", { transparent:true, opacity:.85, roughness:.1 })), PARK.x, .42, PARK.z);
-  add(g, mesh(new THREE.CylinderGeometry(.18, .26, 1.1, 16), "#B9B3A8"), PARK.x, .9, PARK.z);
-  add(g, mesh(new THREE.CylinderGeometry(.6, .35, .18, 28), "#B9B3A8"), PARK.x, 1.45, PARK.z);
-  spout = add(g, new THREE.Mesh(new THREE.ConeGeometry(.12, .8, 14, 1, true), mat("#BFE3F5", { transparent:true, opacity:.7, roughness:.1 })), PARK.x, 1.95, PARK.z);
+  add(g, mesh(vCyl(1.6, 1.7, .45), "#B9B3A8"), PARK.x, .22, PARK.z);
+  add(g, new THREE.Mesh(vCyl(1.45, 1.45, .05), mat("#6FB2D9", { transparent:true, opacity:.85, roughness:.1 })), PARK.x, .42, PARK.z);
+  add(g, mesh(vCyl(.18, .26, 1.1), "#B9B3A8"), PARK.x, .9, PARK.z);
+  add(g, mesh(vCyl(.6, .35, .18), "#B9B3A8"), PARK.x, 1.45, PARK.z);
+  spout = add(g, new THREE.Mesh(vCone(.12, .8), mat("#BFE3F5", { transparent:true, opacity:.7, roughness:.1 })), PARK.x, 1.95, PARK.z);
   spout.rotation.x = Math.PI;
 });
 // benches
@@ -579,8 +615,8 @@ for(let i = 0; i < 3; i++){
 /* ================= World: roads, office, market ================= */
 /* 동서 도로(z=13)와 남북 도로(x=-16)가 집 남쪽에서 만난다. 도로 남쪽에 회사와 시장. 우측통행 기준 차선. */
 const ROADS = [
-  { axis:"x", at:13,  from:-38, to:48, lanes:[{ off:1.1, dir:1 }, { off:-1.1, dir:-1 }] },
-  { axis:"z", at:-16, from:-38, to:48, lanes:[{ off:-1.1, dir:1 }, { off:1.1, dir:-1 }] },
+  { axis:"x", at:13,  from:BASE.x0, to:BASE.x1, lanes:[{ off:1.1, dir:1 }, { off:-1.1, dir:-1 }] },
+  { axis:"z", at:-16, from:BASE.z0, to:BASE.z1, lanes:[{ off:-1.1, dir:1 }, { off:1.1, dir:-1 }] },
 ];
 const placeTags = [];
 function placeTag(text, x, y, z){
@@ -637,8 +673,8 @@ const OFFICE = new THREE.Vector3(-5, 0, 21.5);
       box(g, 0.05, 0.4, 0.05, "#3B4350", dx, 0.2, dz + 0.75);
     });
   });
-  add(scene, mesh(new THREE.CylinderGeometry(.22, .26, .5, 12), "#B8834F"), ox + 4.6, .25, oz - 2.6); // 화분
-  add(scene, mesh(new THREE.IcosahedronGeometry(.55, 1), "#4F9A55", { flatShading:true }), ox + 4.6, .95, oz - 2.6);
+  add(scene, mesh(vCyl(.22, .26, .5), "#B8834F"), ox + 4.6, .25, oz - 2.6); // 화분
+  box(scene, .9, .8, .9, "#4F9A55", ox + 4.6, .95, oz - 2.6); box(scene, .5, .4, .5, "#6BB26A", ox + 4.6, 1.5, oz - 2.6);
   placeTag("🏢 회사 · 9시~18시", ox, 3.6, oz + 3.3);
 }
 /* ----- 시장: 천막 가판대 3곳. 8~20시에 열고, 장을 보면 지갑이 줄고 재미·배부름이 오른다 ----- */
@@ -659,8 +695,8 @@ const MARKET = new THREE.Vector3(12, 0, 21);
       box(g, 2.7, 0.06, 1.3, "#C9A57A", sx, 0.93, sz);
       for(const px of [-1.2, 1.2]) box(g, 0.08, 2.3, 0.08, "#7A5A3C", sx + px, 1.15, sz + 0.55);
       for(let k = 0; k < 6; k++){ box(g, 0.5, 0.05, 1.7, k % 2 ? "#F5F1E8" : st.stripe, sx - 1.25 + k * 0.5, 2.3, sz + 0.1); } // 줄무늬 천막
-      for(let k = 0; k < 7; k++){ add(g, mesh(new THREE.SphereGeometry(.14, 10, 8), pick(st.goods)), sx - 0.9 + k * 0.3, 1.08, sz - 0.25 + (k % 2) * 0.35); }
-      if(i === 1) for(let k = 0; k < 3; k++){ add(g, mesh(new THREE.CylinderGeometry(.12, .1, .3, 10), "#6FB2D9"), sx - 0.6 + k * 0.6, 1.1, sz + 0.3); }
+      for(let k = 0; k < 7; k++){ add(g, mesh(vSphere(.14), pick(st.goods)), sx - 0.9 + k * 0.3, 1.08, sz - 0.25 + (k % 2) * 0.35); }
+      if(i === 1) for(let k = 0; k < 3; k++){ add(g, mesh(vCyl(.12, .1, .3), "#6FB2D9"), sx - 0.6 + k * 0.6, 1.1, sz + 0.3); }
     });
   });
   placeTag("🧺 시장 · 8시~20시", mx, 3.2, mz + 1.2);
@@ -668,6 +704,25 @@ const MARKET = new THREE.Vector3(12, 0, 21);
 /* ----- 가정집 3채: 원래 집(0호)은 도로 북쪽, 1호는 남북 도로 서쪽, 2호는 0호 북쪽 ----- */
 buildHouse(0, 0, "1호집"); buildHouse(-29, 1, "2호집"); buildHouse(0, -21, "3호집");
 tree(-20, -14, 1.1); tree(-38, -10, 1.2); tree(-39, 8, 1); tree(12, -22, 1.1); tree(-11, -30, 1.2);
+tree(-42, 24, 1.1); tree(-30, 30, 1); tree(28, 30, 1.2); tree(40, 24, 1); tree(44, -8, 1.1); tree(38, -24, 1.2); tree(24, -30, 1);
+/* ----- 도심 소품: 보도 가로등(밤에 켜짐), 쓰레기통, 소화전 ----- */
+{
+  const streetLamp = (x, z) => {
+    box(scene, .4, .12, .4, "#3B4350", x, .06, z);
+    box(scene, .12, 3.2, .12, "#3B4350", x, 1.6, z);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(.36, .26, .36), new THREE.MeshStandardMaterial({ color:"#FFF4D6", emissive:"#FFD38A", emissiveIntensity:0 }));
+    head.position.set(x, 3.3, z); head.castShadow = true; scene.add(head); lampHeads.push(head);
+    box(scene, .44, .08, .44, "#3B4350", x, 3.48, z);
+  };
+  for(let x = -40; x <= 50; x += 12){ if(Math.abs(x + 16) < 3.5 || Math.abs(x + 6) < 2.5) continue; streetLamp(x, 13 - 2.8 - .3); } // 북쪽 보도
+  for(let x = -34; x <= 50; x += 12){ if(Math.abs(x + 16) < 3.5 || Math.abs(x - 17) < 2.5) continue; streetLamp(x, 13 + 2.8 + .3); } // 남쪽 보도
+  for(let z = -30; z <= 32; z += 12){ if(Math.abs(z - 13) < 3.5) continue; streetLamp(-16 - 2.8 - .3, z); }                           // 서쪽 보도
+  for(let z = -24; z <= 32; z += 12){ if(Math.abs(z - 13) < 3.5) continue; streetLamp(-16 + 2.8 + .3, z); }                           // 동쪽 보도
+  const bin = (x, z) => { add(scene, mesh(vCyl(.22, .2, .55), "#4F6E95"), x, .28, z); box(scene, .5, .06, .5, "#3B4350", x, .58, z); };
+  bin(15.2, 15.4); bin(-7.6, 10.6); bin(MARKET.x + 5.9, MARKET.z - 3.4);
+  const hydrant = (x, z) => { box(scene, .22, .5, .22, "#D9533E", x, .25, z); box(scene, .34, .08, .22, "#D9533E", x, .3, z); box(scene, .16, .1, .16, "#D9533E", x, .55, z); };
+  hydrant(-11, 10.4); hydrant(20, 15.6);
+}
 
 /* ================= People model (≈5 heads tall) ================= */
 const LOOKS = {
@@ -683,66 +738,63 @@ const NAMES = {
   f:["서연","하은","지우","민서","수아","지민","예린","채원","유나","소율"],
 };
 const nameCount = { m:0, f:0 };
+/* 복셀 사람: 모든 부위가 각진 박스. 관절(골반·고관절·무릎·가슴·어깨·팔꿈치·머리)은 그대로라 animate() 포즈가 그대로 먹는다 */
 function buildPerson(look, gender){
   const F = gender === "f";
   const root = new THREE.Group();
   const body = new THREE.Group(); root.add(body);
   if(F) body.scale.setScalar(0.96);
   const pelvis = new THREE.Group(); pelvis.position.y = 0.86; body.add(pelvis);
-  const hips = mesh(new THREE.CapsuleGeometry(0.14, 0.06, 6, 16), look.pants);
-  hips.scale.set(F ? 1.45 : 1.35, 1, F ? .9 : .85); hips.position.y = 0.02; pelvis.add(hips);
-  if(look.skirt){
-    add(pelvis, mesh(new THREE.CylinderGeometry(0.17, 0.28, 0.36, 22), look.skirt), 0, -0.12, 0);
-  }
+  box(pelvis, F ? .3 : .32, .16, F ? .2 : .21, look.pants, 0, 0.03, 0);
+  if(look.skirt){ add(pelvis, mesh(vCyl(0.15, 0.24, 0.36), look.skirt), 0, -0.12, 0); }
   const legColor = look.skirt ? look.skin : look.pants;
   const P = { root, body, pelvis };
   for(const [s, k] of [[1, "L"], [-1, "R"]]){
-    const hip = new THREE.Group(); hip.position.set(s*(F ? .09 : .095), 0, 0); pelvis.add(hip);
-    add(hip, mesh(new THREE.CapsuleGeometry(F ? .064 : .068, 0.28, 6, 12), legColor), 0, -0.2, 0);
+    const hip = new THREE.Group(); hip.position.set(s*(F ? .085 : .09), 0, 0); pelvis.add(hip);
+    box(hip, F ? .12 : .13, .3, F ? .12 : .13, legColor, 0, -0.2, 0);
     const knee = new THREE.Group(); knee.position.y = -0.42; hip.add(knee);
-    add(knee, mesh(new THREE.CapsuleGeometry(F ? .052 : .058, 0.3, 6, 12), legColor), 0, -0.19, 0);
-    add(knee, mesh(new THREE.BoxGeometry(F ? .11 : .12, 0.08, F ? .22 : .24), look.shoes), 0, -0.40, 0.04);
+    box(knee, F ? .11 : .12, .32, F ? .11 : .12, legColor, 0, -0.19, 0);
+    box(knee, F ? .12 : .13, .08, F ? .22 : .24, look.shoes, 0, -0.40, 0.04);
     P["hip"+k] = hip; P["knee"+k] = knee;
   }
   const chest = new THREE.Group(); chest.position.y = 0.06; pelvis.add(chest); P.chest = chest;
-  const torso = mesh(new THREE.CapsuleGeometry(0.15, 0.24, 8, 16), look.shirt);
-  torso.scale.set(F ? 1.16 : 1.3, 1, F ? .78 : .8); torso.position.y = 0.22; chest.add(torso);
-  add(chest, mesh(new THREE.CylinderGeometry(F ? .05 : .055, F ? .055 : .06, 0.1, 12), look.skin), 0, 0.5, 0);
-  const shX = F ? .195 : .22;
+  box(chest, F ? .34 : .38, .42, F ? .22 : .24, look.shirt, 0, 0.22, 0);
+  box(chest, F ? .35 : .39, .05, F ? .23 : .25, look.pants, 0, 0.03, 0);     // 허리띠
+  box(chest, .11, .1, .11, look.skin, 0, 0.47, 0);                            // 목
+  const shX = F ? .22 : .25;
   for(const [s, k] of [[1, "L"], [-1, "R"]]){
-    const sh = new THREE.Group(); sh.position.set(s*shX, 0.42, 0); chest.add(sh);
-    add(sh, mesh(new THREE.CapsuleGeometry(F ? .05 : .056, 0.2, 6, 12), look.shirt), 0, -0.14, 0);
-    const el = new THREE.Group(); el.position.y = -0.29; sh.add(el);
-    add(el, mesh(new THREE.CapsuleGeometry(F ? .043 : .047, 0.18, 6, 12), look.skin), 0, -0.13, 0);
-    add(el, mesh(new THREE.SphereGeometry(F ? .05 : .056, 12, 10), look.skin), 0, -0.29, 0);
+    const sh = new THREE.Group(); sh.position.set(s*shX, 0.4, 0); chest.add(sh);
+    box(sh, .1, .26, .1, look.shirt, 0, -0.13, 0);
+    const el = new THREE.Group(); el.position.y = -0.28; sh.add(el);
+    box(el, .09, .22, .09, look.skin, 0, -0.12, 0);
+    box(el, .1, .1, .1, look.skin, 0, -0.28, 0);
     P["sh"+k] = sh; P["el"+k] = el;
-    if(k === "R"){
-      const book = add(el, mesh(new THREE.BoxGeometry(0.22, 0.03, 0.17), "#C7564A"), 0.12, -0.31, 0.06);
-      book.visible = false; P.book = book;
-    }
+    if(k === "R"){ const book = box(el, 0.22, 0.03, 0.17, "#C7564A", 0.12, -0.31, 0.06); book.visible = false; P.book = book; }
   }
   const head = new THREE.Group(); head.position.y = 0.54; chest.add(head); P.head = head;
-  const skull = mesh(new THREE.SphereGeometry(0.165, 24, 18), look.skin); skull.scale.set(F ? .96 : 1, 1.1, 1.02); skull.position.y = 0.17; head.add(skull);
-  const cap = mesh(new THREE.SphereGeometry(0.178, 24, 12, 0, Math.PI*2, 0, Math.PI*(F ? .56 : .52)), look.hair);
-  cap.scale.set(1.03, 1.12, 1.07); cap.position.y = 0.19; cap.rotation.x = F ? -0.14 : -0.28; head.add(cap);
+  const hw = F ? .32 : .34, hd = F ? .3 : .32;
+  box(head, hw, .34, hd, look.skin, 0, 0.17, 0);
+  box(head, hw + .03, .12, hd + .03, look.hair, 0, 0.31, 0);                   // 머리 윗부분
+  box(head, hw + .03, .2, .1, look.hair, 0, 0.17, -hd / 2);                    // 뒷머리
+  box(head, hw + .03, .07, .05, look.hair, 0, 0.27, hd / 2 + 0.01);            // 앞머리
   if(F){
-    if(look.hairStyle === "long"){
-      const back = add(head, mesh(new THREE.CapsuleGeometry(0.15, 0.2, 8, 16), look.hair), 0, 0.03, -0.09); back.scale.set(1.12, 1, .55);
-    } else if(look.hairStyle === "bob"){
-      const back = add(head, mesh(new THREE.CapsuleGeometry(0.16, 0.05, 8, 16), look.hair), 0, 0.11, -0.05); back.scale.set(1.14, 1, .8);
+    if(look.hairStyle === "long") box(head, hw + .06, .44, .12, look.hair, 0, 0.02, -hd / 2 - .02);
+    else if(look.hairStyle === "bob"){
+      box(head, hw + .06, .26, .16, look.hair, 0, 0.12, -hd / 2);
+      for(const s of [1, -1]) box(head, .05, .22, hd * .8, look.hair, s * (hw / 2 + .03), 0.12, -0.03);
     } else {
-      add(head, mesh(new THREE.SphereGeometry(0.075, 14, 10), look.hair), 0, 0.24, -0.18);
-      const tail = add(head, mesh(new THREE.CapsuleGeometry(0.05, 0.16, 6, 10), look.hair), 0, 0.1, -0.22); tail.rotation.x = 0.25;
+      box(head, .14, .14, .14, look.hair, 0, 0.26, -hd / 2 - .08);
+      const tail = box(head, .09, .26, .09, look.hair, 0, 0.1, -hd / 2 - .1); tail.rotation.x = .25;
     }
   }
   for(const s of [1, -1]){
-    add(head, mesh(new THREE.SphereGeometry(F ? .024 : .022, 10, 8), "#1C1C1F"), s*0.062, 0.18, 0.15);
-    add(head, mesh(new THREE.BoxGeometry(F ? .055 : .06, F ? .01 : .014, 0.012), look.hair), s*0.062, 0.228, 0.155);
-    const ear = add(head, mesh(new THREE.SphereGeometry(0.036, 10, 8), look.skin), s*0.162, 0.16, 0); ear.scale.set(.5, 1, 1);
+    box(head, .05, .05, .02, "#1C1C1F", s * 0.065, 0.17, hd / 2 + 0.005);
+    box(head, .06, .014, .02, look.hair, s * 0.065, 0.225, hd / 2 + 0.005);
+    box(head, .04, .07, .06, look.skin, s * (hw / 2 + .015), 0.16, 0);         // 귀
   }
-  add(head, mesh(new THREE.SphereGeometry(F ? .02 : .024, 10, 8), look.skin), 0, 0.14, 0.168);
-  add(head, mesh(new THREE.BoxGeometry(F ? .055 : .06, F ? .018 : .012, 0.012), F ? "#C4555F" : "#8C3B3B"), 0, 0.085, 0.157);
-  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.075, 18, 14), new THREE.MeshStandardMaterial({ color:"#3DAA63", emissive:"#3DAA63", emissiveIntensity:.6, roughness:.3 }));
+  box(head, .04, .035, .03, look.skin, 0, 0.13, hd / 2 + 0.01);                // 코
+  box(head, .07, .016, .02, F ? "#C4555F" : "#8C3B3B", 0, 0.08, hd / 2 + 0.005);
+  const orb = new THREE.Mesh(new THREE.OctahedronGeometry(0.1), new THREE.MeshStandardMaterial({ color:"#3DAA63", emissive:"#3DAA63", emissiveIntensity:.6, roughness:.3 }));
   orb.position.y = 2.1; root.add(orb); P.orb = orb;
   return P;
 }
@@ -751,8 +803,8 @@ function buildPerson(look, gender){
 const marker = new THREE.Group();
 {
   const mg = new THREE.MeshStandardMaterial({ color:"#3DD36F", emissive:"#2FBF5F", emissiveIntensity:.7, roughness:.35 });
-  const cone = new THREE.Mesh(new THREE.ConeGeometry(.22, .4, 16), mg); cone.rotation.x = Math.PI; cone.position.y = .2;
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(.07, .07, .34, 12), mg); shaft.position.y = .57;
+  const cone = new THREE.Mesh(vCone(.22, .4), mg); cone.rotation.x = Math.PI; cone.position.y = .2;
+  const shaft = new THREE.Mesh(vCyl(.07, .07, .34), mg); shaft.position.y = .57;
   cone.userData.marker = shaft.userData.marker = true;
   marker.add(cone, shaft); marker.visible = false; scene.add(marker);
 }
@@ -1161,7 +1213,7 @@ function buildCar(kind, color){
     box(g, K.len + .02, .12, K.body[2] + .02, "#F5F1E8", 0, .62, 0); box(g, .9, .24, .02, "#F5F1E8", K.len / 2 - .6, 1.32, K.body[2] / 2 + .01); }
   if(K.cabin) box(g, K.cabin[0] + .02, .3, K.cabin[2] - .1, "#9CC7EE", -.12, K.cy + .02, 0, { roughness:.2 });
   for(const sx of [-1, 1]) for(const sz of [-1, 1]){
-    const w = mesh(new THREE.CylinderGeometry(K.w, K.w, .18, 12), "#2B2B2E"); w.rotation.x = Math.PI / 2;
+    const w = mesh(vCyl(K.w, K.w, .18, 8), "#2B2B2E"); w.rotation.x = Math.PI / 2;
     add(g, w, sx * (K.len / 2 - .45), K.w, sz * (K.body[2] / 2));
   }
   const lights = [];
@@ -1289,71 +1341,72 @@ const PET_STATES = { idle:"쉬는 중", walk:"돌아다니는 중", follow:"주�
   petted:"쓰다듬받는 중", perch:"횃대에 앉아 있음", fly:"날아다니는 중", shoulder:"주인 어깨 위" };
 const petCount = { dog:0, cat:0, parrot:0 };
 
+/* 복셀 반려동물: 몸통·머리·다리·꼬리가 모두 박스. 관절 그룹 이름은 그대로 */
 function buildDog(color){
   const root = new THREE.Group(), body = new THREE.Group(); body.position.y = .38; root.add(body);
   const dark = new THREE.Color(color).multiplyScalar(.6).getStyle();
-  const torso = add(body, mesh(new THREE.CapsuleGeometry(.13, .3, 8, 16), color), 0, 0, 0); torso.rotation.x = Math.PI/2;
+  box(body, .26, .24, .52, color, 0, 0, 0);
   const head = new THREE.Group(); head.position.set(0, .13, .26); body.add(head);
-  add(head, mesh(new THREE.SphereGeometry(.12, 16, 12), color), 0, 0, 0);
-  add(head, mesh(new THREE.BoxGeometry(.11, .085, .14), color), 0, -.03, .12);
-  add(head, mesh(new THREE.SphereGeometry(.026, 8, 6), "#1A1A1A"), 0, -.005, .195);
+  box(head, .24, .22, .22, color, 0, 0, 0);
+  box(head, .13, .1, .14, color, 0, -.04, .15);
+  box(head, .06, .05, .05, "#1A1A1A", 0, -.005, .215);
   for(const s of [1, -1]){
-    add(head, mesh(new THREE.SphereGeometry(.018, 8, 6), "#1A1A1A"), s*.05, .035, .1);
-    const ear = add(head, mesh(new THREE.BoxGeometry(.04, .13, .08), dark), s*.1, .02, -.01); ear.rotation.z = s*.25;
+    box(head, .04, .04, .02, "#1A1A1A", s*.055, .04, .115);
+    const ear = box(head, .05, .13, .08, dark, s*.12, .03, -.02); ear.rotation.z = s*.25;
   }
   const legs = [];
-  for(const [x, z] of [[.075,.16],[-.075,.16],[.075,-.16],[-.075,-.16]]){
+  for(const [x, z] of [[.08,.17],[-.08,.17],[.08,-.17],[-.08,-.17]]){
     const g = new THREE.Group(); g.position.set(x, -.05, z); body.add(g);
-    add(g, mesh(new THREE.CapsuleGeometry(.04, .22, 6, 10), color), 0, -.15, 0);
-    add(g, mesh(new THREE.SphereGeometry(.045, 8, 6), dark), 0, -.3, .015);
+    box(g, .08, .22, .08, color, 0, -.15, 0);
+    box(g, .09, .05, .1, dark, 0, -.29, .015);
     legs.push(g);
   }
   const tail = new THREE.Group(); tail.position.set(0, .07, -.27); body.add(tail);
-  const tm = add(tail, mesh(new THREE.CapsuleGeometry(.025, .16, 6, 8), color), 0, .1, 0);
+  box(tail, .05, .2, .05, color, 0, .1, 0);
   tail.rotation.x = -0.7;
   return { root, body, head, legs, tail, bodyH:.38, lieH:.14 };
 }
 function buildCat(color){
   const root = new THREE.Group(), body = new THREE.Group(); body.position.y = .25; root.add(body);
-  const torso = add(body, mesh(new THREE.CapsuleGeometry(.085, .24, 8, 14), color), 0, 0, 0); torso.rotation.x = Math.PI/2;
+  box(body, .17, .16, .42, color, 0, 0, 0);
   const head = new THREE.Group(); head.position.set(0, .09, .2); body.add(head);
-  add(head, mesh(new THREE.SphereGeometry(.085, 16, 12), color), 0, 0, 0);
-  add(head, mesh(new THREE.SphereGeometry(.014, 8, 6), "#E58A9B"), 0, -.015, .085);
+  box(head, .18, .16, .16, color, 0, 0, 0);
+  box(head, .03, .02, .02, "#E58A9B", 0, -.02, .085);
   for(const s of [1, -1]){
-    add(head, mesh(new THREE.ConeGeometry(.035, .07, 8), color), s*.048, .08, -.005);
-    add(head, mesh(new THREE.SphereGeometry(.016, 8, 6), "#9ACD4A"), s*.035, .02, .072);
+    add(head, mesh(vCone(.035, .07), color), s*.055, .1, -.01);
+    box(head, .035, .035, .02, "#9ACD4A", s*.045, .02, .08);
   }
   const legs = [];
-  for(const [x, z] of [[.05,.12],[-.05,.12],[.05,-.12],[-.05,-.12]]){
+  for(const [x, z] of [[.05,.13],[-.05,.13],[.05,-.13],[-.05,-.13]]){
     const g = new THREE.Group(); g.position.set(x, -.03, z); body.add(g);
-    add(g, mesh(new THREE.CapsuleGeometry(.025, .16, 6, 8), color), 0, -.105, 0);
+    box(g, .05, .17, .05, color, 0, -.105, 0);
     legs.push(g);
   }
   const tail = new THREE.Group(); tail.position.set(0, .03, -.2); body.add(tail);
-  add(tail, mesh(new THREE.CapsuleGeometry(.02, .28, 6, 8), color), 0, .16, 0);
+  box(tail, .04, .3, .04, color, 0, .16, 0);
   tail.rotation.x = -0.9;
   return { root, body, head, legs, tail, bodyH:.25, lieH:.09 };
 }
 function buildParrot(color){
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const belly = new THREE.Color(color).lerp(new THREE.Color("#FFE680"), .5).getStyle();
-  const torso = add(body, mesh(new THREE.CapsuleGeometry(.065, .1, 8, 14), color), 0, .1, 0); torso.rotation.x = -.3;
-  add(body, mesh(new THREE.SphereGeometry(.05, 12, 10), belly), 0, .08, .04);
+  const torso = box(body, .12, .2, .12, color, 0, .1, 0); torso.rotation.x = -.3;
+  box(body, .09, .1, .03, belly, 0, .08, .065);
   const head = new THREE.Group(); head.position.set(0, .2, .03); body.add(head);
-  add(head, mesh(new THREE.SphereGeometry(.06, 14, 12), color), 0, 0, 0);
-  const beak = add(head, mesh(new THREE.ConeGeometry(.022, .06, 10), "#3A3530"), 0, -.012, .065); beak.rotation.x = Math.PI/2 + .5;
+  box(head, .12, .12, .12, color, 0, 0, 0);
+  const beak = add(head, mesh(vCone(.022, .06), "#3A3530"), 0, -.012, .075); beak.rotation.x = Math.PI/2 + .5;
   for(const s of [1, -1]){
-    add(head, mesh(new THREE.SphereGeometry(.018, 8, 6), "#FFFFFF"), s*.04, .01, .035);
-    add(head, mesh(new THREE.SphereGeometry(.01, 8, 6), "#111111"), s*.047, .012, .043);
+    box(head, .035, .035, .01, "#FFFFFF", s*.04, .01, .062);
+    box(head, .018, .018, .01, "#111111", s*.045, .012, .066);
   }
   const wings = [];
   for(const s of [1, -1]){
-    const w = new THREE.Group(); w.position.set(s*.06, .15, -.01); body.add(w);
-    add(w, mesh(new THREE.BoxGeometry(.02, .15, .1), color), 0, -.07, -.01);
+    const w = new THREE.Group(); w.position.set(s*.065, .15, -.01); body.add(w);
+    box(w, .02, .15, .1, color, 0, -.07, -.01);
     wings.push(w);
   }
-  const tail = add(body, mesh(new THREE.BoxGeometry(.05, .17, .015), color), 0, -.03, -.07); tail.rotation.x = .45;
-  for(const s of [1, -1]) add(body, mesh(new THREE.CylinderGeometry(.008, .008, .05, 6), "#3A3530"), s*.02, .0, .0);
+  const tail = box(body, .05, .17, .015, color, 0, -.03, -.07); tail.rotation.x = .45;
+  for(const s of [1, -1]) box(body, .016, .05, .016, "#3A3530", s*.02, 0, 0);
   return { root, body, head, wings, tail };
 }
 
@@ -2418,9 +2471,41 @@ renderLists();
 if(typeof Peer === "undefined") goSolo("PeerJS 로드 실패");
 else Promise.all([loadTurn(), fetchServerSnapshot().then(s => { serverSnap = s; })]).then(() => claimHost(false));
 
+/* 틸트시프트 미니어처 후처리: 화면 가운데 띠만 또렷하고 위아래는 흐려진다(가로·세로 두 번 블러). 마지막 세로 패스에서 채도·비네팅까지 */
+const TiltShader = {
+  uniforms: { tDiffuse:{ value:null }, dir:{ value:new THREE.Vector2(1, 0) }, px:{ value:new THREE.Vector2(1/800, 1/600) }, focus:{ value:.52 }, band:{ value:.16 }, amount:{ value:2.4 }, sat:{ value:1 }, vig:{ value:0 } },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform vec2 dir, px; uniform float focus, band, amount, sat, vig; varying vec2 vUv;
+    void main(){
+      float k = smoothstep(band, band + .34, abs(vUv.y - focus)) * amount;
+      vec2 st = dir * px * k;
+      vec4 c = texture2D(tDiffuse, vUv) * .2270270270;
+      c += (texture2D(tDiffuse, vUv + st * 1.3846153846) + texture2D(tDiffuse, vUv - st * 1.3846153846)) * .3162162162;
+      c += (texture2D(tDiffuse, vUv + st * 3.2307692308) + texture2D(tDiffuse, vUv - st * 3.2307692308)) * .0702702703;
+      float l = dot(c.rgb, vec3(.299, .587, .114));
+      c.rgb = mix(vec3(l), c.rgb, sat);
+      c.rgb *= 1.0 - vig * smoothstep(.55, 1.25, length((vUv - .5) * vec2(1.6, 1.3)));
+      gl_FragColor = c;
+    }`,
+};
+const FX_KEY = "citizen-sim:fx";
+let fxOn = true; try { fxOn = localStorage.getItem(FX_KEY) !== "0"; } catch {}
+const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(2, 2, { type:THREE.HalfFloatType, samples:4 }));
+const tiltH = new ShaderPass(TiltShader), tiltV = new ShaderPass(TiltShader);
+tiltV.uniforms.dir.value.set(0, 1); tiltV.uniforms.sat.value = 1.12; tiltV.uniforms.vig.value = .16;
+composer.addPass(new RenderPass(scene, camera)); composer.addPass(tiltH); composer.addPass(tiltV); composer.addPass(new OutputPass());
+const fxBtn = document.getElementById("fxBtn");
+function syncFx(){ fxBtn.setAttribute("aria-pressed", String(fxOn)); fxBtn.textContent = fxOn ? "🎞️ 미니어처 효과 켜짐" : "🎞️ 미니어처 효과 꺼짐"; }
+fxBtn.addEventListener("click", () => { fxOn = !fxOn; try { localStorage.setItem(FX_KEY, fxOn ? "1" : "0"); } catch {} syncFx(); });
+syncFx();
+
+let fxBlur = 2.4;
 function resize(){
-  const w = stage.clientWidth, h = stage.clientHeight;
-  renderer.setSize(w, h, false); labelRenderer.setSize(w, h);
+  const w = stage.clientWidth, h = stage.clientHeight, pr = renderer.getPixelRatio();
+  renderer.setSize(w, h, false); labelRenderer.setSize(w, h); composer.setSize(w, h);
+  fxBlur = 2.4 * pr;
+  for(const p of [tiltH, tiltV]) p.uniforms.px.value.set(1 / (w * pr), 1 / (h * pr));
   camera.aspect = w / h; camera.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(stage); resize();
@@ -2465,7 +2550,11 @@ function frame(){
   const pr = !noteWin.hidden && subj && introTab === "about" ? portraitRects() : null;
   noteShot.hidden = !pr || pr.inside;
   if(pr && !pr.inside) renderPortraitShot(subj, pr);
-  renderer.render(scene, camera);
+  if(fxOn){ // 멀리서 볼수록 미니어처 블러를 세게, 가까이 가면 거의 끈다
+    const k = THREE.MathUtils.smoothstep(camera.position.distanceTo(orbit.target), 14, 80);
+    tiltH.uniforms.amount.value = tiltV.uniforms.amount.value = fxBlur * k;
+    composer.render();
+  } else renderer.render(scene, camera);
   if(pr && pr.inside) renderPortrait(subj, pr);
   labelRenderer.render(scene, camera);
   if((uiT += dt) > 0.25){ uiT = 0; refreshUI(); }
