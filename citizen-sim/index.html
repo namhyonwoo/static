@@ -35,7 +35,8 @@ body{
 .num{ font-family:"Bricolage Grotesque","IBM Plex Sans KR",system-ui,sans-serif; font-variant-numeric:tabular-nums; }
 .stage{ position:relative; min-width:0; overflow:hidden; }
 #c{ display:block; width:100%; height:100%; touch-action:none; }
-#labels{ position:absolute; inset:0; pointer-events:none; }
+/* CSS2DRenderer 는 이름표마다 z-index 를 매긴다. 여기서 층을 하나 만들어 가둬야 이름표가 버튼·창 위로 올라오지 않는다 */
+#labels{ position:absolute; inset:0; pointer-events:none; z-index:1; isolation:isolate; }
 .tag{
   background:rgba(255,255,255,.92); color:#1A212C; border-radius:999px; padding:.15rem .55rem;
   font-size:12px; font-weight:600; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.15);
@@ -156,6 +157,43 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
 .radar text{ font-size:9.5px; fill:var(--muted); font-weight:600; }
 .typeCard{ background:var(--card); border:1px solid var(--card-line); border-radius:8px; padding:.3rem .5rem .1rem; margin:.2rem 0 .4rem; }
 .typeCard .radar{ width:min(100%, 9rem); }
+.acct{ display:flex; align-items:center; gap:.3rem; margin:0 0 .5rem; }
+.acct .who{ font-size:.82rem; font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.acct .cnt{ color:var(--muted); font-size:.74rem; white-space:nowrap; }
+.list .person.mine{ box-shadow:inset 3px 0 0 var(--accent); }
+.gate,.modal{ position:fixed; inset:0; z-index:40; display:flex; align-items:center; justify-content:center; padding:1rem; background:rgba(12,18,28,.55); }
+.gate[hidden],.modal[hidden]{ display:none; }
+.gatebox,.modalbox{ width:min(100%,27rem); max-height:92vh; overflow:auto; background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:16px; box-shadow:0 18px 50px rgba(0,0,0,.35); padding:1.1rem; }
+.gatebox h1{ margin:.1rem 0 .35rem; font-size:1.5rem; }
+.gatebox .lead{ margin:0 0 .9rem; color:var(--muted); font-size:.86rem; line-height:1.55; }
+.gatecards{ display:grid; gap:.55rem; }
+.gatecard{ font:inherit; text-align:left; color:var(--ink); background:var(--card); border:1px solid var(--card-line); border-radius:12px; padding:.7rem .85rem; cursor:pointer; display:grid; grid-template-columns:2rem 1fr; gap:.1rem .6rem; }
+.gatecard .ge{ grid-row:1 / 3; font-size:1.55rem; line-height:1.15; }
+.gatecard strong{ font-size:1rem; }
+.gatecard .gd{ color:var(--muted); font-size:.79rem; line-height:1.5; }
+.gatecard:hover:not([disabled]),.gatecard:focus-visible{ border-color:var(--accent); }
+.gatecard[disabled]{ opacity:.5; cursor:not-allowed; }
+.gatenote{ color:var(--muted); font-size:.75rem; line-height:1.5; margin:.75rem 0 0; }
+#gateGoogle{ margin:.6rem 0 0; display:flex; justify-content:center; }
+#gateGoogle:empty{ display:none; }
+.modalhead{ display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem; }
+.modalhead strong{ font-size:1.05rem; }
+.modalhead .cnt{ color:var(--muted); font-size:.8rem; margin-left:auto; }
+.modalfoot{ display:flex; gap:.4rem; margin-top:.8rem; }
+.modalfoot .btn{ flex:1; }
+.seg{ display:flex; gap:.3rem; margin:.1rem 0 .5rem; }
+.seg button{ flex:1; font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:.45rem; cursor:pointer; }
+.seg button[aria-pressed="true"]{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:600; }
+.typegrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:.4rem; }
+.typegrid button{ font:inherit; color:var(--ink); background:var(--card); border:1px solid var(--card-line); border-radius:10px; padding:.25rem .15rem .3rem; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:.05rem; }
+.typegrid button .tn{ font-size:.7rem; font-weight:600; white-space:nowrap; }
+.typegrid button[aria-pressed="true"]{ border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
+.typegrid .radar{ width:100%; height:auto; }
+.typegrid button[aria-pressed="true"] .radar .val{ fill:rgba(47,143,91,.5); }
+.mysims{ list-style:none; margin:0; padding:0; display:grid; gap:.4rem; }
+.mysims li{ background:var(--card); border:1px solid var(--card-line); border-radius:10px; padding:.5rem .6rem; display:flex; align-items:center; gap:.4rem; }
+.mysims .nm{ font-weight:600; font-size:.9rem; }
+.mysims .sub{ color:var(--muted); font-size:.74rem; line-height:1.45; }
 .badge{ font-size:13px; background:rgba(255,255,255,.9); border-radius:50%; width:21px; height:21px; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 4px rgba(0,0,0,.25); pointer-events:none; }
 .need .bar{ height:.55rem; background:var(--track); border-radius:999px; overflow:hidden; }
 .need .fill{ height:100%; border-radius:999px; transition:width .3s, background-color .3s; }
@@ -204,6 +242,8 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
   .stage.building .netpill{ display:none; }
   .buildbar{ left:.4rem; right:.4rem; bottom:.4rem; padding:.4rem .45rem .45rem; }
   .buildbar-hint{ white-space:normal; font-size:.72rem; line-height:1.25; max-height:2.5em; }
+  .typegrid{ grid-template-columns:repeat(3,1fr); }
+  .gatebox,.modalbox{ padding:.9rem; }
   /* 소개창은 왼쪽에 띄우지 않고 아래 패널의 맨 위에 끼워 넣는다(JS가 옮김). 현황 목록은 그 아래로 이어져 함께 스크롤된다 */
   .notewin{
     position:static; width:auto; max-height:none; overflow:visible; margin:0 0 1rem; z-index:auto;
@@ -272,7 +312,8 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
         <div class="row-btns"><button class="btn" type="submit">저장</button></div>
       </form>
       <div class="row-btns"><button class="btn danger" id="delBtn" type="button">이 시민 삭제</button></div>
-      <p class="help">삭제하면 되돌릴 수 없어요. 이 시민의 반려동물은 주인 없이 동네에 남아요.</p>
+      <p class="help" id="editHelp">삭제하면 되돌릴 수 없어요. 이 시민의 반려동물은 주인 없이 동네에 남아요.</p>
+      <p class="help" id="editLocked" hidden>다른 사람이 만든 심이에요. 이름·성향 바꾸기와 내보내기는 만든 사람만 할 수 있어요. 방명록은 누구나 남길 수 있어요.</p>
     </div>
   </section>
   <div class="places" role="group" aria-label="카메라 이동">
@@ -302,6 +343,12 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
 </main>
 
 <aside class="panel" aria-label="시뮬레이션 정보">
+  <div class="acct">
+    <span class="who" id="acctWho">게스트</span>
+    <span class="cnt" id="acctCount"></span>
+    <button class="btn icon" id="mySimsBtn" type="button">내 심들</button>
+    <button class="btn icon" id="logoutBtn" type="button" title="게스트·회원 다시 고르기">전환</button>
+  </div>
   <div class="clock"><span class="time num" id="clockTime">08:00</span><span class="day" id="clockDay">1일차 ☀️</span></div>
   <div class="speed" role="group" aria-label="시간 속도">
     <button type="button" data-s="0" aria-pressed="false">정지</button>
@@ -319,19 +366,6 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
     <button class="btn" id="addM" type="button">남자 추가</button>
     <button class="btn" id="addF" type="button">여자 추가</button>
   </div>
-  <form class="miniform" id="addForm" hidden>
-    <div class="meta" id="addFormTitle">새 시민</div>
-    <label>이름 <input id="addName" maxlength="12" placeholder="비우면 자동으로 정해요" autocomplete="off"></label>
-    <label>나이 <select id="addAge"><option value="adult">어른</option><option value="kid">초등학생 (학교에 가요)</option><option value="tot">유치원생 (유치원에 가요)</option></select></label>
-    <label>성향 <select id="addType"></select></label>
-    <div class="typeCard"><div class="radarWrap" id="addRadar"></div><p class="help" id="addTypeDesc"></p></div>
-    <label>인사말 <input id="addGreet" maxlength="40" autocomplete="off"></label>
-    <div class="row-btns">
-      <button class="btn primary" type="submit">추가</button>
-      <button class="btn" type="button" id="addCancel">취소</button>
-    </div>
-  </form>
-
   <h2>반려동물</h2>
   <ul class="list" id="pets"></ul>
   <div class="row-btns">
@@ -344,6 +378,52 @@ h2{ font-size:.95rem; margin:1.1rem 0 .5rem; font-weight:600; }
 
   <p class="help" id="idleHelp">시민이나 반려동물을 클릭하면 왼쪽에 소개창이 열려요. 거기서 상태를 보고 이름·인사말·남길 말을 바꿀 수 있어요. 시민은 욕구에 따라 스스로 할 일을 정하고, 개는 주인이 외출하면 따라나서요.</p>
 </aside>
+
+<div class="gate" id="gate" hidden>
+  <div class="gatebox" role="dialog" aria-label="시작 방식 선택">
+    <h1>작은 동네</h1>
+    <p class="lead">시민들이 스스로 밥을 먹고 일하고 산책하는 작은 마을이에요. 어떻게 시작할까요?</p>
+    <div class="gatecards">
+      <button class="gatecard" id="gateGuest" type="button">
+        <span class="ge">👋</span><strong>게스트로 시작</strong>
+        <span class="gd">바로 둘러보고 내 심을 <b>1명</b>까지 만들 수 있어요. 이 브라우저에만 기억돼요.</span>
+      </button>
+      <button class="gatecard" id="gateMember" type="button">
+        <span class="ge">🔐</span><strong>구글로 로그인</strong>
+        <span class="gd">내 심을 <b>3명</b>까지 만들고, 다른 기기에서도 내 심들을 그대로 찾을 수 있어요.</span>
+      </button>
+    </div>
+    <div id="gateGoogle"></div>
+    <p class="gatenote" id="gateNote">어느 쪽이든 동네는 모두가 함께 봅니다. 내가 만든 심은 나만 바꾸거나 내보낼 수 있고, 기본 주민은 누구나 돌볼 수 있어요.</p>
+  </div>
+</div>
+
+<div class="modal" id="createWin" hidden>
+  <div class="modalbox" role="dialog" aria-label="새 심 만들기">
+    <div class="modalhead"><strong>새 심 만들기</strong><span class="cnt" id="createCount"></span><button class="btn icon" id="createClose" type="button" aria-label="닫기">✕</button></div>
+    <p class="help" id="createFull" hidden></p>
+    <div class="seg" id="createGender"><button type="button" data-g="m" aria-pressed="true">남자</button><button type="button" data-g="f" aria-pressed="false">여자</button></div>
+    <form class="miniform" id="createForm">
+      <label>이름 <input id="createName" maxlength="12" placeholder="비우면 자동으로 정해요" autocomplete="off"></label>
+      <label>나이 <select id="createAge"><option value="adult">어른</option><option value="kid">초등학생 (학교에 가요)</option><option value="tot">유치원생 (유치원에 가요)</option></select></label>
+      <label>인사말 <input id="createGreet" maxlength="40" autocomplete="off"></label>
+    </form>
+    <p class="k" style="margin:.7rem 0 .1rem">성향 고르기</p>
+    <div class="typegrid" id="typeGrid"></div>
+    <p class="help" id="createTypeDesc"></p>
+    <div class="modalfoot"><button class="btn primary" id="createGo" type="button">이 심으로 시작</button><button class="btn" id="createCancel" type="button">취소</button></div>
+  </div>
+</div>
+
+<div class="modal" id="mySimsWin" hidden>
+  <div class="modalbox" role="dialog" aria-label="내 심들">
+    <div class="modalhead"><strong>내 심들</strong><span class="cnt" id="mySimsCount"></span><button class="btn icon" id="mySimsClose" type="button" aria-label="닫기">✕</button></div>
+    <p class="help" id="mySimsWho"></p>
+    <ul class="mysims" id="mySimsList"></ul>
+    <p class="help" id="mySimsEmpty" hidden>아직 만든 심이 없어요. 오른쪽 아래 <b>남자 추가 · 여자 추가</b>에서 만들어 보세요.</p>
+    <div class="modalfoot"><button class="btn" id="mySimsAdd" type="button">새 심 만들기</button></div>
+  </div>
+</div>
 
 <script type="module">
 import * as THREE from "three";
@@ -430,6 +510,22 @@ function lerpAngle(a, b, k){ let d = ((b - a + Math.PI) % (Math.PI*2)) - Math.PI
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const isNight = h => h >= 22 || h < 6;
+
+/* ================= 계정: 게스트 / 구글 회원 ================= */
+/* 심을 만들면 만든 사람의 id 가 주인으로 기록된다. '내 심들' 목록과 생성 개수 제한(게스트 1명, 회원 3명)에 쓰이고,
+   주인이 있는 심은 만든 사람만 이름·성향을 바꾸거나 내보낼 수 있다. 주인이 없는 기본 주민은 누구나 돌볼 수 있다.
+   구글 로그인은 Worker 의 /auth 가 구글에 토큰을 확인한 뒤 계정 id 를 돌려줄 때만 열린다. */
+const GOOGLE_CLIENT_ID = "";   // Google Cloud 에서 만든 "웹 애플리케이션" 클라이언트 ID. 비워 두면 게스트로만 시작한다
+const MODE_KEY = "citizen-sim:mode", GUEST_KEY = "citizen-sim:guest", MEMBER_KEY = "citizen-sim:member";
+const me = { mode:null, id:"", name:"" };
+const MAX_CHARS = owner => String(owner || "").startsWith("u") ? 3 : 1;   // 회원 id 는 u…, 게스트 id 는 g…
+const myCitizens = () => me.id ? citizens.filter(c => c.owner === me.id) : [];
+const canManage = c => !c.owner || c.owner === me.id;
+function guestId(){
+  let v = ""; try { v = localStorage.getItem(GUEST_KEY) || ""; } catch {}
+  if(!v){ v = "g" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); try { localStorage.setItem(GUEST_KEY, v); } catch {} }
+  return v;
+}
 
 /* ================= World: house ================= */
 /* 끝없는 땅 대신 허공에 뜬 디오라마 받침: 잔디 윗면(1칸 격자) + 흙 단면 + 바닥 돌 */
@@ -1068,18 +1164,19 @@ const TYPES = {
 const typeMult = (c, k) => 0.7 + 0.15 * (TYPES[c.type].p[NEED_IDX[k]] - 1);
 const typePref = (c, k) => 0.85 + 0.075 * (TYPES[c.type].p[NEED_IDX[k]] - 1);
 /* 육각형(아이는 오각형) 스탯 그래프. vals 는 채워진 영역, prof 는 점선(성향 프로필) */
-function radarPoints(vals, size = 150){
-  const n = vals.length, cx = size / 2, cy = size / 2, R = size / 2 - 20;
+function radarPoints(vals, size = 150, pad = 20){
+  const n = vals.length, cx = size / 2, cy = size / 2, R = size / 2 - pad;
   return vals.map((v, i) => { const a = -Math.PI / 2 + i * 2 * Math.PI / n; return (cx + Math.cos(a) * v * R).toFixed(1) + "," + (cy + Math.sin(a) * v * R).toFixed(1); }).join(" ");
 }
 function radarSVG(vals, prof, labels, size = 150){
-  const n = vals.length, cx = size / 2, cy = size / 2, R = size / 2 - 20;
+  const n = vals.length, cx = size / 2, cy = size / 2, R = size / 2 - (labels ? 20 : 4);
   let out = `<svg viewBox="0 0 ${size} ${size}" class="radar" aria-hidden="true">`;
-  for(const g of [.25, .5, .75, 1]) out += `<polygon points="${radarPoints(Array(n).fill(g), size)}" class="grid"/>`;
+  const pad = labels ? 20 : 4;
+  for(const g of [.25, .5, .75, 1]) out += `<polygon points="${radarPoints(Array(n).fill(g), size, pad)}" class="grid"/>`;
   for(let i = 0; i < n; i++){ const a = -Math.PI / 2 + i * 2 * Math.PI / n; out += `<line x1="${cx}" y1="${cy}" x2="${(cx + Math.cos(a) * R).toFixed(1)}" y2="${(cy + Math.sin(a) * R).toFixed(1)}" class="grid"/>`; }
-  if(prof) out += `<polygon points="${radarPoints(prof, size)}" class="prof"/>`;
-  out += `<polygon points="${radarPoints(vals, size)}" class="val"/>`;
-  for(let i = 0; i < n; i++){ const a = -Math.PI / 2 + i * 2 * Math.PI / n; out += `<text x="${(cx + Math.cos(a) * (R + 12)).toFixed(1)}" y="${(cy + Math.sin(a) * (R + 12) + 3.5).toFixed(1)}" text-anchor="middle">${labels[i]}</text>`; }
+  if(prof) out += `<polygon points="${radarPoints(prof, size, pad)}" class="prof"/>`;
+  out += `<polygon points="${radarPoints(vals, size, pad)}" class="val"/>`;
+  if(labels) for(let i = 0; i < n; i++){ const a = -Math.PI / 2 + i * 2 * Math.PI / n; out += `<text x="${(cx + Math.cos(a) * (R + 12)).toFixed(1)}" y="${(cy + Math.sin(a) * (R + 12) + 3.5).toFixed(1)}" text-anchor="middle">${labels[i]}</text>`; }
   return out + "</svg>";
 }
 const NEED_ICON = { hunger:"🍽️", energy:"💤", fun:"😐", hygiene:"🫧", social:"💬", money:"💸" };
@@ -1109,6 +1206,7 @@ class Citizen {
     this.home = clamp(Number.isInteger(def && def.home) ? def.home : 0, 0, HOUSES.length - 1);
     this.age = def && AGES[def.age] ? def.age : "adult";
     this.type = def && TYPES[def.type] ? def.type : (def && def.look ? "balanced" : pick(Object.keys(TYPES)));
+    this.owner = (def && typeof def.owner === "string") ? def.owner : "";   // 만든 계정 id. 기본 주민은 빈 문자열
     this.p = buildPerson(this.look, gender, this.age);
     this.root = this.p.root; this.root.position.set(x, 0.05, z);
     this.netTarget = this.root.position.clone();
@@ -2112,6 +2210,7 @@ function renderLists(){
     const b = document.createElement("button"); b.className = "person"; b.type = "button";
     b.innerHTML = `<span class="chip" style="background:${c.look.shirt};color:${c.look.shirt === "#FFFFFF" ? "#1A212C" : "#fff"}">${c.gender === "f" ? "여" : "남"}</span><span><span class="nm"></span><br><span class="sub"></span></span><span class="mood"></span>`;
     b.querySelector(".nm").textContent = c.name + (c.age !== "adult" ? ` · ${AGES[c.age].label}` : "");
+    if(c.owner && c.owner === me.id) b.classList.add("mine");
     b.addEventListener("click", () => c === selected ? clearSelection() : selectCitizen(c));
     c.listBtn = b; li.appendChild(b); peopleEl.appendChild(li);
   }
@@ -2124,7 +2223,7 @@ function renderLists(){
     b.addEventListener("click", () => p === selectedPet ? clearSelection() : selectPet(p));
     p.listBtn = b; li.appendChild(b); petsEl.appendChild(li);
   }
-  syncSelectionUI();
+  syncSelectionUI(); syncAcct();
 }
 function refreshUI(){
   for(const c of citizens){
@@ -2161,6 +2260,10 @@ function syncSelectionUI(){
     document.getElementById("detailHelp").textContent =
       (owned ? `반려동물: ${owned}. ` : "") + "선택한 상태에서 가구나 반려동물을 클릭하면 그걸 하러 가요. 공원 벤치와 분수도 쓸 수 있어요. 배경을 클릭하거나 Esc를 누르면 선택이 풀려요.";
     document.getElementById("stopBtn").hidden = false; document.getElementById("delPetBtn").hidden = true;
+    const mine = canManage(selected);   // 남이 만든 심은 보기와 방명록만
+    document.getElementById("editForm").querySelectorAll("input, select, button").forEach(el => { el.disabled = !mine; });
+    document.getElementById("delBtn").hidden = !mine;
+    document.getElementById("editHelp").hidden = !mine; document.getElementById("editLocked").hidden = mine;
   } else if(selectedPet){
     document.getElementById("dName").textContent = `${selectedPet.emoji} ${selectedPet.name} (${PET_INFO[selectedPet.kind].label})`;
     document.getElementById("detailHelp").textContent = selectedPet.owner ? `주인: ${selectedPet.owner.name}` + (selectedPet.kind === "dog" ? " · 주인이 산책하거나 외출하면 따라나서요." : selectedPet.kind === "parrot" ? " · 가끔 날아가서 주인 어깨에 앉아요." : " · 마음 내킬 때만 주인을 따라가요.") : "";
@@ -2366,14 +2469,19 @@ function emptiestHouse(){ // 새 주민은 가장 한산한 집으로 이사 온
   const n = HOUSES.map(() => 0); for(const c of citizens) n[c.home]++;
   return n.indexOf(Math.min(...n));
 }
-function addCitizen(g, select = true, name = "", greeting = "", age = "adult", type = "balanced"){
+function addCitizen(g, select = true, name = "", greeting = "", age = "adult", type = "balanced", owner = ""){
+  if(owner){
+    const max = MAX_CHARS(owner), have = citizens.filter(c => c.owner === owner).length;
+    if(have >= max) return `심은 ${max}명까지 만들 수 있어요 (지금 ${have}명)`;
+  }
   const home = emptiestHouse(), H = HOUSES[home];
-  const c = new Citizen(H.ox + rand(-1, 1), H.oz + rand(5, 6.5), g, { name:cleanName(name), greeting:cleanGreet(greeting), home, age:AGES[age] ? age : "adult", type:TYPES[type] ? type : "balanced" }); citizens.push(c); renderLists();
-  if(select) selectCitizen(c);
+  const c = new Citizen(H.ox + rand(-1, 1), H.oz + rand(5, 6.5), g, { name:cleanName(name), greeting:cleanGreet(greeting), home, age:AGES[age] ? age : "adult", type:TYPES[type] ? type : "balanced", owner }); citizens.push(c); renderLists();
+  if(select && owner === me.id) selectCitizen(c);
   return announce(`${c.name} 님이 이사 왔어요`);
 }
 const cleanNote = v => String(v ?? "").trim().slice(0, 60);
-function editCitizen(c, name, greeting, note, type){
+function editCitizen(c, name, greeting, note, type, who = ""){
+  if(c.owner && c.owner !== who) return `${c.name}은(는) 만든 사람만 바꿀 수 있어요`;
   name = cleanName(name); greeting = cleanGreet(greeting); note = cleanNote(note);
   if(TYPES[type]) c.type = type;
   if(name) c.name = name;
@@ -2383,42 +2491,175 @@ function editCitizen(c, name, greeting, note, type){
   if(c === selected) selectCitizen(c);   // 성향·이름이 바뀌면 소개창(육각형 포함)을 다시 그린다
   return `${c.name}: 정보를 저장했어요`;
 }
-/* 성향 선택 상자(추가·설정 폼)와 육각형 미리보기 */
-for(const id of ["addType", "editType"]){
-  const sel = document.getElementById(id);
-  for(const [k, T] of Object.entries(TYPES)){ const o = document.createElement("option"); o.value = k; o.textContent = `${T.emoji} ${T.label}`; sel.appendChild(o); }
-}
-function renderTypePreview(){
-  const T = TYPES[document.getElementById("addType").value] || TYPES.balanced;
-  const labels = NEED_KEYS.map(([, l]) => l);
-  document.getElementById("addRadar").innerHTML = radarSVG(T.p.map(v => v / 5), null, labels, 150);
-  document.getElementById("addTypeDesc").textContent = `${T.emoji} ${T.label}: ${T.desc}`;
-}
-document.getElementById("addType").addEventListener("change", renderTypePreview);
-/* 추가 폼: 이름·인사말을 정하고 추가한다 */
-const addForm = document.getElementById("addForm");
-let addGender = "m";
-function openAddForm(g){
-  addGender = g;
-  document.getElementById("addFormTitle").textContent = g === "f" ? "새 시민 (여)" : "새 시민 (남)";
-  if(addForm.hidden){ document.getElementById("addName").value = ""; document.getElementById("addGreet").value = pick(GREETINGS); document.getElementById("addType").value = pick(Object.keys(TYPES)); renderTypePreview(); }
-  addForm.hidden = false; document.getElementById("addName").focus();
-}
-document.getElementById("addCancel").addEventListener("click", () => { addForm.hidden = true; });
-addForm.addEventListener("submit", e => {
-  e.preventDefault();
-  const name = document.getElementById("addName").value, greet = document.getElementById("addGreet").value, age = document.getElementById("addAge").value, type = document.getElementById("addType").value;
-  addForm.hidden = true;
-  if(net.role === "viewer") sendCmd({ k:"addC", g:addGender, name, greet, age, type });
-  else toast(addCitizen(addGender, true, name, greet, age, type));
-});
+/* 설정 탭의 성향 선택 상자 */
+for(const [k, T] of Object.entries(TYPES)){ const o = document.createElement("option"); o.value = k; o.textContent = `${T.emoji} ${T.label}`; document.getElementById("editType").appendChild(o); }
+
 document.getElementById("editForm").addEventListener("submit", e => {
   e.preventDefault();
   if(!selected) return;
   const name = document.getElementById("editName").value, greet = document.getElementById("editGreet").value, note = document.getElementById("editNote").value, type = document.getElementById("editType").value;
   if(net.role === "viewer") sendCmd({ k:"edit", cid:selected.id, name, greet, note, type });
-  else toast(editCitizen(selected, name, greet, note, type));
+  else toast(editCitizen(selected, name, greet, note, type, me.id));
 });
+/* ================= 진입 화면 · 새 심 만들기 · 내 심들 ================= */
+const gate = document.getElementById("gate"), createWin = document.getElementById("createWin"), mySimsWin = document.getElementById("mySimsWin");
+const gateNote0 = document.getElementById("gateNote").textContent;
+function syncAcct(){
+  const who = document.getElementById("acctWho"); if(!who) return;
+  who.textContent = (me.mode === "member" ? "🔐 " : "👋 ") + (me.name || "게스트");
+  document.getElementById("acctCount").textContent = me.id ? `내 심 ${myCitizens().length}/${MAX_CHARS(me.id)}` : "";
+}
+function setMe(mode, id, name){
+  me.mode = mode; me.id = id; me.name = name;
+  try { localStorage.setItem(MODE_KEY, mode); } catch {}
+  gate.hidden = true; syncAcct(); renderLists();
+  toast(mode === "member" ? `${name} 님으로 시작해요 · 심 ${MAX_CHARS(id)}명까지 만들 수 있어요` : `게스트로 시작해요 · 심 ${MAX_CHARS(id)}명까지 만들 수 있어요`);
+}
+/* ----- 구글 로그인: 토큰은 Worker 의 /auth 가 구글에 확인한다 ----- */
+let gisLoad = null;
+function loadGIS(){
+  if(!gisLoad) gisLoad = new Promise((res, rej) => {
+    const el = document.createElement("script"); el.src = "https://accounts.google.com/gsi/client"; el.async = true;
+    el.onload = res; el.onerror = () => rej(new Error("gsi")); document.head.appendChild(el);
+  });
+  return gisLoad;
+}
+async function onGoogleCredential(resp){
+  const note = document.getElementById("gateNote");
+  note.textContent = "로그인을 확인하는 중…";
+  try {
+    const r = await fetch(TOWN_ENDPOINT.replace(/\/$/, "") + "/auth", { method:"POST", headers:{ "content-type":"application/json" }, body:JSON.stringify({ token: resp.credential }) });
+    if(!r.ok) throw new Error(String(r.status));
+    const u = await r.json();
+    if(!u || !u.sub) throw new Error("no sub");
+    const info = { id:"u" + u.sub, name:u.name || "회원" };
+    try { localStorage.setItem(MEMBER_KEY, JSON.stringify(info)); } catch {}
+    setMe("member", info.id, info.name);
+  } catch { note.textContent = "로그인을 확인하지 못했어요. 게스트로 시작하거나 잠시 뒤 다시 시도해 주세요."; }
+}
+async function startGoogle(){
+  const note = document.getElementById("gateNote");
+  if(!GOOGLE_CLIENT_ID){ note.textContent = "구글 로그인은 아직 준비 중이에요. index.html 의 GOOGLE_CLIENT_ID 를 채우면 열려요. 지금은 게스트로 시작해 주세요."; return; }
+  if(!TOWN_ENDPOINT){ note.textContent = "로그인을 확인할 서버가 없어요. TOWN_ENDPOINT 를 먼저 설정해 주세요."; return; }
+  note.textContent = "구글 로그인 창을 불러오는 중…";
+  try { await loadGIS(); } catch { note.textContent = "구글 로그인을 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요."; return; }
+  try {
+    google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onGoogleCredential });
+    const box = document.getElementById("gateGoogle"); box.innerHTML = "";
+    google.accounts.id.renderButton(box, { theme:"outline", size:"large", shape:"pill", text:"signin_with", locale:"ko" });
+    note.textContent = "아래 구글 버튼을 눌러 로그인해 주세요.";
+    google.accounts.id.prompt();
+  } catch { note.textContent = "구글 로그인을 시작하지 못했어요. 게스트로 시작해 주세요."; }
+}
+document.getElementById("gateGuest").addEventListener("click", () => setMe("guest", guestId(), "게스트"));
+document.getElementById("gateMember").addEventListener("click", startGoogle);
+document.getElementById("logoutBtn").addEventListener("click", () => {
+  try { localStorage.removeItem(MODE_KEY); localStorage.removeItem(MEMBER_KEY); } catch {}
+  me.mode = null; me.id = ""; me.name = "";
+  clearSelection(); createWin.hidden = true; mySimsWin.hidden = true;
+  document.getElementById("gateNote").textContent = gateNote0;
+  document.getElementById("gateGoogle").innerHTML = "";
+  gate.hidden = false; syncAcct(); renderLists();
+});
+/* 전에 고른 방식이 있으면 진입 화면을 건너뛴다 */
+function initAccount(){
+  let mode = "", mem = null;
+  try { mode = localStorage.getItem(MODE_KEY) || ""; mem = JSON.parse(localStorage.getItem(MEMBER_KEY) || "null"); } catch {}
+  if(mode === "member" && mem && mem.id) setMe("member", mem.id, mem.name || "회원");
+  else if(mode === "guest") setMe("guest", guestId(), "게스트");
+  else {
+    gate.hidden = false; syncAcct();
+    if(!GOOGLE_CLIENT_ID){ document.getElementById("gateMember").disabled = true; document.getElementById("gateNote").textContent = "구글 로그인은 아직 준비 중이에요(관리자가 클라이언트 ID를 넣으면 열려요). 지금은 게스트로 시작할 수 있어요 · 심 1명까지."; }
+  }
+}
+
+/* ----- 새 심 만들기: 성향을 육각형 카드로 고른다 ----- */
+let createGender = "m", createType = "balanced";
+for(const [k, T] of Object.entries(TYPES)){
+  const b = document.createElement("button"); b.type = "button"; b.dataset.t = k; b.setAttribute("aria-pressed", "false"); b.title = T.desc;
+  b.innerHTML = radarSVG(T.p.map(v => v / 5), null, null, 70) + `<span class="tn">${T.emoji} ${T.label}</span>`;
+  b.addEventListener("click", () => pickType(k));
+  document.getElementById("typeGrid").appendChild(b);
+}
+function pickType(k){
+  createType = k;
+  document.querySelectorAll("#typeGrid button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.t === k)));
+  document.getElementById("createTypeDesc").textContent = `${TYPES[k].emoji} ${TYPES[k].label}: ${TYPES[k].desc}`;
+}
+function openCreate(g){
+  if(!me.id){ gate.hidden = false; return; }
+  const have = myCitizens().length, max = MAX_CHARS(me.id), full = have >= max;
+  document.getElementById("createCount").textContent = `${have}/${max}명`;
+  document.getElementById("createGo").disabled = full;
+  const note = document.getElementById("createFull"); note.hidden = !full;
+  note.textContent = me.mode === "member"
+    ? `심은 ${max}명까지 만들 수 있어요. 내 심들에서 한 명을 내보내면 다시 만들 수 있어요.`
+    : `게스트는 심을 ${max}명까지 만들 수 있어요. 구글로 로그인하면 3명까지 만들 수 있어요.`;
+  createGender = g;
+  document.querySelectorAll("#createGender button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.g === g)));
+  document.getElementById("createName").value = "";
+  document.getElementById("createGreet").value = pick(GREETINGS);
+  document.getElementById("createAge").value = "adult";
+  pickType(pick(Object.keys(TYPES)));
+  mySimsWin.hidden = true; createWin.hidden = false;
+}
+document.querySelectorAll("#createGender button").forEach(b => b.addEventListener("click", () => {
+  createGender = b.dataset.g;
+  document.querySelectorAll("#createGender button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+}));
+document.getElementById("createClose").addEventListener("click", () => { createWin.hidden = true; });
+document.getElementById("createCancel").addEventListener("click", () => { createWin.hidden = true; });
+document.getElementById("createForm").addEventListener("submit", e => { e.preventDefault(); document.getElementById("createGo").click(); });
+document.getElementById("createGo").addEventListener("click", () => {
+  if(!me.id || myCitizens().length >= MAX_CHARS(me.id)) return;
+  const name = document.getElementById("createName").value, greet = document.getElementById("createGreet").value, age = document.getElementById("createAge").value;
+  createWin.hidden = true;
+  if(net.role === "viewer") sendCmd({ k:"addC", g:createGender, name, greet, age, type:createType });
+  else toast(addCitizen(createGender, true, name, greet, age, createType, me.id));
+});
+document.getElementById("addM").addEventListener("click", () => openCreate("m"));
+document.getElementById("addF").addEventListener("click", () => openCreate("f"));
+
+/* ----- 내 심들: 내가 만든 심만 모아 보고, 보러가거나 내보낸다 ----- */
+function renderMySims(){
+  const ul = document.getElementById("mySimsList"); ul.innerHTML = "";
+  const mine = myCitizens(), max = MAX_CHARS(me.id);
+  document.getElementById("mySimsCount").textContent = `${mine.length}/${max}명`;
+  document.getElementById("mySimsWho").textContent = me.mode === "member"
+    ? `${me.name} 님으로 로그인했어요. 어느 기기에서 열어도 이 심들이 그대로 있어요.`
+    : "게스트로 보고 있어요. 이 브라우저에만 기억되니, 구글로 로그인하면 3명까지 만들고 다른 기기에서도 찾을 수 있어요.";
+  document.getElementById("mySimsEmpty").hidden = mine.length > 0;
+  document.getElementById("mySimsAdd").disabled = mine.length >= max;
+  for(const c of mine){
+    const li = document.createElement("li");
+    const info = document.createElement("div"); info.style.cssText = "flex:1;min-width:0";
+    const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = c.name;
+    const sub = document.createElement("div"); sub.className = "sub";
+    sub.textContent = `${c.gender === "f" ? "여" : "남"} · ${AGES[c.age].label} · ${TYPES[c.type].emoji} ${TYPES[c.type].label} · ${HOUSES[c.home].label}`;
+    info.append(nm, sub);
+    const go = document.createElement("button"); go.className = "btn icon"; go.type = "button"; go.textContent = "보러가기";
+    go.addEventListener("click", () => {
+      mySimsWin.hidden = true; selectCitizen(c);
+      follow = true; document.getElementById("followBtn").setAttribute("aria-pressed", "true");
+    });
+    const del = document.createElement("button"); del.className = "btn icon danger"; del.type = "button"; del.textContent = "내보내기";
+    armDelete(del, "내보내기", () => {
+      if(net.role === "viewer") sendCmd({ k:"delC", cid:c.id });
+      else { const msg = removeCitizen(c, me.id); if(msg) toast(msg); }
+      renderMySims(); syncAcct();
+    });
+    li.append(info, go, del); ul.appendChild(li);
+  }
+}
+document.getElementById("mySimsBtn").addEventListener("click", () => { if(!me.id){ gate.hidden = false; return; } renderMySims(); mySimsWin.hidden = false; });
+document.getElementById("mySimsClose").addEventListener("click", () => { mySimsWin.hidden = true; });
+document.getElementById("mySimsAdd").addEventListener("click", () => openCreate(createGender));
+addEventListener("keydown", e => {
+  if(e.key !== "Escape") return;
+  if(!createWin.hidden){ createWin.hidden = true; return; }
+  if(!mySimsWin.hidden){ mySimsWin.hidden = true; }
+});
+
 function addPet(kind, owner, select = true){
   owner = owner || pick(citizens);
   if(!owner) return "반려동물을 데려오려면 시민이 먼저 있어야 해요";
@@ -2442,8 +2683,9 @@ function detachPet(p){
   pets.splice(pets.indexOf(p), 1);
 }
 /* 호스트·혼자 보기에서 실행. 관전자에게는 remove 메시지와 새 정의를 보낸다 */
-function removeCitizen(c){
+function removeCitizen(c, who = ""){
   if(!citizens.includes(c)) return null;
+  if(c.owner && c.owner !== who) return `${c.name}은(는) 만든 사람만 내보낼 수 있어요`;
   const name = c.name, orphans = pets.filter(p => p.owner === c).length;
   if(c === selected) clearSelection();
   detachCitizen(c);
@@ -2472,7 +2714,7 @@ function armDelete(btn, label, run){
 armDelete(document.getElementById("delBtn"), "이 시민 삭제", () => {
   if(!selected) return;
   if(net.role === "viewer") sendCmd({ k:"delC", cid:selected.id });
-  else { const msg = removeCitizen(selected); if(msg) toast(msg); }
+  else { const msg = removeCitizen(selected, me.id); if(msg) toast(msg); }
 });
 armDelete(document.getElementById("delPetBtn"), "삭제", () => {
   if(!selectedPet) return;
@@ -2486,8 +2728,6 @@ function announce(msg){
   saveSnapshot();
   return msg;
 }
-document.getElementById("addM").addEventListener("click", () => openAddForm("m"));
-document.getElementById("addF").addEventListener("click", () => openAddForm("f"));
 document.querySelectorAll("[data-addpet]").forEach(b => b.addEventListener("click", () => {
   if(net.role === "viewer"){ sendCmd({ k:"addP", kind:b.dataset.addpet, owner:selected ? selected.id : 0 }); return; }
   toast(addPet(b.dataset.addpet, selected));
@@ -2858,7 +3098,7 @@ const roomLabel = ROOM === "TOWN" ? "" : ` · 방 ${ROOM}`;
 
 function roomInit(){
   return { t:"init", simMin, speed,
-    citizens: citizens.map(c => ({ id:c.id, gender:c.gender, age:c.age, type:c.type, name:c.name, greeting:c.greeting, note:c.note, guestbook:c.guestbook, look:c.look, home:c.home, x:c.pos.x, z:c.pos.z })),
+    citizens: citizens.map(c => ({ id:c.id, gender:c.gender, age:c.age, type:c.type, owner:c.owner, name:c.name, greeting:c.greeting, note:c.note, guestbook:c.guestbook, look:c.look, home:c.home, x:c.pos.x, z:c.pos.z })),
     pets: pets.map(p => ({ id:p.id, kind:p.kind, name:p.name, color:p.color, idx:p.idx, owner:p.owner ? p.owner.id : 0, home:p.home, x:p.pos.x, y:p.pos.y, z:p.pos.z })),
     builds: builds.map(b => ({ id:b.id, k:b.k, x:b.x, z:b.z, r:b.r, done:b.done, by:b.by })) };
 }
@@ -2880,8 +3120,8 @@ function handleCommand(conn, m){
     case "move": if(c && Number.isFinite(m.x) && Number.isFinite(m.z)) c.orderMove(clamp(m.x, -14, 32), clamp(m.z, -5.5, 16)); break;
     case "pet": { const p = pets.find(x => x.id === m.pid); if(c && p) msg = petResult(c, p); break; }
     case "stop": if(c) msg = stopResult(c); break;
-    case "addC": if(m.g === "m" || m.g === "f") toast(addCitizen(m.g, false, m.name, m.greet, m.age, m.type)); break;   // 토스트는 announce()가 전원에게 보냄
-    case "edit": if(c){ msg = editCitizen(c, m.name, m.greet, m.note, m.type); toast(msg); } break;
+    case "addC": if(m.g === "m" || m.g === "f"){ const r = addCitizen(m.g, false, m.name, m.greet, m.age, m.type, String(m.who || "").slice(0, 64)); if(/명까지/.test(r)) msg = r; else toast(r); } break;   // 토스트는 announce()가 전원에게 보냄
+    case "edit": if(c){ msg = editCitizen(c, m.name, m.greet, m.note, m.type, String(m.who || "")); if(!/만든 사람만/.test(msg)) toast(msg); } break;
     case "addP": if(PET_INFO[m.kind]) toast(addPet(m.kind, citizens.find(x => x.id === m.owner), false)); break;
     case "speed": if([0, 1, 3, 8].includes(m.s)) setSpeed(m.s); break;
     case "reset": resetTown(); break;
@@ -2890,13 +3130,13 @@ function handleCommand(conn, m){
     case "gclear": if(c){ const r = clearGuestbook(c); if(r) toast(r); } break;
     case "build": if(BUILD_KINDS[m.kind] && Number.isFinite(m.x) && Number.isFinite(m.z)){ const r = placeResult(m.kind, m.x, m.z, +m.r || 0, +m.by || 0); if(r.ok) toast(r.msg); else msg = r.msg; } break;
     case "unbuild": { const b = builds.find(x => x.id === m.bid); if(b) toast(unbuildResult(b)); break; }
-    case "delC": if(c){ const r = removeCitizen(c); if(r) toast(r); } break;
+    case "delC": if(c){ const r = removeCitizen(c, String(m.who || "")); if(r){ if(/만든 사람만/.test(r)) msg = r; else toast(r); } } break;
     case "delP": { const p = pets.find(x => x.id === m.pid); if(p){ const r = removePet(p); if(r) toast(r); } break; }
   }
   if(msg && conn.open) conn.send({ t:"toast", msg });
 }
 function sendCmd(cmd){
-  if(net.host && net.host.open) net.host.send({ t:"cmd", ...cmd });
+  if(net.host && net.host.open) net.host.send({ t:"cmd", who:me.id, ...cmd });   // who: 누가 보낸 명령인지(소유권 확인용)
   else toast("호스트와 연결되어 있지 않아요");
 }
 
@@ -2979,9 +3219,9 @@ function applyInit(m){
   for(const d of m.citizens){
     const c = citizens.find(x => x.id === d.id);
     if(c){
-      const note = d.note || "", gb = Array.isArray(d.guestbook) ? d.guestbook : [], ty = TYPES[d.type] ? d.type : c.type;
-      if(c.name !== d.name || c.greeting !== d.greeting || c.note !== note || c.type !== ty || JSON.stringify(c.guestbook) !== JSON.stringify(gb)){
-        c.name = d.name; c.greeting = d.greeting; c.note = note; c.type = ty; c.guestbook = gb; c.updateTag(); changed = true;
+      const note = d.note || "", gb = Array.isArray(d.guestbook) ? d.guestbook : [], ty = TYPES[d.type] ? d.type : c.type, ow = typeof d.owner === "string" ? d.owner : c.owner;
+      if(c.name !== d.name || c.greeting !== d.greeting || c.note !== note || c.type !== ty || c.owner !== ow || JSON.stringify(c.guestbook) !== JSON.stringify(gb)){
+        c.name = d.name; c.greeting = d.greeting; c.note = note; c.type = ty; c.owner = ow; c.guestbook = gb; c.updateTag(); changed = true;
         if(c === selected) selectCitizen(c);   // 성향이 바뀌면 육각형 점선도 다시 그린다
       }
       continue;
@@ -3179,6 +3419,7 @@ addEventListener("beforeunload", e => {
 addEventListener("pagehide", () => { saveSnapshot(); uploadSnapshot(true); if(net.peer) net.peer.destroy(); });
 
 /* ================= Start ================= */
+initAccount();
 renderLists();
 if(typeof Peer === "undefined") goSolo("PeerJS 로드 실패");
 else Promise.all([loadTurn(), fetchServerSnapshot().then(s => { serverSnap = s; })]).then(() => claimHost(false));
