@@ -127,7 +127,7 @@ P._blast = function (u, a, x, y) {
       else if (a.sup && !o.t.immune && !(a.undead && !(o.t.id >= 28 && o.t.id <= 34))) {           // 범위 약화 (언데드 전용: 해골·좀비·유령·리치·다크로드 계열)
         o.buffs[a.sup] = { k1: a.k1, k2: a.k2, arm: a.arm, until: this.time + R.supDuration(a), orig: o.fac }; if (a.drain) o.mp = 0; }
     }
-    u.act = keep; this.events.emit(cast, u, { x: x, y: y, t: { alt: 0 } }, a);
+    u.act = keep; this.events.emit('cast', u, { x: x, y: y, t: { alt: 0 } }, a);
     if (a.suicide && u.alive()) this._slay(null, u); return true;
   };
   /* 대상이 필요 없는 행동을 바로 쓴다: 자기 주변 공격, 주변 적 전체 약화, 자기·자동 대상 보조 */
