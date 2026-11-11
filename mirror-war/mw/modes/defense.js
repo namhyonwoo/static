@@ -45,7 +45,7 @@
     ROW_NEAR: 18,                // 세로로 이만큼 안이면 "같은 줄"로 본다
     /* 에워싸기(근접 유닛): 적이 engage(px) 안에 들어오면 줄을 풀고 그 적에게 바로 다가가 사방에서 친다.
        yScale = 세로 거리를 가로보다 얼마나 멀게 칠지(비스듬한 화면이라 세로가 눌려 보인다), personal = 같은 편끼리 벌리는 거리 */
-    SURROUND: { engage: 150, yScale: 1.3, personal: 26, slots: 8, skipSec: 4, detour: 52 },   // slots = 적 하나를 둘러싸는 자리 수, 자리가 다 차면 skipSec 동안 그 적을 두고 detour(px)만큼 비켜 돌아간다
+    SURROUND: { engage: 150, yScale: 1.3, personal: 26, slots: 8, skipSec: 4, detour: 52, holdDist: 85 },   // holdDist = 나를 둘러싸러 오는 적이 이 거리 안에 왔을 때부터 제자리를 지킨다   // slots = 적 하나를 둘러싸는 자리 수, 자리가 다 차면 skipSec 동안 그 적을 두고 detour(px)만큼 비켜 돌아간다
     PASS_WAIT: 0.5,              // 앞사람에게 이만큼(초) 막혀 있으면 빈 옆줄로 추월을 시도한다
     ALT_MAX: 16,                 // 공중 유닛이 땅에서 떠 보이는 높이의 한도(px). 원본 그림은 엔젤 나이트가 100px 넘게 떠 있어 위쪽 표시를 가린다
     RANGE_SPREAD: 0.2,           // 원거리 유닛마다 서는 거리를 사거리의 (1 − 이 값)~1배 사이에서 다르게 (한 줄로 뭉치지 않게)
@@ -63,7 +63,7 @@
     RECALL: { refund: 0.5, confirmSec: 2, fxArm: 3, snd: 5018 },
     SLOTS_VISIBLE: 3,            // 스킬 패널에 한 번에 보이는 칸 수 (나머지는 좌우로 넘겨 본다)
     SUPPORT_DIST: 210,           // 기본 공격이 없는 유닛(성직자·소환사 등)이 적과 벌려 두는 거리(px)
-    SKILL: { radius: 150, buffRadius: 170, dmgMul: 2, healRatio: 0.5, stunSec: 6, firstWait: 2, hasteMul: 1.5 },   // 스킬 공통 수치 (목업 값)
+    SKILL: { radius: 150, buffRadius: 170, dmgMul: 2, healRatio: 0.5, stunSec: 6, firstWait: 2, hasteMul: 1.5, maxCast: 320 },   // maxCast = 시전 거리 한도(px). 원본 사거리가 무제한(65535)인 마법도 이 안에 대상이 있어야 한다   // 스킬 공통 수치 (목업 값)
     /* 소환 패널의 탭: 해방부대 전체(원본 유닛 번호 0~24)를 네 묶음으로 나눈다 */
     TABS: [
       { name: '근접', ids: [0, 1, 2, 3, 6, 7, 8] },          // 전사 기사 창기사 성기사 창검사 격투가 무도가
@@ -211,7 +211,7 @@
     if (side === 1) { u.maxHp = Math.round(u.maxHp * C.ENEMY_HP_MUL); u.hp = u.maxHp; }
     u.state = 'move'; u.cd = 0; u.fade = 0; u.stunUntil = 0; u.blockT = 0; u.passY = null;
     u.rangeK = 1 - C.RANGE_SPREAD * this.rng.next();         // 이 유닛이 서는 거리 배수 (원거리만 쓴다)
-    u.lookDir = 0; u.slotOf = null; u.slotA = null; u.slotAt = null; u.slotT = 0; u.skipUid = null; u.skipUntil = 0; this._setSide(u, side);
+    u.lookDir = 0; u.slotOf = null; u.slotA = null; u.slotAt = null; u.slotT = 0; u.apT = -9; u.skipUid = null; u.skipUntil = 0; this._setSide(u, side);
     this._applyType(u);
     // 마법 유닛이면 가진 마법마다 스킬 칸을 만들어 서로 가리키게 한다 (유닛 하나 ↔ 칸 여러 개)
     u.spawnId = typeId;                                      // 소환 버튼의 유닛 번호 (변형해도 그대로 — 회수 환급 계산용)
@@ -279,6 +279,9 @@
     this.kind = skillKind(act);
   }
   SkillSlot.prototype.ready = function () { return this.cd <= 0 && this.unit.state !== 'dead'; };
+  /* 적이 있어야 쓰는 마법인가 (범위 공격·약화·멈춤·매혹·암살). 아니면 아군에게 쓰는 마법(회복·강화·가속)이거나 자기에게 쓰는 것(변형) */
+  SkillSlot.prototype.needsFoe = function () { return { blast: 1, weaken: 1, stun: 1, charm: 1, assassin: 1 }[this.kind] === 1; };
+  SkillSlot.prototype.needsAlly = function () { return { heal: 1, buff: 1, haste: 1 }[this.kind] === 1; };
 
   /* 원본 행동 → 이 게임에서의 스킬 종류 (null = 아직 구현하지 않은 행동: 텔레포테이션·천리안·숨기·술 소환 등) */
   function skillKind(a) {
@@ -367,10 +370,32 @@
     return true;
   };
 
+  /* 이 마법을 지금 쓸 대상이 시전자 가까이에 있는가. 있으면 { foe } (적에게 쓰는 마법이면 그 적), 없으면 null.
+       적에게 쓰는 마법: 가장 가까운 적이 시전 거리 안 — 시전 거리 = 원본 행동 사거리 × RANGE_SCALE, 한도 maxCast
+       아군에게 쓰는 마법: 효과 반경 안에 시전자 말고 다른 아군이 하나 이상
+       변형: 조건 없음 */
+  P.skillTarget = function (u, s) {
+    var C = CONFIG, S = C.SKILL, L = this.units, i, o;
+    if (s.needsFoe()) {
+      var reach = Math.min(S.maxCast, s.act.range * C.RANGE_SCALE), best = null, bd = Infinity;
+      for (i = 0; i < L.length; i++) { o = L[i]; if (o.side === u.side || o.state === 'dead') continue; var d = Math.abs(o.x - u.x); if (d < bd) { bd = d; best = o; } }
+      return best && bd <= reach ? { foe: best } : null;
+    }
+    if (s.needsAlly()) {
+      var r = s.kind === 'haste' ? S.buffRadius * 1.3 : s.act.sup === 'massheal' ? S.buffRadius * 1.5 : S.buffRadius;
+      for (i = 0; i < L.length; i++) { o = L[i]; if (o !== u && o.side === u.side && o.state !== 'dead' && Math.abs(o.x - u.x) <= r) return { foe: null }; }
+      return null;
+    }
+    return { foe: null };
+  };
+
   /* 유닛 u가 자기 i번째 마법을 쓴다. 성공하면 그 칸에 쿨타임이 돈다 */
   P.castUnitSkill = function (u, i) {
     var s = u.slots[i]; if (!s || !s.ready() || u.stunUntil > this.time) return false;
-    var a = s.act, S = CONFIG.SKILL, self = this, ok = false, foe = this._nearestFoe(u), tps = this.rules.tps;
+    var a = s.act, S = CONFIG.SKILL, self = this, ok = false, tps = this.rules.tps;
+    // 시전 조건: 시전자 가까이에 대상이 있어야 한다 — 적에게 쓰는 마법은 시전 거리 안의 적, 아군에게 쓰는 마법은 주변의 다른 아군 (skillTarget)
+    var tg = this.skillTarget(u, s), foe = tg ? tg.foe : null;
+    if (!tg) { this._say(u.x, u.y - u.headY - 10, s.needsFoe() ? '가까이에 적이 없음' : '가까이에 아군이 없음', '#c9d1e3'); return false; }
     var allies = function (r) { return self.units.filter(function (o) { return o.side === u.side && o.state !== 'dead' && Math.abs(o.x - u.x) <= r; }); };
     var foesAt = function (x, r) { return self.units.filter(function (o) { return o.side !== u.side && o.state !== 'dead' && Math.abs(o.x - x) <= r; }); };
 
@@ -405,7 +430,7 @@
       var to = this.types[CONFIG.MORPH[u.t.id]];
       if (to) { var ratio = u.hp / u.maxHp; u.setType(to); u.hp = Math.max(1, Math.round(u.maxHp * ratio)); this._applyType(u); u.face(u.dir, -u.dir); ok = true; }
     }
-    if (!ok) { this._say(u.x, u.y - u.t.h - 10, '대상 없음', '#c9d1e3'); return false; }
+    if (!ok) { this._say(u.x, u.y - u.headY - 10, '대상 없음', '#c9d1e3'); return false; }
     s.cd = s.cdMax; this._sortSlots();                       // 방금 쓴 칸은 바로 뒤로 간다
     this._say(u.x, u.y - u.t.h - 18, a.name, '#ffd36e');
     this._play(a.snd, 1);
@@ -517,6 +542,7 @@
     if (u.passY != null) { u.passT += dt; this._shiftRow(u, u.passY, 45 * dt); if (Math.abs(u.passY - u.y) < 1 || u.passT > 2) { u.passY = null; u.blockT = 0; } }
     if (blocked) { if (u.passY != null) { u.state = 'move'; u.walkT += dt; } else u.state = 'idle'; return; }
     if (u.lookDir !== u.dir) this._look(u, u.dir);           // 싸우느라 돌아봤으면 다시 가던 쪽을 본다
+    u.slotOf = null; u.slotA = null;                         // 다시 전진한다 = 둘러싸려던 적을 놓았다 (남겨 두면 그 적이 "나를 노리는 중"으로 잘못 알고 서 있는다)
     u.state = 'move'; u.walkT += dt; u.x += u.dir * this._speed(u) * dt;
   };
 
@@ -532,6 +558,7 @@
      자리가 하나도 없으면 그 적은 잠시 두고(skip) 위아래로 비켜서 지나간다 → 다음 적이나 기지로 간다 */
   P._approach = function (u, tgt, dt) {
     var S = CONFIG.SURROUND, R = CONFIG.LANE_ROWS, lo = this.laneY + R[0] - 14, hi = this.laneY + R[R.length - 1] + 14, r = u.rangePx * 0.85;
+    u.apT = this.time;                                       // 지금 이 적에게 다가가는 중이라는 표시 (_besieged가 본다)
     if (u.slotOf !== tgt.uid || u.slotA == null) { u.slotOf = tgt.uid; u.slotA = this._pickSlot(u, tgt, r, lo, hi); u.slotAt = null; u.slotT = 0; }
     if (this._dist(u, tgt) <= u.rangePx) u.slotT += dt;      // 이미 닿는 거리인데도 자리를 못 찾고 도는 시간만 잰다
     this._look(u, tgt.x >= u.x ? 1 : -1);
@@ -556,7 +583,11 @@
      두 근접 유닛이 마주치면 먼저 움직인 쪽이 상대 둘레에 자리를 잡고, 상대는 이 판정으로 제자리를 지킨다 */
   P._besieged = function (u) {
     var L = this.units;
-    for (var i = 0; i < L.length; i++) { var o = L[i]; if (o.side !== u.side && o.state !== 'dead' && o.slotOf === u.uid && Math.hypot(o.x - u.x, o.y - u.y) < 220) return true; }
+    for (var i = 0; i < L.length; i++) { var o = L[i]; if (o.side === u.side || o.state === 'dead' || o.slotOf !== u.uid || Math.hypot(o.x - u.x, o.y - u.y) >= CONFIG.SURROUND.holdDist) continue;   // 코앞까지 온 적만 — 멀리서 오는 적은 서서 기다리지 않고 마주 다가간다
+      // 실제로 오고 있거나(방금 _approach 함) 이미 닿는 거리에 있는 적만 친다. 멈춤에 걸렸거나 기지를 치러 가 버린 적의 예전 표시는 무시 —
+      // 그런 적을 기다리며 서 있으면 "적을 만났는데 다가가지 않고 멈추는" 현상이 된다
+      if (o.stunUntil > this.time) continue;
+      if (this.time - o.apT < 0.3 || this._dist(o, u) <= o.rangePx) return true; }
     return false;
   };
 
@@ -739,16 +770,28 @@
 
   /* 아군 기지(왼쪽 성)와 적 출구(오른쪽 마굴): 원본 건물 그림. 그림의 기준점(ax, ay = 땅에 닿는 앞쪽 모서리)을 전투 줄 바로 아래에 맞춘다 */
   P._drawBases = function () {
-    var ctx = this.ctx, C = CONFIG, img = this.assets.get('defense'), B = this.bld.base, L = this.bld.lair, gy = this.laneY + 44;
+    var C = CONFIG, D = this.bld, B = D.base, L = D.lair, gy = this.laneY + 44;
     if (B) { var sh = this.baseHit > 0 ? Math.round(Math.sin(this.time * 90) * 2) : 0;                  // 맞으면 살짝 흔들린다
-      ctx.drawImage(img, B.x, B.y, B.w, B.h, C.BASE.x - B.ax + sh, gy - B.ay, B.w, B.h); }
-    if (L) { var lx = C.WORLD_W - C.LAIR.back;
-      ctx.drawImage(img, L.x, L.y, L.w, L.h, lx - L.ax, gy - L.ay, L.w, L.h);
+      this._drawBuilding(B, C.BASE.x + sh, gy); }
+    if (L) { var lx = C.WORLD_W - C.LAIR.back, lp = D.pics[L.pic], ctx = this.ctx;
+      this._drawBuilding(L, lx, gy);
       // 마굴 입구의 으스스한 빛 (가산 합성으로 깜박임)
-      var gx = lx - L.w * 0.16, gcy = gy - L.h * 0.30, g = ctx.createRadialGradient(gx, gcy, 2, gx, gcy, 46);
+      var gx = lx - lp[2] * 0.16, gcy = gy - lp[3] * 0.30, g = ctx.createRadialGradient(gx, gcy, 2, gx, gcy, 46);
       g.addColorStop(0, 'rgba(190,90,220,' + (0.30 + 0.16 * Math.sin(this.time * 3)) + ')'); g.addColorStop(1, 'rgba(190,90,220,0)');
       ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(gx - 46, gcy - 46, 92, 92); ctx.globalCompositeOperation = 'source-over'; }
   };
+
+  /* 건물 하나: 본체 + 깃발. (x, y) = 건물 기준점(땅에 닿는 앞쪽 모서리)의 전장 좌표.
+     깃발은 원본처럼 주인이 있는 건물에 늘 걸려 있고 8장을 돌려 가며 펄럭인다 (flag.mwb, 자리 = BuildingData +0x46~+0x4C, 분석 8-35) */
+  P._drawBuilding = function (b, x, y) {
+    var D = this.bld, p = D.pics[b.pic], o = this._bldOrigin(b, x, y), k = Math.floor(this.time * 8) % b.flagFrames.length;
+    this._pic(b.pic, o[0], o[1]);
+    for (var i = 0; i < b.flags.length; i++) this._pic(b.flagFrames[(k + i * 3) % b.flagFrames.length], o[0] + b.flags[i][0], o[1] + b.flags[i][1]);
+  };
+  /* 건물의 "그리기 원점"(원본 좌표의 기준 — 깃발·무기 자리가 여기서부터의 거리)의 전장 좌표 */
+  P._bldOrigin = function (b, x, y) { var p = this.bld.pics[b.pic]; return [x - b.ax + p[4], y - b.ay + p[5]]; };
+  /* defense.png 안의 그림 한 장을 (x, y)에 원점을 맞춰 그린다 */
+  P._pic = function (i, x, y) { var p = this.bld.pics[i]; this.ctx.drawImage(this.assets.get('defense'), p[0], p[1], p[2], p[3], Math.round(x - p[4]), Math.round(y - p[5]), p[2], p[3]); };
 
   /* 유닛 한 기: 그림자 → 강화 이펙트 → 원본 스프라이트(Unit.frameIndex가 고른 프레임) → 체력 바 → 스킬 칸 번호 */
   P._drawUnit = function (u) {
@@ -909,7 +952,7 @@
     ctx.save(); ctx.beginPath(); ctx.rect(A.x, A.y, A.w, A.h); ctx.clip();
     for (i = 0; i < n; i++) {
       var s = this.slotView[i], vp = (s.vi == null ? i : s.vi) - this.slotPos; if (vp < -1.2 || vp > vis + 0.2) continue;   // 창 밖
-      var bx = Math.round(A.x + vp * this.slotStep), cx = bx + B.w / 2, ok = s.ready(), a = s.act, fi = a.icon * 2, vk = i - this.slotFirst;
+      var bx = Math.round(A.x + vp * this.slotStep), cx = bx + B.w / 2, far = s.ready() && !this.skillTarget(s.unit, s), ok = s.ready() && !far, a = s.act, fi = a.icon * 2, vk = i - this.slotFirst;   // far = 쿨타임은 끝났지만 가까이에 대상이 없다
       ctx.fillStyle = ok ? '#3a2a12' : '#191d27'; ctx.fillRect(bx, B.y, B.w, B.h);
       ctx.strokeStyle = ok ? '#ffd36e' : '#3a4152'; ctx.lineWidth = 2; ctx.strokeRect(bx + 1, B.y + 1, B.w - 2, B.h - 2);
       ctx.globalAlpha = ok ? 1 : 0.45; ctx.drawImage(icons, (fi % D.cols) * D.w, Math.floor(fi / D.cols) * D.h, D.w, D.h, Math.round(cx - D.w / 2), B.y + 1, D.w, D.h); ctx.globalAlpha = 1;
@@ -918,7 +961,8 @@
         ctx.textAlign = 'center'; ctx.font = 'bold 15px sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText(Math.ceil(s.cd), cx, B.y + 24); }
       ctx.textAlign = 'center'; ctx.font = '9px sans-serif';
       ctx.fillStyle = '#dfe6f5'; ctx.fillText(this._fit(a.name, B.w - 6), cx, B.y + 50);
-      ctx.fillStyle = ok ? '#ffd36e' : '#7b8397'; ctx.fillText(this._fit(s.unit.t.name, B.w - 6), cx, B.y + 61);
+      if (far) { ctx.fillStyle = '#e08a6a'; ctx.fillText(s.needsFoe() ? '적이 멀다' : '아군 없음', cx, B.y + 61); }
+      else { ctx.fillStyle = ok ? '#ffd36e' : '#7b8397'; ctx.fillText(this._fit(s.unit.t.name, B.w - 6), cx, B.y + 61); }
       // 왼쪽 위: 단축키(보이는 칸만), 오른쪽 위: 이 마법을 가진 유닛의 번호 (유닛 머리 위 번호와 같다)
       if (vk >= 0 && vk < vis) { ctx.textAlign = 'left'; ctx.fillStyle = '#8a93a8'; ctx.fillText(KEYS[vk], bx + 4, B.y + 8); }
       ctx.fillStyle = ok ? '#ffd36e' : '#59607a'; ctx.beginPath(); ctx.arc(bx + B.w - 9, B.y + 9, 6, 0, 6.3); ctx.fill();
