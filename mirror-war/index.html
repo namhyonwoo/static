@@ -10,7 +10,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
 <style>
-/* 레이아웃: 800x600 게임 스테이지를 중앙에, 조작 막대와 유닛 도감은 아래 단으로 */
+/* 레이아웃: 800x600 게임 스테이지를 중앙에, 조작 막대는 아래 단으로 */
 :root{
   --ink:#1b1d26; --ink-soft:#575b6b; --ink-faint:#8b90a2;
   --paper:#f4f3ef; --panel:#ffffff; --line:#d9d7d0;
@@ -33,14 +33,15 @@
 body{background:var(--paper);color:var(--ink);font-family:var(--f-sans);line-height:1.6;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   padding-block:28px 48px;}
-.wrap{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:20px;}
+:root{--stage:800px;}   /* 화면 배율: 1배 800px, 2배 1600px, 3배 2400px (nav의 "화면" 버튼). 캔버스 내부는 항상 800x600, 높이는 4:3으로 따라온다 */
+.wrap{max-width:calc(var(--stage) + 60px);margin:0 auto;display:flex;flex-direction:column;gap:20px;}
 header{display:flex;flex-direction:column;gap:8px;}
 .eyebrow{font-family:var(--f-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber);}
 h1{margin:0;font-size:clamp(24px,5vw,34px);font-weight:700;letter-spacing:-.015em;text-wrap:balance;}
 .lede{margin:0;max-width:62ch;color:var(--ink-soft);}
 
 .stagewrap{background:#000;border:1px solid var(--line);border-radius:4px;overflow:hidden;display:flex;justify-content:center;}
-#stage{display:block;width:100%;height:auto;max-width:800px;image-rendering:pixelated;cursor:none;touch-action:none;}   /* 커서는 원본 mouse.spr를 캔버스에 그린다 (mw/modes/rts.js _cursor) */
+#stage{display:block;width:100%;height:auto;max-width:var(--stage);image-rendering:pixelated;cursor:none;touch-action:none;}   /* 커서는 원본 mouse.spr를 캔버스에 그린다 (mw/modes/rts.js _cursor) */
 
 .bar{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;}
 .bar .lbl{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);}
@@ -59,8 +60,6 @@ button[aria-pressed="true"]{border-color:var(--amber);background:var(--amber-sof
 .hint b{color:var(--ink-soft);font-weight:500;}
 
 section h2{font-size:15px;margin:0 0 8px;font-weight:600;}
-.roster{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
-@media (max-width:640px){.roster{grid-template-columns:1fr;}}
 .fac{border:1px solid var(--line);border-radius:4px;background:var(--panel);padding:10px 10px 12px;min-width:0;}
 .fac h3{margin:0 0 8px;font-size:13px;font-weight:600;display:flex;justify-content:space-between;gap:8px;}
 .fac h3 span{font-family:var(--f-mono);font-size:11px;font-weight:400;color:var(--ink-faint);}
@@ -113,6 +112,10 @@ input[type=number]{width:64px;}
 <nav class="modes" aria-label="모드">
   <button id="modeBattle" aria-pressed="true">전장</button>
   <button id="modeTest" aria-pressed="false">아레나</button>
+  <span class="lbl" style="margin-left:14px">화면</span>
+  <button id="zoom1" aria-pressed="true">1배</button>
+  <button id="zoom2" aria-pressed="false">2배</button>
+  <button id="zoom3" aria-pressed="false">3배</button>
 </nav>
 
 <div class="stagewrap"><canvas id="stage" width="800" height="600" aria-label="거울전쟁 전투 시뮬레이션 화면"></canvas></div>
@@ -192,54 +195,6 @@ input[type=number]{width:64px;}
   <span><b>방향키·화면 가장자리·미니맵</b> 시점 이동</span>
 </div>
 
-<section data-mode="battle">
-  <h2>유닛 도감</h2>
-  <div class="roster" id="roster"></div>
-</section>
-
-<section>
-  <h2>원본과 가상</h2>
-  <div class="tablewrap"><table>
-    <thead><tr><th>항목</th><th>출처</th></tr></thead>
-    <tbody>
-    <tr><td>지형</td><td>원본. <code>(4) 콜로세움.mwm</code>의 타일 9,216칸(96×96)과 고도 2비트를 <code>savanna.mwt</code>로 그렸습니다. 이전 판은 숲 타일셋을 잘못 썼습니다 — 맵 헤더 <code>+0x74</code>가 지형 종류(4 = 사바나)입니다.</td></tr>
-    <tr><td>배치물</td><td>원본. 맵의 두 번째 레이어에서 바위·나무·항아리 등 130개의 위치를 읽어 <code>ov####.mwb</code>로 그렸습니다.</td></tr>
-    <tr><td>건물 점령</td><td>원본. 공중 유닛을 뺀 유닛으로 건물을 우클릭하면 들어갑니다. 중립 건물은 진영별 자원 한 가지를 냅니다(해방부대 금 250~500, 악령군 사람 25~45, 흑마술파 젬 30~55). 남의 빈 건물은 무료입니다. 들어간 뒤 점령 시간(960~2560틱)이 지나야 소유가 넘어오고, 그동안은 채취가 없습니다. 건물을 클릭하면 진행률이 보입니다.</td></tr>
-    <tr><td>자원·생산·전직</td><td>원본. 진영마다 캐는 자원이 다릅니다: 해방부대는 전사형·마법사형·금, 악령군은 사람 3종, 흑마술파는 민간인·젬. 채취 주기는 실행 파일의 표 그대로이며(민간인 87틱에 1, 금 20틱에 5, 젬 45틱에 1 등), 안의 유닛 수와 유닛별 보너스가 주기를 줄입니다. 생산 비용·시간, 생산 목록, 전직 대상·비용·요구 레벨도 원본 데이터입니다. 인구 상한은 진영당 200. <strong>시작 자원은 가상</strong>이고, 젬↔금 환전과 악령군 건물의 정화는 넣지 않았습니다.</td></tr>
-    <tr><td>안개·시야</td><td>조작 진영의 유닛과 소유 건물 주변만 보입니다. 유닛별 시야는 <code>unitdata +0x34</code> 값입니다(던전 지형에서 5로 제한되는 필드라 시야로 판단). 안개를 그리는 방식은 임의입니다. "안개" 버튼으로 끌 수 있습니다.</td></tr>
-    <tr><td>이동 속도</td><td>유닛별 걷기 프레임당 이동량은 원본(<code>unitNN.mwa</code>의 이동량 표: 전사 7.5px, 창기사 10px, 늑대 12px). 걷기 프레임은 틱마다 1장씩 넘어갑니다.</td></tr>
-    <tr><td>통행 규칙</td><td>원본. 타일을 4등분한 반칸마다 속성이 있고, <strong>속성 ≤ 유닛 이동 등급</strong>이면 지나갑니다(<code>FUN_00530da0</code>). 유닛은 자기 칸과 상하좌우 4칸을 함께 검사합니다. 이동 등급은 <code>unitdata.mwd +64</code>(4 = 지상, 5 = 물 위도 통과)입니다. 이 맵의 계단식 지형은 원본에서도 걸어서 넘습니다.</td></tr>
-    <tr><td>경로 탐색</td><td>격자와 통행 판정은 원본, 탐색 알고리즘은 표준 A*입니다. 원본의 탐색 순서를 그대로 옮긴 것은 아닙니다.</td></tr>
-    <tr><td>시작 위치</td><td>원본. 맵 헤더의 플레이어 좌표 4개 중 3개를 썼습니다.</td></tr>
-    <tr><td>유닛 그림</td><td>원본. <code>unit00~71.mwa</code>의 걷기·공격·사망 프레임과 <code>unit.mwp</code> 플레이어 색(파랑·빨강·보라).</td></tr>
-    <tr><td>HUD·배경음</td><td>원본. 진영별 HUD 바, 초상화, 유닛 상태 그림, 명령 아이콘, 행동 아이콘, 진영별 배경음 1곡씩. 초상화·이름·미니맵·명령 버튼 15칸의 좌표는 <code>InterfaceData.mwd</code>에서 읽었습니다. 정보 칸 안의 글자 배치만 임의입니다.</td></tr>
-    <tr><td>피해 공식</td><td>원본. 공격값 = k1×레벨÷8 + k2×공격력÷8, 방어값 = 방어력 + 방어성장×레벨÷4, 피해 = 공격값 − 방어값(1 미만이면 확률로 빗나가거나 1). 상성표에 있는 대상에게는 공격값에 배수가 붙습니다. 버프·상태 보정은 뺐습니다.</td></tr>
-    <tr><td>레벨·경험치</td><td>원본. 적을 쓰러뜨리면 대상의 경험치 값을 레벨 차로 보정해 얻고, 유닛별 경험치 표를 넘으면 레벨이 오릅니다. 체력 = 기본 + 성장×레벨, 마나도 같은 식입니다(<code>FUN_0044ea80</code>, <code>FUN_0044f230</code>).</td></tr>
-    <tr><td>행동(스킬)</td><td>유닛이 가진 원본 행동 106종이 모두 동작합니다. 피해 행동 62종(범위·자폭 포함)은 원본 공식으로 계산하고 아이콘을 눌러 전환합니다. 나머지 44종(치유, 무기 강화, 방어막, 광폭화, 가속, 감속, 석화, 매혹, 약화·해제, 암살, 은신, 순간이동, 시야, 변형, 메타몰포시스, 레이즈 언데드, 합체)은 아이콘을 누르면 시전합니다. 원본 규칙: 치유는 수동(H), 은신은 공격할 때 풀림, 멜팅·술 소환은 강화 마법 해제, 광폭화한 늑대인간은 다른 늑대인간만 빼고 아군·적군을 가리지 않고 지상 유닛을 공격하며(나무위키 악령군 문서로 확인, 원본 코드로는 미확인), 면역 유닛은 유닛 데이터의 면역 표시(<code>+0x54</code>)대로, 흡혈은 준 피해만큼 회복, 마비침은 34% 확률, 암살은 시전자 체력이 1/5로 줄어듦, 변형 형태(지상 엔트·본월·가고일 석상)는 원본 유닛 데이터 77~79번. 지속 시간·마나, 광폭화·무기 강화·방어막 배수(파이어 웨폰 ×12/8, 매직 웨폰 ×2, 베리어 ×20/8 등)는 원본입니다. 변형은 시간 제한이 없고 "원래대로" 버튼으로 되돌립니다. 합체는 원본대로 유령 + 좀비·해골전사 → 리치, 사탄 + 리치 → 다크로드입니다(마나 30, 레벨 유지).</td></tr>
-    <tr><td>사거리</td><td>원본. 판정식(<code>FUN_004eaf70</code>)을 그대로 옮겼습니다: 가로·세로 픽셀 차로 만든 팔각 거리(단위 0.1px)가 <strong>행동 사거리 + 고도 차 × 고도 보정</strong> 이하이면 공격합니다. 높은 곳의 궁수가 더 멀리 쏩니다.</td></tr>
-    <tr><td>마나·치유·중독</td><td>원본. 마나는 11틱마다 1 회복(건물 안은 6틱). 치유는 시전자의 남은 마나 × 2(파워 힐링은 ×1.5)만큼, 부족분까지만 회복하고 쓴 만큼 마나가 줄며, 대상에 상태 이상이 있으면 해제만 합니다. 중독은 2틱마다 체력 −1이고 1 밑으로는 내려가지 않습니다.</td></tr>
-    <tr><td>효과음</td><td>원본. 유닛 음성 9개씩(등장 1, 선택·명령 응답 7개를 순서대로, 사망 1 — <code>FUN_005625f0</code>), 행동 효과음, 건물 선택음 622개. 화면을 한 번 클릭한 뒤부터 납니다.</td></tr>
-    <tr><td>발사체·타격 이펙트</td><td>원본. <code>arm##.mww</code> 17종(화살·파이어 볼·매직 미사일 등). 피해 행동에 쓰이는 30종을 넣었습니다. 재생 순서 테이블은 단순화했고, 속도는 <code>armData.mwd</code>의 틱당 픽셀 값입니다.</td></tr>
-    <tr><td>이동 표시</td><td>원본. 우클릭한 자리에 <code>mouseMove.spr</code> 10프레임을 재생합니다.</td></tr>
-    <tr><td>게임 속도·시간</td><td>원본. 시뮬레이션은 게임 속도 5단계에 따라 초당 6.0 / 9.0 / 12.0 / 14.1 / 16.1틱으로 돕니다(틱 간격 166~62ms, <code>FUN_0055d570</code>). "속도" 버튼으로 바꿉니다. 공격 간격은 행동 데이터의 틱 값 + 난수(칼 18틱, 활 20틱, 랜스 30틱), 걷기는 틱마다 프레임 1장입니다. 이전에 초당 40틱으로 본 것은 틀렸습니다.</td></tr>
-    <tr><td>컴퓨터 진영</td><td>가상. 빈 건물을 점령하고, 자원이 되면 생산하고, 가까운 적을 공격합니다. 원본 AI는 실행 파일의 <code>0x46xxxx~0x4Axxxx</code>에 진영별 모듈로 들어 있는 것을 확인했지만(예: <code>FUN_00487310</code>), 분량이 커서 옮기지 않았습니다. "컴퓨터 AI" 버튼으로 켭니다(기본 꺼짐).</td></tr>
-    </tbody>
-  </table></div>
-</section>
-
-<section>
-  <h2>코드 구조</h2>
-  <div class="tablewrap"><table>
-    <thead><tr><th>계층</th><th>모듈</th><th>역할</th></tr></thead>
-    <tbody>
-    <tr><td>core</td><td><code>GameMap</code> <code>Pathfinder</code> <code>UnitType</code> <code>Unit</code> <code>World</code> <code>OriginalRules</code> <code>SimpleAI</code></td><td>화면을 모르는 시뮬레이션. 고정 틱(1/30초)과 시드 난수로 같은 입력이면 같은 결과가 나옵니다. Node에서 화면 없이 돌릴 수 있습니다.</td></tr>
-    <tr><td>render</td><td><code>Assets</code> <code>TerrainRenderer</code> <code>WorldView</code></td><td>Canvas 그리기. World를 읽기만 합니다.</td></tr>
-    <tr><td>ui</td><td><code>Hud</code> <code>Sfx</code> <code>Bgm</code></td><td>원본 HUD, 효과음, 배경음.</td></tr>
-    <tr><td>modes</td><td><code>RtsGame</code></td><td>입력을 명령으로 바꾸는 얇은 조립 계층. 다른 게임은 이 계층만 새로 씁니다.</td></tr>
-    </tbody>
-  </table></div>
-</section>
-
 <footer>원본 자산 저작권은 제작사에 있습니다. 이 페이지는 파일 포맷 분석 결과를 보여주기 위한 것입니다.</footer>
 </div>
 
@@ -263,34 +218,24 @@ input[type=number]{width:64px;}
 <script src="mw/ui/skilldesc.js"></script>
 <script src="mw/modes/rts.js"></script>
 <script>
-/* 페이지 전용 접착 코드: 버튼·도감·점수판만 다룬다. 게임 로직은 mw/ 아래에 있다. */
+/* 페이지 전용 접착 코드: 버튼·점수판만 다룬다. 게임 로직은 mw/ 아래에 있다. */
 (function(){
   var FAC=[{name:"해방부대",col:"#5aa0ff"},{name:"악령군",col:"#ff5a4a"},{name:"흑마술파",col:"#c07aff"}];
   var cv=document.getElementById("stage");
   var game=new MWE.RtsGame(cv, window.MW, {base:"sim/", factions:FAC, startSlots:[0,1,3]});
-  var rosterEl=document.getElementById("roster"), scoreEl=document.getElementById("score"), chipOf=[];
+  var scoreEl=document.getElementById("score");
   function $(id){ return document.getElementById(id); }
   function press(el,on){ el.setAttribute("aria-pressed", on?"true":"false"); }
-  game.onReset=function(){
-    rosterEl.textContent=""; chipOf=[]; press($("auto"),false);
-    FAC.forEach(function(f,fi){
-      var box=document.createElement("div"); box.className="fac";
-      var h=document.createElement("h3"); h.innerHTML="<b class=\"f"+fi+"\">"+f.name+"</b><span id=\"cnt"+fi+"\"></span>"; box.appendChild(h);
-      var chips=document.createElement("div"); chips.className="chips";
-      game.world.units.forEach(function(u){ if (u.fac!==fi) return;
-        var b=document.createElement("button"); b.type="button"; b.textContent=u.t.name;
-        b.addEventListener("click", function(){ game.select(u); cv.scrollIntoView({block:"nearest"}); });
-        chips.appendChild(b); chipOf.push([u,b]); });
-      box.appendChild(chips); rosterEl.appendChild(box);
-    });
-  };
+  /* 화면 배율: CSS 변수 --stage만 바꾼다. 캔버스 내부 해상도(800x600)·입력 좌표 환산(RtsGame._pos)은 그대로. 창보다 크면 창 너비까지만(세로는 4:3 유지) */
+  function setZoom(z){ document.documentElement.style.setProperty("--stage", (800*z)+"px"); [1,2,3].forEach(function(k){ press($("zoom"+k), k===z); }); try{ localStorage.setItem("mw.zoom", String(z)); }catch(e){} }
+  [1,2,3].forEach(function(z){ $("zoom"+z).addEventListener("click", function(){ setZoom(z); }); });
+  (function(){ var z=1; try{ z=+localStorage.getItem("mw.zoom")||1; }catch(e){} if (z===2||z===3) setZoom(z); })();
+  game.onReset=function(){ press($("auto"),false); };
   setInterval(function(){
     if (!game.world) return;
     var alive=[0,0,0], tot=[0,0,0];
     game.world.units.forEach(function(u){ tot[u.fac]++; if (u.living()) alive[u.fac]++; });
     scoreEl.innerHTML=FAC.map(function(f,i){ return "<span><i class=\"dot f"+i+"\"></i>"+f.name+" "+alive[i]+" / "+tot[i]+"</span>"; }).join("");
-    for (var i=0;i<3;i++){ var c=$("cnt"+i); if (c) c.textContent=alive[i]+"기 생존"; }
-    chipOf.forEach(function(p){ p[1].classList.toggle("dead", !p[0].living()); });
   }, 400);
   [0,1,2].forEach(function(i){ $("fac"+i).addEventListener("click", function(){
     game.setFaction(i); [0,1,2].forEach(function(j){ press($("fac"+j), j===i); }); }); });
