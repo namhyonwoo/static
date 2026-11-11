@@ -75,7 +75,7 @@
   var MORPH = { 23: 77, 77: 23, 65: 79, 79: 65, 35: 46, 63: 46, 28: 78 };   // 엔트↔지상 엔트, 가고일↔석상, 흡혈귀→박쥐, 해골전사→본월 (unitdata 77~79)
   P._cast = function (u, a, manual, forced) {
     var R = this.rules, L = this.units, j, o, rng = R.supRange(a), tgt = null, best = 1e9;
-    if (a.sup === "teleport" || a.sup === "recall" || a.sup === "massheal") return false;   // 땅을 지정하는 행동: orderCast → _teleportCast / _recall / _massHeal (자동 보조로 쓰지 않는다)
+    if (a.sup === "teleport" || a.sup === "recall" || a.sup === "massheal" || a.sup === "massdispel") return false;   // 땅을 지정하는 행동: orderCast → _teleportCast / _recall / _massHeal (자동 보조로 쓰지 않는다)
     if (u.mp < a.mana || u.cd > 0 || !u.alive()) return false;
     if (forced) { if (!forced.alive() && a.sup !== "raise") return false; if (a.foe && (forced.t.immune || (a.sup === "assassin" && forced.t.fly === 2))) return false; tgt = forced; } else
     if (a.sup === "heal") { for (j = 0; j < L.length; j++) { o = L[j]; if (o.fac !== u.fac || !o.alive() || o.hp >= o.maxHp * (manual ? 1 : 0.75)) continue; var d = u.distTo(o), r = o.hp / o.maxHp; if (d <= rng && r < best) { best = r; tgt = o; } } }
@@ -201,6 +201,25 @@ P._blast = function (u, a, x, y) {
       ['stone', 'slow', 'poison', 'melt', 'meltw', 'melta'].forEach(function (k) { delete o.buffs[k]; }); }
     this.events.emit('cast', u, { x: x, y: y, t: { alt: 0 } }, a); return true;
   };
+  /* 술 소환 (FUN_004b9590 case 0x36, 이펙트 칸 54): 지정한 지점 주변(armData[54] +0x3C = 2000, 이동 등급 ≤ +0x40 = 2)의
+     면역이 아닌 유닛(종류 +0x54 == 0)에게 —
+     · 적: 강화 해제 (원본은 +0x2C·+0x34·+0x40·+0x4A·+0x58·+0x3C 상태와 +0x22 강화 타이머를 지운다 → 목업 weapon·shield·haste·berserk, 대응은 추정)
+       + 공격받은 것처럼 반응 (FUN_004db830 — 목업은 가만히 있는 적만 시전자를 노리게)
+     · 아군: 상태 이상 해제 (말다와 같은 필드: 석화·감속·중독·약화 계열), 체력 회복은 없음
+     피해는 없다. 원본의 +0x54 연결(매혹 등으로 추정) 해제는 목업에서 "이 진영에서 매혹돼 넘어간 유닛을 되돌림"으로 둔다(추정). */
+  P._massDispel = function (u, a, x, y) {
+    if (u.mp < a.mana || u.cd > 0 || !u.alive()) return false;
+    var A = this.rules.arms && this.rules.arms[a.arm] || {}, r = A.r || 2000, lim = A.lim != null ? A.lim : 2, L = this.units;
+    u.mp -= a.mana; u.cd = (a.delay + 10) / this.rules.tps; u.face(x - u.x, y - u.y);
+    for (var i = 0; i < L.length; i++) { var o = L[i];
+      if (!o.alive() || o.t.immune || o.t.fly > lim || this.origDist(o.x, o.y, x, y) > r) continue;
+      var ch = o.buffs.charm;
+      if (ch && ch.orig === u.fac && o.fac !== u.fac) { o.fac = ch.orig; o.order = null; o.tgt = null; o.path = null; delete o.buffs.charm; continue; }   // 매혹돼 넘어간 우리 유닛을 되돌림 (추정)
+      if (o.fac !== u.fac) { ['weapon', 'shield', 'haste', 'berserk'].forEach(function (k) { delete o.buffs[k]; }); if (o.state === 'idle' && !o.order && !o.passive && o.t.canAttack()) o.tgt = u; }
+      else ['stone', 'slow', 'poison', 'melt', 'meltw', 'melta'].forEach(function (k) { delete o.buffs[k]; });
+    }
+    this.events.emit('cast', u, { x: x, y: y, t: { alt: 0 } }, a); return true;
+  };
   P._support = function (u) {
     var S = u.t.sups; for (var i = 0; i < S.length; i++) { if (S[i].sup === "heal" && u.fac === this.manualHeal) continue; if (this._cast(u, S[i], false)) return true; }
     return false;
@@ -305,7 +324,7 @@ P._blast = function (u, a, x, y) {
         var ct = o.target;
         if (!ct && o.x != null) {                                                       // 땅을 지정한 범위 행동
           if (o.a.sup === 'recall' || Math.hypot(o.x - u.x, o.y - u.y) <= Math.max(1.5, Math.min(12, o.a.range / 10 / 45.25))) { u.state = 'idle'; u.path = null;   // 리콜은 사거리 65535 = 어디든 (걸어가지 않는다)
-            if (u.cd <= 0) { if (o.a.sup === 'recall') this._recall(u, o.a, o.x, o.y); else if (o.a.sup === 'massheal') this._massHeal(u, o.a, o.x, o.y); else this._blast(u, o.a, o.x, o.y); u.order = null; } }
+            if (u.cd <= 0) { if (o.a.sup === 'recall') this._recall(u, o.a, o.x, o.y); else if (o.a.sup === 'massheal') this._massHeal(u, o.a, o.x, o.y); else if (o.a.sup === 'massdispel') this._massDispel(u, o.a, o.x, o.y); else this._blast(u, o.a, o.x, o.y); u.order = null; } }
           else this._moveToward(u, o.x, o.y);
         }
         else if (!ct || (!ct.alive() && o.a.sup !== 'raise')) { u.order = null; u.state = 'idle'; }
