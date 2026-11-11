@@ -35,6 +35,7 @@
     if (this.mode === 'test') this._spawnTest(w);
     else this.types.forEach(function (t) { if (t.morph) return; var i = cnt[t.fac]++, c = self.starts[t.fac];
       w.spawn(t, t.fac, c[0] + ((i % 5) - 2) * 1.5, c[1] + (Math.floor(i / 5) - 2) * 1.5); });
+    w.invulnFac = this.mode === 'test' && this.godAlly ? this.ctrl : null;   // 아레나 "아군 무적"
     w.events.on('death', function (u) { var k = self.sel.indexOf(u); if (k >= 0) self.sel.splice(k, 1); });
     w.rules.tps = MWE.OriginalRules.SPEEDS[this.speed];
     this.sel = []; this.selB = null; this.cmdMode = null; this.auto = false; w.types = this.types; w.manualHeal = this.ctrl;
@@ -79,6 +80,17 @@ P._spawnTest = function (w) {
     this.testLeft = this.testLefts[0];
     w.res[lf] = [999, 999, 999, 99999, 9999];
   };
+  /* 아레나 "동시 공격": 왼쪽(조작) 유닛 전부를 기본 공격으로 되돌리고 상대 무리 한가운데로 공격 이동 */
+  P.allAttack = function () {
+    if (this.mode !== 'test' || !this.world) return;
+    var w = this.world, me = this.ctrl, L = (this.testLefts || []).filter(function (u) { return u.alive() && u.fac === me; }),
+      E = w.units.filter(function (u) { return u.alive() && u.fac !== me; });
+    if (!L.length || !E.length) return;
+    var cx = 0, cy = 0; E.forEach(function (u) { cx += u.x / E.length; cy += u.y / E.length; });
+    L.forEach(function (u) { if (u.t.ai >= 0) u.act = u.t.acts[u.t.ai]; });
+    this.sel = L.slice(); this.skill = null; this.cmdMode = null; this._groupMove(L, cx, cy, true); this._voice(L[0]);
+  };
+  P.setGodAlly = function (on) { this.godAlly = on; if (this.world) this.world.invulnFac = this.mode === 'test' && on ? this.ctrl : null; };
   P.setMode = function (m) { this.mode = m; if (this.world) this.reset(); };
   P.focusFaction = function () {
     var i = this.ctrl, mine = this.world.units.filter(function (u) { return u.fac === i && u.alive(); });
@@ -145,6 +157,8 @@ P._spawnTest = function (w) {
   };
   /* 초점 유닛: 선택 안에 살아 있으면 유지, 아니면 첫 유닛 */
   P._focus = function () { var f = this.focus; if (!f || !f.alive() || this.sel.indexOf(f) < 0) f = this.focus = this.sel[0] || null; return f; };
+  /* 두 번 클릭 판정: 같은 대상(key)을 0.35초 안에 다시 누르면 true */
+  P._dbl = function (key) { var now = performance.now(), L = this._lastClick, hit = L && L.key === key && now - L.t < 350; this._lastClick = hit ? null : { key: key, t: now }; return !!hit; };
   P._pos = function (e) { var r = this.cv.getBoundingClientRect(); return [(e.clientX - r.left) * (this.cv.width / r.width), (e.clientY - r.top) * (this.cv.height / r.height)]; };
   P._bind = function () {
     var self = this, cv = this.cv;
@@ -154,7 +168,11 @@ P._spawnTest = function (w) {
       if (document.activeElement && document.activeElement !== document.body && document.activeElement.blur) document.activeElement.blur();   // 화면을 누르면 입력 칸에서 초점을 뺀다
       if (p[1] >= self.VH) {
         if (self.hud.inMini(p[0], p[1])) { self.drag = { mini: true }; self.hud.miniToCam(p[0], p[1]); return; }
-        if (self.sel.length > 1) { var gk = self.hud.groupAt(p[0], p[1], self.sel.length); if (gk >= 0) { self.focus = self.sel[gk]; self.skill = null; self._voice(self.focus); return; } }   // 그룹 그림 클릭 → 그 유닛에 초점 (그룹은 유지)
+        if (self.hud.inPortrait(p[0], p[1]) && !self.selB) { var pf = self._focus(); if (pf) self.view.centerOn(pf.x, pf.y); return; }   // 초상화 클릭(한 번·두 번) → 그 유닛 위치로 화면 이동
+        if (self.sel.length > 1) { var gk = self.hud.groupAt(p[0], p[1], self.sel.length); if (gk >= 0) { var gu = self.sel[gk], gdbl = self._dbl('g' + gk); self.skill = null;
+          if (e.shiftKey) { self.sel.splice(gk, 1); if (self.focus === gu) self.focus = self.sel[0] || null; return; }                 // Shift + 클릭 → 그 유닛만 선택에서 뺀다
+          if (e.ctrlKey || e.metaKey || gdbl) { self.sel = self.sel.filter(function (x) { return x.t.id === gu.t.id; }); self.focus = gu; self._voice(gu); return; }   // 두 번 클릭·Ctrl + 클릭 → 같은 종류만 남긴다
+          self.focus = gu; self._voice(gu); return; } }   // 그룹 그림 클릭 → 그 유닛에 초점 (그룹은 유지)
         var c = self.hud.iconAt(p[0], p[1]);
         if (self.selB) { var sb = self.selB, w0 = self.world;
           if (sb.owner === self.ctrl) { if (c === 0) w0.leave(sb); else if (c === 1 || c === 2) sb.inside.forEach(function (u) { var t = self.types[u.t.up[c - 1]]; if (t) w0.promote(u, t); }); else if (c >= 5) { var pl = w0.producible(sb)[c - 5]; if (pl) w0.produce(sb, pl); } }
@@ -164,7 +182,7 @@ P._spawnTest = function (w) {
       }
       if (e.button === 2) { if (self.skill) { self.skill = null; return; } self._command(p[0], p[1], false); return; }
       if (self.skill) { self._useSkill(p[0], p[1]); return; }
-      self.drag = { x0: p[0], y0: p[1], x1: p[0], y1: p[1], box: false, add: e.shiftKey };
+      self.drag = { x0: p[0], y0: p[1], x1: p[0], y1: p[1], box: false, add: e.shiftKey, same: e.ctrlKey || e.metaKey };
     });
     cv.addEventListener('pointermove', function (e) {
       var p = self._pos(e), d = self.drag; self.mouse.x = p[0]; self.mouse.y = p[1]; self.mouse.inside = true;
@@ -190,6 +208,9 @@ P._spawnTest = function (w) {
       if (!u) { var hb = v.buildingAt(self.world, d.x0, d.y0); if (hb) { var bs = hb.b.snd; if (bs && bs.length) self.sfx.play(bs[(self._vc = (self._vc || 0) + 1) % bs.length], 0.9); }
         if (hb && !self.sel.length) { self.selB = hb; return; } if (hb && self.sel.length) { self.selB = hb; self.sel = []; return; } }
       self.selB = null;
+      if (u && (d.same || self._dbl('u' + u.t.id))) {                                   // 두 번 클릭·Ctrl + 클릭 → 화면에 보이는 같은 종류 아군 전부
+        var tps = self.world.rules.tps, same = self.world.units.filter(function (x) { if (!x.alive() || !mine(x) || x.t.id !== u.t.id) return false; var q = v.unitRect(x, tps), cx = q[0] + q[2] / 2, cy = q[1] + q[3] * 0.6; return cx >= 0 && cx <= v.vw && cy >= 0 && cy <= v.vh; });
+        self.sel = d.add ? self.sel.concat(same.filter(function (x) { return self.sel.indexOf(x) < 0; })) : same; self.focus = u; self._voice(u); return; }
       if (u) { if (d.add) { var k = self.sel.indexOf(u); if (k >= 0) self.sel.splice(k, 1); else self.sel.push(u); } else self.sel = [u]; if (self.sel.length) self._voice(self.sel[0]); return; }
       self._command(d.x0, d.y0, false);
     });

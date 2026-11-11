@@ -33,6 +33,7 @@
     var L = this.L = this.layouts[f], v = this.view, m = L.mini, w = m[2] - m[0], sc = w / v.map.worldW;
     this.mm = { x: m[0], y: m[1] + ((m[3] - m[1]) - v.map.worldH * sc) / 2, w: w, h: v.map.worldH * sc, sc: sc };
   };
+  P.inPortrait = function (sx, sy) { var r = this.L.portrait; return sx >= r[0] && sx < r[2] && sy >= r[1] && sy < r[3]; };
   P.inMini = function (sx, sy) { var m = this.mm; return sx >= m.x && sx < m.x + m.w && sy >= m.y && sy < m.y + m.h; };
   P.miniToCam = function (sx, sy) { var v = this.view, m = this.mm; v.cam.x = (sx - m.x) / m.sc - v.vw / 2; v.cam.y = (sy - m.y) / m.sc - v.vh / 2; v.clampCam(); };
   /* 여러 유닛 선택 시 작은 그림의 번호(0~11). 없으면 -1 */

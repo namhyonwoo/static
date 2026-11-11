@@ -145,6 +145,8 @@ input[type=number]{width:64px;}
 
 <div class="bar" data-mode="test" hidden>
   <button id="tReset">다시 배치</button>
+  <button id="tAll">동시 공격</button>
+  <button id="tGod" aria-pressed="false">아군 무적</button>
   <button id="tMana" aria-pressed="true">마나 무한</button>
   <button id="tSpd">속도 3/5</button>
   <button id="tBlk" aria-pressed="false">통행 불가 칸 보기</button>
@@ -161,7 +163,7 @@ input[type=number]{width:64px;}
     <h3>오른쪽 — 상대 유닛 <span id="tRightStat"></span></h3>
     <div class="urows" id="tRightRows"></div>
     <div class="trow"><button id="tRightAdd" type="button">＋ 유닛 종류 추가</button></div>
-    <div class="trow"><label for="tBehave">행동</label><select id="tBehave">
+    <div class="trow"><label for="tBehave">행동</label><select id="tBehave" autocomplete="off">
         <option value="dummy">가만히 (반격 안 함)</option><option value="hold">제자리에서 반격</option><option value="attack">공격해 옴</option></select>
       <label><input id="tTough" type="checkbox"> 체력 10배</label></div>
     <h3>전투 기록 <span>최근 것이 위</span></h3>
@@ -178,7 +180,10 @@ input[type=number]{width:64px;}
   <span><b>T·R·W·L…</b> 스킬 단축키 (원본, 아이콘에 마우스를 올리면 표시)</span>
   <span><b>스킬 아이콘 → 대상 클릭</b> 스킬 사용</span>
   <span><b>아이콘에 마우스</b> 스킬 설명</span>
-  <span><b>HUD의 유닛 그림 클릭</b> 그 유닛의 화면으로</span>
+  <span><b>초상화 클릭</b> 그 유닛의 화면으로</span>
+  <span><b>부대 그림 두 번 클릭 / Ctrl+클릭</b> 같은 종류만 남기기</span>
+  <span><b>부대 그림 Shift+클릭</b> 그 유닛만 빼기</span>
+  <span><b>유닛 두 번 클릭 / Ctrl+클릭</b> 화면의 같은 종류 전부 선택</span>
   <span><b>S</b> 위치 사수</span>
   <span><b>H</b> 치유</span>
   <span><b>건물 우클릭</b> 들어가기 (점령 기능은 지금 꺼 둠)</span>
@@ -346,7 +351,13 @@ input[type=number]{width:64px;}
   function applyTest(){ game.test.behave=$("tBehave").value; game.test.tough=$("tTough").checked; if (game.mode==="test") game.reset(); }
   rowsEditor("tLeftRows","tLeftAdd","left"); rowsEditor("tRightRows","tRightAdd","right");
   ["tBehave","tTough"].forEach(function(id){ $(id).addEventListener("change", applyTest); });
-  $("tReset").addEventListener("click", applyTest);
+  /* 다시 배치·처음 열 때·아레나로 들어올 때 상대 행동은 항상 "가만히" (사용자 요청) */
+  function behaveDefault(){ $("tBehave").value="dummy"; game.test.behave="dummy"; }
+  behaveDefault();
+  $("tReset").addEventListener("click", function(){ behaveDefault(); applyTest(); });
+  $("modeTest").addEventListener("click", function(){ if (game.test.behave!=="dummy"){ behaveDefault(); if (game.mode==="test") game.reset(); } });
+  $("tAll").addEventListener("click", function(){ game.allAttack(); });
+  $("tGod").addEventListener("click", function(){ game.setGodAlly(!game.godAlly); press(this, game.godAlly); });
   $("tMana").addEventListener("click", function(){ game.setInfMana(!game.infMana); press(this, game.infMana); });
   $("tSpd").addEventListener("click", function(){ var i=(game.speed+1)%5; game.setSpeed(i); this.textContent="속도 "+(i+1)+"/5"; $("spd").textContent=this.textContent; renderTest(); });
   $("tBlk").addEventListener("click", function(){ if (!game.view) return; game.view.showBlocked=!game.view.showBlocked; press(this, game.view.showBlocked); });

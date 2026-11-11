@@ -43,8 +43,11 @@
   /* 실시간 구동: 프레임 시간을 받아 고정 틱으로 나눠 돌린다 */
   P.update = function (dt) { this.acc += Math.min(dt, 0.1); while (this.acc >= DT) { this.step(); this.acc -= DT; } };
 
+  /* 무적 진영 (아레나 시험용, 목업 고유): this.invulnFac 진영 유닛은 피해·중독·마비·암살을 받지 않는다 */
+  P.isInvuln = function (u) { return this.invulnFac != null && u.fac === this.invulnFac; };
   P._hurt = function (a, b) {
     if (!b.alive()) return;
+    if (this.isInvuln(b)) { this.events.emit('impact', b, this.rules.projectile(a), a); this.events.emit('hit', a, b, 0); return; }
     var d = this.rules.damage(a, b, this.rng), arm = this.rules.projectile(a);
     this.events.emit('impact', b, arm, a);
     if (d <= 0) { this.events.emit('miss', a, b); return; }
@@ -93,7 +96,7 @@
     if (a.sup !== "heal" && a.sup !== "merge") u.mp -= a.mana;
     u.cd = (a.delay + 10) / R.tps; if (tgt !== u) u.face(tgt.x - u.x, tgt.y - u.y);
     if (a.sup === "heal") R.heal(u, tgt, a);
-    else if (a.sup === "assassin") { this._slay(u, tgt); u.hp = Math.max(1, Math.floor(u.hp / 5)); }   // 암살: 대상 즉사, 시전자 체력은 1/5로 (FUN_004ac6f0)
+    else if (a.sup === "assassin") { if (this.isInvuln(tgt)) { this.events.emit("cast", u, tgt, a); return true; } this._slay(u, tgt); u.hp = Math.max(1, Math.floor(u.hp / 5)); }   // 암살: 대상 즉사, 시전자 체력은 1/5로 (FUN_004ac6f0)
     else if (a.sup === "morph") { var to = this.typeOf(MORPH[u.t.id]); if (!to) return false; if (!u.origType) u.origType = u.t; u.setType(to);
       u.morphUntil = 0; }                                                              // 시간 제한 없음. 되돌리기는 revert()
     else if (a.sup === "copy") { if (!u.origType) u.origType = u.t; u.setType(tgt.t); u.morphUntil = 0; }   // 메타몰포시스: 대상 유닛의 모습으로. 되돌리기는 revert()
@@ -294,7 +297,8 @@ P._blast = function (u, a, x, y) {
       if (u.mp < u.maxMp) u.mp = Math.min(u.maxMp, u.mp + R.manaRegen(u) * DT);
       if (u.tp) { this._tpStep(u); continue; }                                         // 순간이동 중: 아무것도 하지 않는다 (FUN_004eb200)
       if (this._gt) {                                                                  // 게임 틱 단위 효과 (FUN_00454580, FUN_004516c0)
-        var ps = u.buffs.poison; if (ps) { if (ps.until <= this.time) delete u.buffs.poison; else if (this.gtick % 2 === 0 && u.hp > 1) u.hp--; }   // 중독: 2틱마다 −1, 1 밑으로는 안 내려감
+        var ps = u.buffs.poison; if (ps && this.isInvuln(u)) { delete u.buffs.poison; ps = null; }
+        if (ps) { if (ps.until <= this.time) delete u.buffs.poison; else if (this.gtick % 2 === 0 && u.hp > 1) u.hp--; }   // 중독: 2틱마다 −1, 1 밑으로는 안 내려감
         if (u.t.regen && u.hp < u.maxHp && this.gtick % 16 === 0) u.hp++;             // 무도가·도사: 16틱마다 +1
       }
       if (u.state === 'attack') {
