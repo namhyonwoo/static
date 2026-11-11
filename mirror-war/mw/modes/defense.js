@@ -40,7 +40,9 @@
     LANE_ROWS: [-56, -28, 0, 28, 56],   // 유닛이 서는 세로 줄 5개 (전투 줄 중심에서의 거리)
     UNIT_GAP: 30,                // 줄 서기: 같은 편 앞사람과 벌려 두는 간격(px)
     ROW_NEAR: 18,                // 세로로 이만큼 안이면 "같은 줄"로 본다
-    ROW_WEIGHT: 0.35,            // 근접 공격: 세로 줄 차이를 거리에 얼마나 넣을지 (작을수록 옆줄의 적도 쳐서 한 적을 여럿이 에워싼다)
+    /* 에워싸기(근접 유닛): 적이 engage(px) 안에 들어오면 줄을 풀고 그 적에게 바로 다가가 사방에서 친다.
+       yScale = 세로 거리를 가로보다 얼마나 멀게 칠지(비스듬한 화면이라 세로가 눌려 보인다), personal = 같은 편끼리 벌리는 거리 */
+    SURROUND: { engage: 150, yScale: 1.3, personal: 26, slots: 8, skipSec: 4, detour: 52 },   // slots = 적 하나를 둘러싸는 자리 수, 자리가 다 차면 skipSec 동안 그 적을 두고 detour(px)만큼 비켜 돌아간다
     PASS_WAIT: 0.5,              // 앞사람에게 이만큼(초) 막혀 있으면 빈 옆줄로 추월을 시도한다
     ALT_MAX: 16,                 // 공중 유닛이 땅에서 떠 보이는 높이의 한도(px). 원본 그림은 엔젤 나이트가 100px 넘게 떠 있어 위쪽 표시를 가린다
     RANGE_SPREAD: 0.2,           // 원거리 유닛마다 서는 거리를 사거리의 (1 − 이 값)~1배 사이에서 다르게 (한 줄로 뭉치지 않게)
@@ -212,7 +214,7 @@
     if (side === 1) { u.maxHp = Math.round(u.maxHp * C.ENEMY_HP_MUL); u.hp = u.maxHp; }
     u.state = 'move'; u.cd = 0; u.fade = 0; u.stunUntil = 0; u.blockT = 0; u.passY = null;
     u.rangeK = 1 - C.RANGE_SPREAD * this.rng.next();         // 이 유닛이 서는 거리 배수 (원거리만 쓴다)
-    this._setSide(u, side);
+    u.lookDir = 0; u.slotOf = null; u.slotA = null; u.skipUid = null; u.skipUntil = 0; this._setSide(u, side);
     this._applyType(u);
     // 마법 유닛이면 스킬 칸을 만들어 서로 가리키게 한다 (유닛 ↔ 칸 1:1)
     u.slot = null; u.castSkill = function () { return self.castUnitSkill(u); };
@@ -223,7 +225,7 @@
 
   /* 편(진영)과 걷는 방향을 정한다. 매혹으로 편이 바뀔 때도 쓴다.
      스프라이트 방향: 원본은 마름모 좌표라 "화면 오른쪽"이 (1,-1), "화면 왼쪽"이 (-1,1)이다 */
-  P._setSide = function (u, side) { u.side = side; u.fac = side; u.dir = side === 0 ? 1 : -1; u.face(u.dir, -u.dir); u.tgt = null; };
+  P._setSide = function (u, side) { u.side = side; u.fac = side; u.dir = side === 0 ? 1 : -1; u.lookDir = u.dir; u.face(u.dir, -u.dir); u.tgt = null; };
 
   /* 종류에서 나오는 값(기본 공격·사거리·속도)을 유닛에 다시 적는다. 처음 소환할 때와 변형할 때 */
   P._applyType = function (u) {
@@ -422,12 +424,15 @@
       var baseDist = u.side === 1 ? u.x - C.BASE.front : Infinity;
       var canHitUnit = dist <= u.rangePx, canHitBase = !canHitUnit && baseDist <= u.rangePx;
       if (canHitUnit || canHitBase) {
+        if (canHitUnit) this._look(u, tgt.x >= u.x ? 1 : -1);          // 때릴 적을 바라본다 (에워싸면 뒤돌아 칠 수도 있다)
         if (u.cd <= 0) { u.state = 'attack'; u.at = 0; u.hitDone = false; u.tgt = canHitUnit ? tgt : 'base'; this._play(u.act.snd, 0.5); }
+        else if (canHitUnit && u.rangePx < 80) this._approach(u, tgt, dt);   // 근접: 다음 공격을 기다리는 동안에도 자기 자리(둘레의 빈칸)로 옮겨 간다
         else u.state = 'idle';
         return;
       }
-      // 가로로는 닿는데 세로 줄이 달라 못 때리는 적 → 그 줄 쪽으로 옮겨 간다 (적을 그냥 지나쳐 가지 않게)
-      if (tgt && adx <= u.rangePx) { u.state = 'move'; u.walkT += dt; this._shiftRow(u, tgt.y, 45 * dt); return; }
+      // 근접 유닛: 적이 가까이 있으면 줄을 풀고 그 적에게 바로 다가간다 → 한 적을 여럿이 둘러싸서 친다 (_approach)
+      if (tgt && u.rangePx < 80 && adx <= u.rangePx + C.SURROUND.engage) { this._approach(u, tgt, dt); return; }
+      // 원거리 유닛: 가로로는 닿는데 못 쏘는 경우는 없다 (거리를 가로로만 잰다)
     } else if (adx <= C.SUPPORT_DIST) { u.state = 'idle'; return; }   // 기본 공격이 없는 유닛은 적과 거리를 두고 선다
     // 전진 한계: 아군은 마굴 앞, 적은 성 앞 (매혹된 적은 아군 규칙)
     if (u.side === 0 && u.x >= this.frontX) { u.state = 'idle'; return; }
@@ -440,11 +445,50 @@
     if (u.blockT >= C.PASS_WAIT && u.passY == null) { u.passY = this._freeRow(u); u.passT = 0; if (u.passY == null) u.blockT = 0; }
     if (u.passY != null) { u.passT += dt; this._shiftRow(u, u.passY, 45 * dt); if (Math.abs(u.passY - u.y) < 1 || u.passT > 2) { u.passY = null; u.blockT = 0; } }
     if (blocked) { if (u.passY != null) { u.state = 'move'; u.walkT += dt; } else u.state = 'idle'; return; }
+    if (u.lookDir !== u.dir) this._look(u, u.dir);           // 싸우느라 돌아봤으면 다시 가던 쪽을 본다
     u.state = 'move'; u.walkT += dt; u.x += u.dir * u.speedPx * dt;
   };
 
-  /* 두 유닛 사이의 "닿는 거리". 원거리는 가로 거리만, 근접은 세로 줄 차이도 더한다 (다른 줄의 적은 옆으로 가야 때릴 수 있다) */
-  P._dist = function (u, o) { var dx = Math.abs(o.x - u.x); return u.rangePx < 80 ? dx + Math.abs(o.y - u.y) * CONFIG.ROW_WEIGHT : dx; };
+  /* 바라보는 쪽을 바꾼다 (d: 1 오른쪽, -1 왼쪽). 걷는 방향(u.dir)은 그대로 */
+  P._look = function (u, d) { if (u.lookDir === d) return; u.lookDir = d; u.face(d, -d); };
+
+  /* 에워싸기와 우회: 근접 유닛 u가 적 tgt에게 다가간다.
+     적 둘레를 slots개의 자리(각도)로 나누고, 지금 내 위치에서 가장 가까운 빈자리를 하나 맡는다(u.slotA). 앞자리가 차 있으면
+     옆·뒤 자리를 맡게 되므로 길이 막혀도 돌아 들어가 사방에서 친다. 가는 길에는 적 몸을 뚫지 않고 둘레를 따라 돈다.
+     자리가 하나도 없으면 그 적은 잠시 두고(skip) 위아래로 비켜서 지나간다 → 다음 적이나 기지로 간다 */
+  P._approach = function (u, tgt, dt) {
+    var S = CONFIG.SURROUND, R = CONFIG.LANE_ROWS, lo = this.laneY + R[0] - 14, hi = this.laneY + R[R.length - 1] + 14, r = u.rangePx * 0.85;
+    if (u.slotOf !== tgt.uid || u.slotA == null) { u.slotOf = tgt.uid; u.slotA = this._pickSlot(u, tgt, r, lo, hi); }
+    this._look(u, tgt.x >= u.x ? 1 : -1);
+    if (u.slotA == null) {                                   // 둘레가 꽉 찼다 → 이 적은 건너뛰고 돌아서 간다
+      u.skipUid = tgt.uid; u.skipUntil = this.time + S.skipSec; u.slotOf = null;
+      var side = u.y >= tgt.y ? 1 : -1, py = tgt.y + side * S.detour; if (py < lo || py > hi) py = tgt.y - side * S.detour;
+      u.passY = Math.max(lo, Math.min(hi, py)); u.passT = 0; u.state = 'idle'; return;
+    }
+    var ang = u.slotA * 2 * Math.PI / S.slots, sx = tgt.x + Math.cos(ang) * r, sy = tgt.y + Math.sin(ang) * r / S.yScale;
+    var dx = sx - u.x, dy = sy - u.y, d = Math.hypot(dx, dy);
+    if (d < 3) { u.state = 'idle'; return; }                 // 자리에 도착
+    var vx = dx / d, vy = dy / d;
+    // 적 몸 가까이로는 들어가지 않는다: 안쪽이면 바깥으로 미는 힘을 더해 둘레를 따라 돌게 한다
+    var tx = u.x - tgt.x, ty = (u.y - tgt.y) * S.yScale, td = Math.hypot(tx, ty) || 1;
+    if (td < r * 0.9) { var out = (r * 0.9 - td) / (r * 0.9) * 2.5; vx += tx / td * out; vy += ty / td * out; }
+    var v = Math.hypot(vx, vy) || 1, step = Math.min(d, u.speedPx * dt);
+    u.x += vx / v * step; u.y = Math.max(lo, Math.min(hi, u.y + vy / v * step));
+    u.state = 'move'; u.walkT += dt; u.blockT = 0; u.passY = null;
+  };
+
+  /* 적 tgt 둘레에서 u가 맡을 자리(각도 번호)를 고른다: 지금 위치에서 가까운 각도부터, 같은 편이 이미 맡지 않았고 전투 줄 안에 있는 자리. 없으면 null */
+  P._pickSlot = function (u, tgt, r, lo, hi) {
+    var S = CONFIG.SURROUND, n = S.slots, L = this.units, taken = {}, i;
+    for (i = 0; i < L.length; i++) { var o = L[i]; if (o !== u && o.side === u.side && o.state !== 'dead' && o.slotOf === tgt.uid && o.slotA != null) taken[o.slotA] = 1; }
+    var bearing = Math.atan2((u.y - tgt.y) * S.yScale, u.x - tgt.x), best = null, bd = Infinity;
+    for (i = 0; i < n; i++) { if (taken[i]) continue; var a = i * 2 * Math.PI / n, y = tgt.y + Math.sin(a) * r / S.yScale; if (y < lo || y > hi) continue;
+      var diff = Math.abs(Math.atan2(Math.sin(a - bearing), Math.cos(a - bearing))); if (diff < bd) { bd = diff; best = i; } }
+    return best;
+  };
+
+  /* 두 유닛 사이의 "닿는 거리". 원거리는 가로 거리만, 근접은 세로까지 넣은 2차원 거리 (적의 위·아래·뒤에서도 닿으면 친다) */
+  P._dist = function (u, o) { var dx = Math.abs(o.x - u.x); return u.rangePx < 80 ? Math.hypot(dx, (o.y - u.y) * CONFIG.SURROUND.yScale) : dx; };
 
   /* 세로로 y 쪽을 향해 step만큼 옮긴다 (전투 줄 범위 안에서) */
   P._shiftRow = function (u, y, step) {
@@ -494,6 +538,7 @@
   P._nearestFoe = function (u) {
     var best = null, bd = Infinity, L = this.units;
     for (var i = 0; i < L.length; i++) { var o = L[i]; if (o.side === u.side || o.state === 'dead') continue;
+      if (u.skipUid === o.uid && this.time < u.skipUntil) continue;   // 둘레가 꽉 차서 건너뛰기로 한 적
       var d = this._dist(u, o); if (d < bd) { bd = d; best = o; } }
     return best;
   };
