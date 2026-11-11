@@ -219,8 +219,8 @@
          원본 FUN_004f7490: 인스턴스 +0x2C = 이펙트 번호, +0x30 = 프레임 카운터. 7(파운틴)·0x2B(윈드 실드)는 발밑에서 그림 높이(+0x26)만큼 위,
          0x13·0x23·0x29·0x4C는 높이의 절반 위에 그린다 (분석 8-32). */
       var sb = u.buffs.shield;
-      if (sb && sb.arm >= 0 && sb.until > world.time && u.alive() && this.fx) { var sd = this.fx.arms[sb.arm], sf = sd && (sd.fly.length ? sd.fly : sd.hit), sh = u.t.h || 48;
-        if (sf && sf.length) this._sprite(this.fx.frames[sf[Math.floor(this.time * 15) % sf.length]], p[0], p[1] - (sb.arm === 7 || sb.arm === 43 ? sh : sh >> 1), false, !sd.dir); }
+      if (sb && sb.arm >= 0 && sb.until > world.time && u.alive() && this.fx) { var sd = this.fx.arms[sb.arm], si = sd ? root.MWE.shieldFrame(sd, sb, u.t, this.time) : -1, sh = u.t.h || 48;   // 파운틴 베리어는 시전 동작 뒤 물줄기 유지 그림만 되풀이 (8-34)
+        if (si >= 0) this._sprite(this.fx.frames[si], p[0], p[1] - (sb.arm === 7 || sb.arm === 43 ? sh : sh >> 1), false, !sd.dir); }
       /* 가속(케멘 소환·헤이스트): 걸려 있는 동안 머리 위(발밑에서 그림 높이 +0x26만큼 위)에 이펙트 칸 44(0x2C)가 돌며 따라다닌다.
          원본 FUN_004f7490: 인스턴스 +0x40 == 1이면 칸 0x2C를 프레임 카운터 +0x42로 그린다 (분석 8-33). */
       var hbf = u.buffs.haste;
