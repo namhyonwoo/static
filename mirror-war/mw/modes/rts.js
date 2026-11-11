@@ -105,14 +105,28 @@ P._spawnTest = function (w) {
   };
   P.stopSel = function () { var w = this.world; this.sel.forEach(function (u) { w.orderStop(u); }); this.cmdMode = null; };
 
+  /* 부대 이동 (목업 고유): 목적지 주변에 1.1칸 간격 격자 칸을 만들고, 지금 대형에서의 상대 위치가 가장 가까운 칸부터
+     짝지어 준다(욕심쟁이 배정) — 유닛들이 서로 엇갈려 지나가지 않게. 막혔을 때 도착으로 칠 거리는 부대 크기에 맞춘다. */
+  P._groupMove = function (us, gx, gy, am) {
+    var w = this.world, n = us.length; if (!n) return;
+    if (n === 1) { w.orderMove(us[0], gx, gy, am); return; }
+    var cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols), S = [], i, j, cx = 0, cy = 0;
+    for (i = 0; i < n; i++) S.push([((i % cols) - (cols - 1) / 2) * 1.1, (Math.floor(i / cols) - (rows - 1) / 2) * 1.1]);
+    us.forEach(function (u) { cx += u.x / n; cy += u.y / n; });
+    var P = []; for (i = 0; i < n; i++) for (j = 0; j < n; j++) P.push([Math.hypot(us[i].x - cx - S[j][0], us[i].y - cy - S[j][1]), i, j]);
+    P.sort(function (a, b) { return a[0] - b[0]; });
+    var du = {}, ds = {}, tol = 1.2 + 0.25 * Math.sqrt(n);
+    for (var k = 0; k < P.length; k++) { var q = P[k]; if (du[q[1]] || ds[q[2]]) continue; du[q[1]] = ds[q[2]] = 1;
+      var u = us[q[1]], d = w.map.nearestWalkable(w.map.clamp(gx + S[q[2]][0]), w.map.clamp(gy + S[q[2]][1]), u.t.moveClass); w.orderMove(u, d[0], d[1], am, tol); }
+  };
   P._command = function (sx, sy, forceMove) {
     if (!this.sel.length) return;
     var w = this.world, ctrl = this.ctrl, en = forceMove ? null : this.view.unitAt(w, sx, sy, function (u) { return u.fac !== ctrl; });
     var bd = en || forceMove ? null : this.view.buildingAt(w, sx, sy);
     if (bd) { this.sel.forEach(function (u) { w.orderEnter(u, bd); }); this._voice(this.sel[0]); this.cmdMode = null; return; }   // 건물 우클릭 = 들어가기
     if (en) { this.sel.forEach(function (u) { w.orderAttack(u, en); }); this._voice(this.sel[0]); }
-    else { var g = this.view.groundAt(sx, sy), n = this.sel.length; this.view.addMark(g[0], g[1]); this._voice(this.sel[0]); var cols = Math.ceil(Math.sqrt(n)), am = this.cmdMode === 'amove';
-      this.sel.forEach(function (u, i) { w.orderMove(u, g[0] + ((i % cols) - (cols - 1) / 2) * 1.1, g[1] + (Math.floor(i / cols) - (Math.ceil(n / cols) - 1) / 2) * 1.1, am); }); }
+    else { var g = this.view.groundAt(sx, sy), n = this.sel.length; this.view.addMark(g[0], g[1]); this._voice(this.sel[0]); var am = this.cmdMode === 'amove';
+      this._groupMove(this.sel, g[0], g[1], am); }
     this.cmdMode = null;
   };
   /* 대상 지정 스킬 사용: 피해 행동 → 그 행동으로 대상 공격, 보조 행동 → 대상에게 시전, 순간이동 → 그 땅으로 */

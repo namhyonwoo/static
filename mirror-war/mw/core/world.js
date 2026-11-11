@@ -24,9 +24,10 @@
     this.units.push(u); this.events.emit('spawn', u); return u;
   };
   /* ---- 명령 (입력·AI·리플레이가 공통으로 쓰는 유일한 통로) ---- */
-  P.orderMove = function (u, x, y, attackMove) {
+  /* tol: 막혔을 때 도착으로 칠 거리(칸). 부대 이동은 부대 크기에 맞춰 넓게 준다 (rts._command) */
+  P.orderMove = function (u, x, y, attackMove, tol) {
     if (!u.alive()) return;
-    u.order = { type: 'move', x: this.map.clamp(x), y: this.map.clamp(y), amove: !!attackMove }; u.path = null;
+    u.order = { type: 'move', x: this.map.clamp(x), y: this.map.clamp(y), amove: !!attackMove, tol: tol || 1.2 }; u.path = null;
     if (u.blink) { var bp = this.map.nearestWalkable(u.order.x, u.order.y, u.t.moveClass); u.x = bp[0]; u.y = bp[1]; u.blink = null; u.order = null; this.events.emit('blink', u); }
     if (!attackMove) u.tgt = null;
   };
@@ -224,6 +225,11 @@ P._blast = function (u, a, x, y) {
     var S = u.t.sups; for (var i = 0; i < S.length; i++) { if (S[i].sup === "heal" && u.fac === this.manualHeal) continue; if (this._cast(u, S[i], false)) return true; }
     return false;
   };
+  /* 밀어서 비키게 할 수 있는 아군인가 (스타크래프트 2 방식, 목업 고유): 명령 없이 그냥 서 있는 유닛만.
+     위치 사수(hold)·공격 대상이 있는 유닛·순간이동·석화·방패 막기 중인 유닛은 밀리지 않는다. 적은 따로 걸러 낸다(같은 진영끼리만 호출). */
+  P._pushable = function (o) {
+    return o.state === 'idle' && !o.order && !o.tgt && !o.tp && !(o.buffs.stone && o.buffs.stone.until > this.time) && !o.blockT;
+  };
   /* 유닛 우회 (목업 고유 — 원본의 유닛 회피 방식은 미해독): 진행 방향 바로 앞에 서 있는 유닛이 길을 막으면 옆으로 돌아간다.
      (hx,hy) 진행 방향, mv 이번 틱 이동량, (gx,gy) 최종 목적지. 돌아갈 방향 벡터를 돌려주고, 막는 유닛이 없으면 null.
      움직이는 유닛은 장애물로 보지 않는다(같이 가는 무리끼리 서로 피하지 않게) — 그쪽은 겹침 처리가 맡는다.
@@ -232,6 +238,7 @@ P._blast = function (u, a, x, y) {
     var L = this.units, map = this.map, mc = u.t.moveClass, CLEAR = 0.95, LOOK = 1.8, best = null, bd = 1e9, blat = 0, i, o;
     for (i = 0; i < L.length; i++) {
       o = L[i]; if (o === u || !o.alive() || o.state === 'move' || o.state === 'inside' || (o.t.fly === 2) !== (u.t.fly === 2)) continue;
+      if (o.fac === u.fac && this._pushable(o)) continue;                              // 그냥 서 있는 아군은 돌아가지 않고 밀고 지나간다 (겹침 처리)
       var ox = o.x - u.x, oy = o.y - u.y, ahead = ox * hx + oy * hy; if (ahead <= 0 || ahead > LOOK || ahead >= bd) continue;
       var lat = oy * hx - ox * hy; if (Math.abs(lat) >= CLEAR) continue;            // 진행 방향의 왼쪽이 +
       if (Math.hypot(o.x - gx, o.y - gy) < 0.9) continue;
@@ -333,22 +340,43 @@ P._blast = function (u, a, x, y) {
       } else if (o && o.type === 'enter') {
         if (Math.hypot(o.b.x - u.x, o.b.y - u.y) < 3.6) this.enter(u, o.b); else this._moveToward(u, o.b.x + 1.2, o.b.y + 2.6);
       } else if (o && o.type === 'move') {
-        if (this._moveToward(u, o.x, o.y)) { u.order = null; u.path = null; u.state = 'idle'; }
+        /* 막힘 판정 (목업 고유): 목적지까지 거리가 0.1칸 넘게 줄지 않은 채 1초가 지나면,
+           목적지 근처(o.tol 안)이면 도착으로 치고 멈춘다(부대가 한 곳에 모일 때 마지막 몇 기가 빙빙 도는 것 방지).
+           멀리서 2.5초 막혀 있으면 경로를 새로 찾는다. */
+        var gd = Math.hypot(o.x - u.x, o.y - u.y);
+        if (u.mvOrder !== o) { u.mvOrder = o; u.mvBest = gd; u.mvT = this.time; }
+        else if (gd < u.mvBest - 0.1) { u.mvBest = gd; u.mvT = this.time; }
+        if (this.time - u.mvT > 1.0 && gd <= (o.tol || 1.2)) { u.order = null; u.path = null; u.state = 'idle'; }
+        else { if (this.time - u.mvT > 2.5) { u.path = null; u.mvT = this.time; }
+          if (this._moveToward(u, o.x, o.y)) { u.order = null; u.path = null; u.state = 'idle'; } }
       } else u.state = 'idle';
     }
-    // 겹침 처리: 서 있는 유닛은 절대 밀리지 않고, 움직이는 유닛만 옆으로 비켜 간다 (통행 불가 칸으로는 밀지 않는다)
+    /* 겹침 처리 (목업 고유, 스타크래프트 2 방식):
+       · 움직이는 유닛끼리는 반씩 비킨다. 한쪽이 벽이라 못 비키면 다른 쪽이 전부 비킨다.
+       · 움직이는 유닛과 "그냥 서 있는 아군"(_pushable)이 겹치면 서 있는 쪽이 대부분(80%) 밀려 길을 내준다.
+       · 위치 사수·공격 중인 유닛이나 적과 겹치면 움직이는 쪽만 비킨다. 둘 다 서 있으면 그냥 서 있는 아군끼리만 0.7칸까지 천천히 벌린다.
+       · 완전히 겹쳤을 때(거리 0)는 두 유닛 번호로 정한 방향으로 떼어 놓는다. 통행 불가 칸으로는 밀지 않는다. */
     for (i = 0; i < L.length; i++) {
       var a = L[i]; if (!a.alive()) continue;
       for (var j = i + 1; j < L.length; j++) {
         var b = L[j]; if (!b.alive() || (a.t.fly === 2) !== (b.t.fly === 2)) continue;
         var dx = b.x - a.x, dy = b.y - a.y, dd = Math.hypot(dx, dy), min = 0.85;
         if (dd >= min) continue;
-        if (dd < 0.001) { dx = 0.01; dy = 0; dd = 0.01; }
-        var p = (min - dd) / 2 * Math.min(1, DT * 8), ux = dx / dd, uy = dy / dd;
-        var am = a.state === 'move', bm = b.state === 'move'; if (!am && !bm) continue;      // 둘 다 서 있으면 그대로 둔다
-        if (am && bm) p *= 1; else p *= 2;                                               // 한쪽만 움직이면 그쪽이 전부 비킨다
-        if (am && map.walkable(a.x - ux * p, a.y - uy * p, a.t.moveClass)) { a.x -= ux * p; a.y -= uy * p; }
-        if (bm && map.walkable(b.x + ux * p, b.y + uy * p, b.t.moveClass)) { b.x += ux * p; b.y += uy * p; }
+        if (dd < 0.001) { var ang = ((a.uid * 7 + b.uid * 13) % 16) / 16 * 6.283; dx = Math.cos(ang) * 0.01; dy = Math.sin(ang) * 0.01; dd = 0.01; }
+        var am = a.state === 'move', bm = b.state === 'move', ux = dx / dd, uy = dy / dd;
+        if (!am && !bm) {                                                                 // 둘 다 서 있으면: 그냥 서 있는 아군끼리만 아주 천천히 떼어 놓는다
+          if (a.fac === b.fac && dd < 0.7 && this._pushable(a) && this._pushable(b)) { var ps = (0.7 - dd) * DT * 1.5;
+            if (map.walkable(a.x - ux * ps, a.y - uy * ps, a.t.moveClass)) { a.x -= ux * ps; a.y -= uy * ps; }
+            if (map.walkable(b.x + ux * ps, b.y + uy * ps, b.t.moveClass)) { b.x += ux * ps; b.y += uy * ps; } }
+          continue; }
+        var p = (min - dd) * Math.min(1, DT * 8), wa, wb;
+        if (am && bm) { wa = 0.5; wb = 0.5; }
+        else if (am) { if (b.fac === a.fac && this._pushable(b)) { wa = 0.2; wb = 0.8; } else { wa = 1; wb = 0; } }
+        else { if (a.fac === b.fac && this._pushable(a)) { wa = 0.8; wb = 0.2; } else { wa = 0; wb = 1; } }
+        var okA = wa > 0 && map.walkable(a.x - ux * p * wa, a.y - uy * p * wa, a.t.moveClass), okB = wb > 0 && map.walkable(b.x + ux * p * wb, b.y + uy * p * wb, b.t.moveClass);
+        if (okA && !okB && (bm || am)) wa = Math.min(1, wa + wb); else if (okB && !okA) wb = Math.min(1, wa + wb);   // 한쪽이 막혔으면 다른 쪽이 마저 비킨다
+        if (okA && map.walkable(a.x - ux * p * wa, a.y - uy * p * wa, a.t.moveClass)) { a.x -= ux * p * wa; a.y -= uy * p * wa; }
+        if (okB && map.walkable(b.x + ux * p * wb, b.y + uy * p * wb, b.t.moveClass)) { b.x += ux * p * wb; b.y += uy * p * wb; }
       }
     }
     this._economy();
