@@ -221,6 +221,11 @@
       var sb = u.buffs.shield;
       if (sb && sb.arm >= 0 && sb.until > world.time && u.alive() && this.fx) { var sd = this.fx.arms[sb.arm], sf = sd && (sd.fly.length ? sd.fly : sd.hit), sh = u.t.h || 48;
         if (sf && sf.length) this._sprite(this.fx.frames[sf[Math.floor(this.time * 15) % sf.length]], p[0], p[1] - (sb.arm === 7 || sb.arm === 43 ? sh : sh >> 1), false, !sd.dir); }
+      /* 가속(케멘 소환·헤이스트): 걸려 있는 동안 머리 위(발밑에서 그림 높이 +0x26만큼 위)에 이펙트 칸 44(0x2C)가 돌며 따라다닌다.
+         원본 FUN_004f7490: 인스턴스 +0x40 == 1이면 칸 0x2C를 프레임 카운터 +0x42로 그린다 (분석 8-33). */
+      var hbf = u.buffs.haste;
+      if (hbf && hbf.until > world.time && u.alive() && this.fx) { var hd = this.fx.arms[44], hq = hd && (hd.fly.length ? hd.fly : hd.hit);
+        if (hq && hq.length) this._sprite(this.fx.frames[hq[Math.floor(this.time * 15) % hq.length]], p[0], p[1] - (u.t.h || 48), false, !hd.dir); }
       /* 체력·마나 바. 그림·색·폭·채움 식은 원본 그대로 (FUN_004f7cf0, 분석 8-27): bar.spr 틀, 종류별 폭(+0x100),
          체력은 초록·폭의 1/3 이하면 빨강, 마나 바는 마나가 있는 내 유닛만 6픽셀 아래, 오른쪽에 레벨 숫자(helpnum.mwl).
          위치와 표시 조건은 목업 고유: 원본은 발밑(+0x102)에 선택한 유닛만 그리지만, 여기서는 잘 보이도록 머리 위에 두고

@@ -16,7 +16,7 @@
   Hud.slot = function (i) { return i === 0 ? 3 : 4 + i; };
   Hud.actAt = function (c) { return c === 3 ? 0 : c >= 5 ? c - 4 : -1; };
   Hud.basic = function (t) { return t.ai >= 0 && t.acts[t.ai] && t.acts[t.ai].isAtk == 1 ? t.ai : -1; };
-  var SUPKEY = { heal: 'H', sight: 'V', shield: 'D', teleport: 'T', recall: 'R', hide: 'I', weapon: 'W', haste: 'W', merge: 'E', morph: 'O', copy: 'O', berserk: 'K', charm: 'C', assassin: 'Y', raise: 'Y', dispel: 'N', melt: 'N', meltw: 'N', melta: 'N', slow: 'N', stone: 'N', massheal: 'U', massdispel: 'N' };
+  var SUPKEY = { heal: 'H', sight: 'V', shield: 'D', teleport: 'T', recall: 'R', hide: 'I', weapon: 'W', haste: 'W', merge: 'E', morph: 'O', copy: 'O', berserk: 'K', charm: 'C', assassin: 'Y', raise: 'Y', dispel: 'N', melt: 'N', meltw: 'N', melta: 'N', slow: 'N', stone: 'N', massheal: 'U', massdispel: 'N', masshaste: 'W' };
   function keyOfAct(t, i) {
     var a = t.acts[i]; if (!a) return null; if (i === Hud.basic(t)) return 'A';
     if (a.cls === 22) return 'U';
@@ -63,7 +63,7 @@
     if (!s0) return null;
     if (c === 4) return s0.origType ? '원래 모습으로' : null;
     var ai = Hud.actAt(c), a = s0.t.acts[ai]; if (!a) return null; var hk = Hud.keys(s0.t)[ai];
-    var KIND = { heal: '치유', weapon: '무기 강화', shield: '방어', berserk: '광폭화', haste: '가속', slow: '감속', stone: '석화', charm: '매혹', melt: '약화·해제', assassin: '암살', hide: '은신', teleport: '순간이동', sight: '시야', morph: '변형', copy: '변신', raise: '시체 소환', merge: '합체', recall: '리콜', massheal: '광역 치유', massdispel: '광역 해제·정화' };
+    var KIND = { heal: '치유', weapon: '무기 강화', shield: '방어', berserk: '광폭화', haste: '가속', slow: '감속', stone: '석화', charm: '매혹', melt: '약화·해제', assassin: '암살', hide: '은신', teleport: '순간이동', sight: '시야', morph: '변형', copy: '변신', raise: '시체 소환', merge: '합체', recall: '리콜', massheal: '광역 치유', massdispel: '광역 해제·정화', masshaste: '광역 가속' };
     return a.name + (hk ? '(' + hk + ')' : '') + ' — ' + (ai === Hud.basic(s0.t) ? '기본 공격 · ' : '') + (a.dmg ? (a.aoe ? '범위 공격' : '공격') : (KIND[a.sup] || '사용 불가')) + (a.mana ? ', 마나 ' + a.mana : '') + (a.need === 'none' ? ' · 즉시' : a.need === 'ground' ? ' · 지점 지정' : a.need === 'unit' ? ' · 대상 지정' : '');
   };
 /* 스킬 수치 한 줄: 해독한 행동 데이터에서 */

@@ -44,7 +44,7 @@
       this.view = new MWE.WorldView(this.ctx, map, this.assets, this.VW, this.VH); this.hud = new MWE.Hud(this.ctx, this.assets, this.view, this.VH, this.data.hud, this.data.fx.icon); this.hud.setFaction(this.ctrl); this.view.fogOn = keepFog; this.view.showBlocked = keepBlk; }
     this.view.fx = this.data.fx; this.view.effects = []; this.view.marks = []; this.view.resetFog(this.ctrl);
     this.ais = [0, 1, 2].map(function (fc) { return new MWE.SimpleAI(w, fc); });
-    w.events.on('cast', function (u, t, a) { if (a.sup === 'sight' && u.fac === self.ctrl) self.view.reveal(u.x, u.y, 22, (a.dur || 400) / 40); if (a.arm >= 0 && a.sup !== 'weapon' && a.sup !== 'shield') self.view.addEffect(t.x, t.y, t.t.alt + 20, a.arm); self.sfx.play(a.snd, self._vol(u)); });   // 웨폰·실드 계열은 걸린 유닛에 붙여 계속 그린다 (worldview)
+    w.events.on('cast', function (u, t, a) { if (a.sup === 'sight' && u.fac === self.ctrl) self.view.reveal(u.x, u.y, 22, (a.dur || 400) / 40); if (a.arm >= 0 && a.sup !== 'weapon' && a.sup !== 'shield' && a.sup !== 'haste') self.view.addEffect(t.x, t.y, t.t.alt + 20, a.arm); self.sfx.play(a.snd, self._vol(u)); });   // 웨폰·실드 계열은 걸린 유닛에 붙여 계속 그린다 (worldview)
     w.events.on('impact', function (b, arm, a) { if (arm >= 0) self.view.addEffect(b.x, b.y, b.t.alt + 20, arm); if (a.act) self.sfx.play(a.act.snd2, self._vol(b)); });
     w.events.on('teleport', function (u, arm) { if (u.fac === self.ctrl && u.tp) self.view.reveal(u.tp.x, u.tp.y, 6, 2);   // 순간이동 소리 (FUN_004eb200 1틱째): 라이딩(21)은 행동 36, 도사·의적은 행동 12, 그 밖은 행동 18의 소리
       var tA = self.data.units.reduce(function (z, d) { return z || d.acts.filter(function (x) { return x && x.id === (arm === 21 ? 36 : (u.t.id === 9 || u.t.id === 10) ? 12 : 18); })[0]; }, null);

@@ -79,7 +79,7 @@
   var MORPH = { 23: 77, 77: 23, 65: 79, 79: 65, 35: 46, 63: 46, 28: 78 };   // 엔트↔지상 엔트, 가고일↔석상, 흡혈귀→박쥐, 해골전사→본월 (unitdata 77~79)
   P._cast = function (u, a, manual, forced) {
     var R = this.rules, L = this.units, j, o, rng = R.supRange(a), tgt = null, best = 1e9;
-    if (a.sup === "teleport" || a.sup === "recall" || a.sup === "massheal" || a.sup === "massdispel") return false;   // 땅을 지정하는 행동: orderCast → _teleportCast / _recall / _massHeal (자동 보조로 쓰지 않는다)
+    if (a.sup === "teleport" || a.sup === "recall" || a.sup === "massheal" || a.sup === "massdispel" || a.sup === "masshaste") return false;   // 땅을 지정하는 행동: orderCast → _teleportCast / _recall / _massHeal (자동 보조로 쓰지 않는다)
     if (u.mp < a.mana || u.cd > 0 || !u.alive()) return false;
     if (forced) { if (!forced.alive() && a.sup !== "raise") return false; if (a.foe && (forced.t.immune || (a.sup === "assassin" && forced.t.fly === 2))) return false; tgt = forced; } else
     if (a.sup === "heal") { for (j = 0; j < L.length; j++) { o = L[j]; if (o.fac !== u.fac || !o.alive() || o.hp >= o.maxHp * (manual ? 1 : 0.75)) continue; var d = u.distTo(o), r = o.hp / o.maxHp; if (d <= rng && r < best) { best = r; tgt = o; } } }
@@ -203,6 +203,18 @@ P._blast = function (u, a, x, y) {
       if (o.fac !== u.fac || !o.alive() || o.t.fly > lim || this.origDist(o.x, o.y, x, y) > r) continue;
       o.hp = Math.min(o.maxHp, o.hp + 1000);
       ['stone', 'slow', 'poison', 'melt', 'meltw', 'melta'].forEach(function (k) { delete o.buffs[k]; }); }
+    this.events.emit('cast', u, { x: x, y: y, t: { alt: 0 } }, a); return true;
+  };
+  /* 케멘 소환 (FUN_004b9590 case 0x35, 이펙트 칸 53, 분석 8-33): 지정한 지점 주변(armData[53] +0x3C = 2000, 이동 등급 ≤ +0x40 = 2)의
+     면역이 아닌(종류 +0x54 == 0) 아군에게 가속 — 원본은 유닛 +0x40 = 1(가속 상태, 머리 위에 이펙트 칸 44를 그림), +0x44 = 지속(행동 28 +0x3E = 640틱),
+     +0x3C = -8(이동 보정, 배수 환산은 미확인 → 목업은 rules.speed의 1.5배), +0x3E = 같은 지속. 시전자는 움직이지 않고 피해는 없다. */
+  P._massHaste = function (u, a, x, y) {
+    if (u.mp < a.mana || u.cd > 0 || !u.alive()) return false;
+    var A = this.rules.arms && this.rules.arms[a.arm] || {}, r = A.r || 2000, lim = A.lim != null ? A.lim : 2, L = this.units, until = this.time + this.rules.supDuration(a);
+    u.mp -= a.mana; u.cd = (a.delay + 10) / this.rules.tps; u.face(x - u.x, y - u.y);
+    for (var i = 0; i < L.length; i++) { var o = L[i];
+      if (o.fac !== u.fac || !o.alive() || o.t.immune || o.t.fly > lim || this.origDist(o.x, o.y, x, y) > r) continue;
+      o.buffs.haste = { k1: a.k1, k2: a.k2, arm: a.arm, until: until }; }
     this.events.emit('cast', u, { x: x, y: y, t: { alt: 0 } }, a); return true;
   };
   /* 술 소환 (FUN_004b9590 case 0x36, 이펙트 칸 54): 지정한 지점 주변(armData[54] +0x3C = 2000, 이동 등급 ≤ +0x40 = 2)의
@@ -343,7 +355,7 @@ P._blast = function (u, a, x, y) {
         var ct = o.target;
         if (!ct && o.x != null) {                                                       // 땅을 지정한 범위 행동
           if (o.a.sup === 'recall' || Math.hypot(o.x - u.x, o.y - u.y) <= Math.max(1.5, Math.min(12, o.a.range / 10 / 45.25))) { u.state = 'idle'; u.path = null;   // 리콜은 사거리 65535 = 어디든 (걸어가지 않는다)
-            if (u.cd <= 0) { if (o.a.sup === 'recall') this._recall(u, o.a, o.x, o.y); else if (o.a.sup === 'massheal') this._massHeal(u, o.a, o.x, o.y); else if (o.a.sup === 'massdispel') this._massDispel(u, o.a, o.x, o.y); else this._blast(u, o.a, o.x, o.y); u.order = null; } }
+            if (u.cd <= 0) { if (o.a.sup === 'recall') this._recall(u, o.a, o.x, o.y); else if (o.a.sup === 'massheal') this._massHeal(u, o.a, o.x, o.y); else if (o.a.sup === 'massdispel') this._massDispel(u, o.a, o.x, o.y); else if (o.a.sup === 'masshaste') this._massHaste(u, o.a, o.x, o.y); else this._blast(u, o.a, o.x, o.y); u.order = null; } }
           else this._moveToward(u, o.x, o.y);
         }
         else if (!ct || (!ct.alive() && o.a.sup !== 'raise')) { u.order = null; u.state = 'idle'; }
