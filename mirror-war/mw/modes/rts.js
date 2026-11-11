@@ -20,6 +20,7 @@
     this.mode = 'battle'; this.test = { left: [{ id: 0, n: 1 }], right: [{ id: 28, n: 5 }], behave: 'dummy', tough: false };   // 양쪽 모두 [{유닛 번호, 수}] 목록   // mode: battle(전장) | test(아레나: n:m 시험)
     this.speed = 2; this.ais = []; this.aiOn = false; this.infMana = false;   // 컴퓨터 AI는 기본 꺼짐. infMana: 모든 유닛의 마나를 항상 가득 (시험용) this.selB = null; this.skill = null; this.focus = null;   // skill: 대상 지정을 기다리는 행동, focus: 그룹 중 HUD에 보이는 유닛
     this.ctrl = 0; this.sel = []; this.cmdMode = null; this.auto = false; this.showPaths = true;
+    this.watch = null;   // 적(또는 다른 진영) 유닛 하나를 "보기만" — HUD에 상태·정보를 띄우되 명령은 받지 않는다 (sel이 비어 있을 때만 유효)
     this.bars = { ally: true, enemy: true, hurt: true };   // 머리 위 체력·마나 바: 아군 표시, 적군 표시, 체력이 닳았을 때만 (선택한 유닛은 항상)
     this.drag = null; this.mouse = { x: -1, y: -1, inside: false }; this.keys = {};
     this.world = null; this.view = null; this.hud = null; this.onReset = null; this.seed = 1;
@@ -38,12 +39,12 @@
     w.invulnFac = this.mode === 'test' && this.godAlly ? this.ctrl : null;   // 아레나 "아군 무적"
     w.events.on('death', function (u) { var k = self.sel.indexOf(u); if (k >= 0) self.sel.splice(k, 1); });
     w.rules.tps = MWE.OriginalRules.SPEEDS[this.speed];
-    this.sel = []; this.selB = null; this.cmdMode = null; this.auto = false; w.types = this.types; w.manualHeal = this.ctrl;
+    this.sel = []; this.selB = null; this.watch = null; this.cmdMode = null; this.auto = false; w.types = this.types; w.manualHeal = this.ctrl;
     if (!this.view || this.view.map !== map) { var keepFog = this.view ? this.view.fogOn : false,   /* 안개는 기본 꺼짐 */ keepBlk = this.view ? this.view.showBlocked : false;
       this.view = new MWE.WorldView(this.ctx, map, this.assets, this.VW, this.VH); this.hud = new MWE.Hud(this.ctx, this.assets, this.view, this.VH, this.data.hud, this.data.fx.icon); this.hud.setFaction(this.ctrl); this.view.fogOn = keepFog; this.view.showBlocked = keepBlk; }
     this.view.fx = this.data.fx; this.view.effects = []; this.view.marks = []; this.view.resetFog(this.ctrl);
     this.ais = [0, 1, 2].map(function (fc) { return new MWE.SimpleAI(w, fc); });
-    w.events.on('cast', function (u, t, a) { if (a.sup === 'sight' && u.fac === self.ctrl) self.view.reveal(u.x, u.y, 22, (a.dur || 400) / 40); if (a.arm >= 0 && a.sup !== 'weapon') self.view.addEffect(t.x, t.y, t.t.alt + 20, a.arm); self.sfx.play(a.snd, self._vol(u)); });   // 웨폰 계열은 걸린 유닛 발밑에서 계속 그린다 (worldview)
+    w.events.on('cast', function (u, t, a) { if (a.sup === 'sight' && u.fac === self.ctrl) self.view.reveal(u.x, u.y, 22, (a.dur || 400) / 40); if (a.arm >= 0 && a.sup !== 'weapon' && a.sup !== 'shield') self.view.addEffect(t.x, t.y, t.t.alt + 20, a.arm); self.sfx.play(a.snd, self._vol(u)); });   // 웨폰·실드 계열은 걸린 유닛에 붙여 계속 그린다 (worldview)
     w.events.on('impact', function (b, arm, a) { if (arm >= 0) self.view.addEffect(b.x, b.y, b.t.alt + 20, arm); if (a.act) self.sfx.play(a.act.snd2, self._vol(b)); });
     w.events.on('teleport', function (u, arm) { if (u.fac === self.ctrl && u.tp) self.view.reveal(u.tp.x, u.tp.y, 6, 2);   // 순간이동 소리 (FUN_004eb200 1틱째): 라이딩(21)은 행동 36, 도사·의적은 행동 12, 그 밖은 행동 18의 소리
       var tA = self.data.units.reduce(function (z, d) { return z || d.acts.filter(function (x) { return x && x.id === (arm === 21 ? 36 : (u.t.id === 9 || u.t.id === 10) ? 12 : 18); })[0]; }, null);
@@ -80,15 +81,17 @@ P._spawnTest = function (w) {
     this.testLeft = this.testLefts[0];
     w.res[lf] = [999, 999, 999, 99999, 9999];
   };
-  /* 아레나 "동시 공격": 왼쪽(조작) 유닛 전부를 기본 공격으로 되돌리고 상대 무리 한가운데로 공격 이동 */
+  /* 아레나 "동시 공격": 양쪽 모두 돌진해 싸운다 — 왼쪽(조작)과 오른쪽(상대) 유닛 전부를 기본 공격으로 되돌리고
+     서로의 무리 한가운데로 공격 이동시킨다. 상대는 "가만히"였더라도 이 순간부터 스스로 싸운다 (passive 해제). */
   P.allAttack = function () {
     if (this.mode !== 'test' || !this.world) return;
     var w = this.world, me = this.ctrl, L = (this.testLefts || []).filter(function (u) { return u.alive() && u.fac === me; }),
       E = w.units.filter(function (u) { return u.alive() && u.fac !== me; });
     if (!L.length || !E.length) return;
-    var cx = 0, cy = 0; E.forEach(function (u) { cx += u.x / E.length; cy += u.y / E.length; });
-    L.forEach(function (u) { if (u.t.ai >= 0) u.act = u.t.acts[u.t.ai]; });
-    this.sel = L.slice(); this.skill = null; this.cmdMode = null; this._groupMove(L, cx, cy, true); this._voice(L[0]);
+    var mid = function (G) { var c = [0, 0]; G.forEach(function (u) { c[0] += u.x / G.length; c[1] += u.y / G.length; }); return c; }, ce = mid(E), cl = mid(L);
+    L.concat(E).forEach(function (u) { if (u.t.ai >= 0) u.act = u.t.acts[u.t.ai]; });
+    E.forEach(function (u) { u.passive = false; u.order = null; });
+    this.sel = L.slice(); this.skill = null; this.cmdMode = null; this._groupMove(L, ce[0], ce[1], true); this._groupMove(E, cl[0], cl[1], true); this._voice(L[0]);
   };
   P.setGodAlly = function (on) { this.godAlly = on; if (this.world) this.world.invulnFac = this.mode === 'test' && on ? this.ctrl : null; };
   P.setMode = function (m) { this.mode = m; if (this.world) this.reset(); };
@@ -96,7 +99,7 @@ P._spawnTest = function (w) {
     var i = this.ctrl, mine = this.world.units.filter(function (u) { return u.fac === i && u.alive(); });
     if (mine.length) this.view.centerOn(mine[0].x, mine[0].y); else this.view.centerOn(this.starts[i][0], this.starts[i][1]);
   };
-  P.setFaction = function (i) { this.ctrl = i; this.sel = []; this.selB = null; if (this.world) this.world.manualHeal = i; this.cmdMode = null; this.bgm.set(i); if (this.hud) this.hud.setFaction(i); if (this.view) this.view.resetFog(i); if (this.world) this.focusFaction(); };
+  P.setFaction = function (i) { this.ctrl = i; this.sel = []; this.selB = null; this.watch = null; if (this.world) this.world.manualHeal = i; this.cmdMode = null; this.bgm.set(i); if (this.hud) this.hud.setFaction(i); if (this.view) this.view.resetFog(i); if (this.world) this.focusFaction(); };
   P.setAuto = function (on) {
     var w = this.world, M = this.map.M; this.auto = on; w.seekAll = on;
     w.units.forEach(function (u) { if (!u.alive()) return; if (on) w.orderMove(u, M / 2 + (w.rng.next() - .5) * 8, M / 2 + (w.rng.next() - .5) * 8, true); else w.orderFree(u); });
@@ -157,6 +160,9 @@ P._spawnTest = function (w) {
   };
   /* 초점 유닛: 선택 안에 살아 있으면 유지, 아니면 첫 유닛 */
   P._focus = function () { var f = this.focus; if (!f || !f.alive() || this.sel.indexOf(f) < 0) f = this.focus = this.sel[0] || null; return f; };
+  /* HUD에 보이는 유닛: 선택 중인 초점 유닛, 없으면 관찰 중인 적 유닛 (죽으면 관찰 해제) */
+  P._shown = function () { var f = this._focus(); if (f) return f; if (this.watch && !this.watch.alive()) this.watch = null; return this.watch; };
+  P._watchList = function () { return this.sel.length ? this.sel : (this._shown() ? [this.watch] : []); };
   /* 두 번 클릭 판정: 같은 대상(key)을 0.35초 안에 다시 누르면 true */
   P._dbl = function (key) { var now = performance.now(), L = this._lastClick, hit = L && L.key === key && now - L.t < 350; this._lastClick = hit ? null : { key: key, t: now }; return !!hit; };
   P._pos = function (e) { var r = this.cv.getBoundingClientRect(); return [(e.clientX - r.left) * (this.cv.width / r.width), (e.clientY - r.top) * (this.cv.height / r.height)]; };
@@ -168,7 +174,8 @@ P._spawnTest = function (w) {
       if (document.activeElement && document.activeElement !== document.body && document.activeElement.blur) document.activeElement.blur();   // 화면을 누르면 입력 칸에서 초점을 뺀다
       if (p[1] >= self.VH) {
         if (self.hud.inMini(p[0], p[1])) { self.drag = { mini: true }; self.hud.miniToCam(p[0], p[1]); return; }
-        if (self.hud.inPortrait(p[0], p[1]) && !self.selB) { var pf = self._focus(); if (pf) self.view.centerOn(pf.x, pf.y); return; }   // 초상화 클릭(한 번·두 번) → 그 유닛 위치로 화면 이동
+        if (self.hud.inPortrait(p[0], p[1]) && !self.selB) { var pf = self._shown(); if (pf) self.view.centerOn(pf.x, pf.y); return; }   // 초상화 클릭(한 번·두 번) → 그 유닛 위치로 화면 이동 (관찰 중인 적도)
+        if (!self.sel.length && !self.selB && self._shown()) return;   // 적 유닛을 보는 중: 명령 버튼은 그림일 뿐, 누를 수 없다
         if (self.sel.length > 1) { var gk = self.hud.groupAt(p[0], p[1], self.sel.length); if (gk >= 0) { var gu = self.sel[gk], gdbl = self._dbl('g' + gk); self.skill = null;
           if (e.shiftKey) { self.sel.splice(gk, 1); if (self.focus === gu) self.focus = self.sel[0] || null; return; }                 // Shift + 클릭 → 그 유닛만 선택에서 뺀다
           if (e.ctrlKey || e.metaKey || gdbl) { self.sel = self.sel.filter(function (x) { return x.t.id === gu.t.id; }); self.focus = gu; self._voice(gu); return; }   // 두 번 클릭·Ctrl + 클릭 → 같은 종류만 남긴다
@@ -201,18 +208,21 @@ P._spawnTest = function (w) {
       if (d.box) {
         var x0 = Math.min(d.x0, d.x1), x1 = Math.max(d.x0, d.x1), y0 = Math.min(d.y0, d.y1), y1 = Math.max(d.y0, d.y1);
         var pick = self.world.units.filter(function (u) { if (!u.alive() || !mine(u)) return false; var q = v.unitRect(u, self.world.rules.tps), cx = q[0] + q[2] / 2, cy = q[1] + q[3] * 0.6; return cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1; });   // 그림의 몸통 위치 기준
-        self.sel = d.add ? self.sel.concat(pick.filter(function (u) { return self.sel.indexOf(u) < 0; })) : pick; if (self.sel.length) self._voice(self.sel[0]); return;
+        var np = d.add ? self.sel.concat(pick.filter(function (u) { return self.sel.indexOf(u) < 0; })) : pick;
+        if (!np.length) return;                                                             // 빈 곳을 끌어도 선택은 그대로 둔다
+        self.sel = np; self.watch = null; self.selB = null; self._voice(self.sel[0]); return;
       }
       if (self.cmdMode) { self._command(d.x0, d.y0, self.cmdMode === 'move'); return; }
       var u = v.unitAt(self.world, d.x0, d.y0, mine);
-      if (!u) { var hb = v.buildingAt(self.world, d.x0, d.y0); if (hb) { var bs = hb.b.snd; if (bs && bs.length) self.sfx.play(bs[(self._vc = (self._vc || 0) + 1) % bs.length], 0.9); }
-        if (hb && !self.sel.length) { self.selB = hb; return; } if (hb && self.sel.length) { self.selB = hb; self.sel = []; return; } }
-      self.selB = null;
-      if (!u && !self.cmdMode) { if (!d.add) self.sel = []; return; }                 // 빈 땅 왼쪽 클릭 = 선택 해제 (이동은 우클릭·M)
-      if (u && (d.same || self._dbl('u' + u.t.id))) {                                   // 두 번 클릭·Ctrl + 클릭 → 화면에 보이는 같은 종류 아군 전부
+      if (!u) { var eu = v.unitAt(self.world, d.x0, d.y0, function (x) { return x.fac !== ctrl; });   // 적 유닛 클릭 = 관찰 (HUD에 상태·정보만, 명령 없음)
+        if (eu) { self.sel = []; self.selB = null; self.watch = eu; return; }
+        var hb = v.buildingAt(self.world, d.x0, d.y0); if (hb) { var bs = hb.b.snd; if (bs && bs.length) self.sfx.play(bs[(self._vc = (self._vc || 0) + 1) % bs.length], 0.9); self.selB = hb; self.sel = []; self.watch = null; return; } }
+      if (!u) return;                                                                       // 빈 땅 왼쪽 클릭 = 아무 일도 없음 (선택 유지, 해제는 Esc)
+      self.selB = null; self.watch = null;
+      if (d.same || self._dbl('u' + u.t.id)) {                                              // 두 번 클릭·Ctrl + 클릭 → 화면에 보이는 같은 종류 아군 전부
         var tps = self.world.rules.tps, same = self.world.units.filter(function (x) { if (!x.alive() || !mine(x) || x.t.id !== u.t.id) return false; var q = v.unitRect(x, tps), cx = q[0] + q[2] / 2, cy = q[1] + q[3] * 0.6; return cx >= 0 && cx <= v.vw && cy >= 0 && cy <= v.vh; });
         self.sel = d.add ? self.sel.concat(same.filter(function (x) { return self.sel.indexOf(x) < 0; })) : same; self.focus = u; self._voice(u); return; }
-      if (u) { if (d.add) { var k = self.sel.indexOf(u); if (k >= 0) self.sel.splice(k, 1); else self.sel.push(u); } else self.sel = [u]; if (self.sel.length) self._voice(self.sel[0]); return; }
+      if (d.add) { var k = self.sel.indexOf(u); if (k >= 0) self.sel.splice(k, 1); else self.sel.push(u); } else self.sel = [u]; if (self.sel.length) self._voice(self.sel[0]);
       self._command(d.x0, d.y0, false);
     });
     window.addEventListener('keydown', function (e) {
@@ -220,12 +230,12 @@ P._spawnTest = function (w) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       self.keys[e.key] = true; if (e.key.indexOf('Arrow') === 0) e.preventDefault();
       var kc = /^Key[A-Z]$/.test(e.code) ? e.code.charAt(3) : null;   // 한글 입력 상태와 상관없이 자판 위치로 (원본 단축키, hotkey.txt)
-      if (kc === 'A' && !self.selB) { var fa = self._focus(); if (fa && MWE.Hud.mergedAttack(fa.t)) self._button(5 + fa.t.ai); else self.cmdMode = 'amove'; }
-      if (kc === 'M' && !self.selB) self.cmdMode = 'move';
+      if (kc === 'A' && !self.selB && self.sel.length) { var fa = self._focus(); if (fa && MWE.Hud.mergedAttack(fa.t)) self._button(5 + fa.t.ai); else self.cmdMode = 'amove'; }   // 선택한 아군이 없으면(적 관찰 중 포함) 명령 모드로 들어가지 않는다
+      if (kc === 'M' && !self.selB && self.sel.length) self.cmdMode = 'move';
       if (kc === 'S') self.stopSel();
       if (kc && 'ASMHT'.indexOf(kc) < 0 && !self.selB && self._focus()) { var fk = self._focus(), ks = MWE.Hud.keys(fk.t), ki = ks.indexOf(kc); if (ki >= 0 && fk.t.icons[ki] >= 0) self._button(5 + ki); }   // 행동 단축키
       if (kc === 'T' && !self.selB && self._focus()) { var ft = self._focus(), ti = MWE.Hud.keys(ft.t).indexOf('T'); if (ti >= 0) self._button(5 + ti); }   // T: 순간 이동 (건물을 골랐을 때는 아래 퇴각)
-      if (e.key === 'Escape') { self.skill = null; self.cmdMode = null; self.sel = []; self.selB = null; }
+      if (e.key === 'Escape') { self.skill = null; self.cmdMode = null; self.sel = []; self.selB = null; self.watch = null; }
       if ((e.key === 'h' || e.key === 'H' || e.key === 'ㅗ') && self.world) self.sel.forEach(function (u) { u.t.sups.forEach(function (a) { if (a.sup === 'heal') self.world._cast(u, a, true); }); });   // H: 치유 (원본은 수동)
       if ((e.key === 't' || e.key === 'T' || e.key === 'ㅅ') && self.selB && self.selB.owner === self.ctrl) self.world.leave(self.selB);              // T: 건물 밖으로
     });
@@ -247,11 +257,11 @@ P._spawnTest = function (w) {
     if (this.aiOn && !this.auto && this.mode !== 'test') for (var ai = 0; ai < this.ais.length; ai++) if (ai !== this.ctrl) this.ais[ai].update(dt);
     if (this.infMana) this.world.units.forEach(function (u) { if (u.living()) u.mp = u.maxMp || 9999; });   // 전체 진영
     this.world.update(dt); this.view.time += dt;
-    this.view.draw(this.world, { selected: this.sel, focus: this._focus(), selB: this.selB, colors: this.colors, dragBox: this.drag && this.drag.box ? this.drag : null, paths: this.showPaths, me: this.ctrl, bars: this.bars });
+    this.view.draw(this.world, { selected: this._watchList(), focus: this._focus(), selB: this.selB, colors: this.colors, dragBox: this.drag && this.drag.box ? this.drag : null, paths: this.showPaths, me: this.ctrl, bars: this.bars });
     if (this.skill) { ctx.font = '12px "IBM Plex Sans KR",sans-serif'; var st = this.skill.name + ': ' + (this.skill.need === 'ground' ? '지점' : this.skill.dmg || this.skill.foe ? '적' : '아군') + ' 클릭 (우클릭 취소)'; ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(8, 8, ctx.measureText(st).width + 16, 22); ctx.fillStyle = '#ffd36e'; ctx.textBaseline = 'middle'; ctx.fillText(st, 16, 19); }
     else if (this.cmdMode) { ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(8, 8, 150, 22); ctx.fillStyle = '#ffd36e'; ctx.font = '12px "IBM Plex Sans KR",sans-serif'; ctx.textBaseline = 'middle';
       ctx.fillText(this.cmdMode === 'amove' ? '공격 이동: 목적지 클릭' : '이동: 목적지 클릭', 16, 19); }
-    this.hud.draw(this.world, { faction: this.ctrl, facName: this.factions[this.ctrl].name, colors: this.colors, selected: this.sel, focus: this._focus(), selB: this.selB, cmdMode: this.cmdMode, mouse: this.mouse, skill: this.skill });
+    this.hud.draw(this.world, { faction: this.ctrl, facName: this.factions[this.ctrl].name, colors: this.colors, selected: this.sel, focus: this._focus(), watch: this.sel.length ? null : this._shown(), selB: this.selB, cmdMode: this.cmdMode, mouse: this.mouse, skill: this.skill });
     this._cursor(mx, my);
   };
   /* 원본 마우스 커서(mouse.spr → sim-assets/mouse.*)를 캔버스 위에 그린다 (CSS 커서는 숨김). 묶음 배정은 목업 고유 — tools/mousebuild.js 주석 참고.

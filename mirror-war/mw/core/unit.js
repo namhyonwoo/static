@@ -9,6 +9,7 @@
     this.hp = d.hp; this.atk = d.atk; this.def = d.def; this.spd = d.spd;   // 필드 의미는 추정
     this.walkPx = d.walkPx || 6;        // 걷기 한 프레임의 가로 이동량(px) — unitNN.mwa의 이동량 표
     this.size = d.size || [14, 9];       // 원본 크기 사각형 반폭·반높이(픽셀) — unitdata +0x22/+0x24 (분석 8-31)
+    this.h = d.h || 48;                  // 그림 높이(픽셀) — unitdata +0x26. 부착 이펙트(베리어·실드)를 띄우는 기준 (FUN_004f7490, 분석 8-32)
     this.rad = Math.max(0.3, this.size[0] / 33);   // 목업 충돌 반지름(칸): 전사(14) 0.42 → 전사끼리 0.85칸, 엔트(30) 0.91 (목업 환산)
     this.sight = d.sight || 7;          // 시야(타일) — unitdata +0x34 (던전 지형에서 5로 제한되는 값)
     this.immune = !!d.immune;           // unitdata +0x54: 특수 효과(중독·마비·흡혈 등)를 받지 않음

@@ -215,6 +215,12 @@
       var wb = u.buffs.weapon;
       if (wb && wb.arm >= 0 && wb.until > world.time && u.alive() && this.fx) { var wd = this.fx.arms[wb.arm], wf = wd && (wd.fly.length ? wd.fly : wd.hit);
         if (wf && wf.length) this._sprite(this.fx.frames[wf[Math.floor(this.time * 15) % wf.length]], p[0], p[1], false, !wd.dir); }
+      /* 방어 강화(파운틴 베리어·이블 스피리츠 베리어·토네이도 실드·윈드 실드)도 같은 식으로 걸려 있는 동안 유닛을 따라다닌다.
+         원본 FUN_004f7490: 인스턴스 +0x2C = 이펙트 번호, +0x30 = 프레임 카운터. 7(파운틴)·0x2B(윈드 실드)는 발밑에서 그림 높이(+0x26)만큼 위,
+         0x13·0x23·0x29·0x4C는 높이의 절반 위에 그린다 (분석 8-32). */
+      var sb = u.buffs.shield;
+      if (sb && sb.arm >= 0 && sb.until > world.time && u.alive() && this.fx) { var sd = this.fx.arms[sb.arm], sf = sd && (sd.fly.length ? sd.fly : sd.hit), sh = u.t.h || 48;
+        if (sf && sf.length) this._sprite(this.fx.frames[sf[Math.floor(this.time * 15) % sf.length]], p[0], p[1] - (sb.arm === 7 || sb.arm === 43 ? sh : sh >> 1), false, !sd.dir); }
       /* 체력·마나 바. 그림·색·폭·채움 식은 원본 그대로 (FUN_004f7cf0, 분석 8-27): bar.spr 틀, 종류별 폭(+0x100),
          체력은 초록·폭의 1/3 이하면 빨강, 마나 바는 마나가 있는 내 유닛만 6픽셀 아래, 오른쪽에 레벨 숫자(helpnum.mwl).
          위치와 표시 조건은 목업 고유: 원본은 발밑(+0x102)에 선택한 유닛만 그리지만, 여기서는 잘 보이도록 머리 위에 두고
