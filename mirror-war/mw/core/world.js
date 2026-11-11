@@ -58,7 +58,7 @@
     else if (!b.order && b.state === 'idle' && a.alive() && !b.passive) b.tgt = a;
   };
   P._slay = function (a, b) {
-    b.hp = 0; b.state = 'dead'; b.at = 0; b.deadT = 0; b.order = null; b.path = null; b.buffs = {}; this.events.emit('death', b, a);
+    b.hp = 0; b.state = 'dead'; b.at = 0; b.deadT = 0; b.order = null; b.path = null; b.buffs = {}; b.tp = null; this.events.emit('death', b, a);
     if (a && a !== b && a.alive() && a.gainExp(this.rules.killExp(a, b))) this.events.emit('levelup', a);
   };
   /* 타격: 범위 행동이면 대상 주변의 적 모두에게 */
@@ -75,6 +75,7 @@
   var MORPH = { 23: 77, 77: 23, 65: 79, 79: 65, 35: 46, 63: 46, 28: 78 };   // 엔트↔지상 엔트, 가고일↔석상, 흡혈귀→박쥐, 해골전사→본월 (unitdata 77~79)
   P._cast = function (u, a, manual, forced) {
     var R = this.rules, L = this.units, j, o, rng = R.supRange(a), tgt = null, best = 1e9;
+    if (a.sup === "teleport" || a.sup === "recall" || a.sup === "massheal") return false;   // 땅을 지정하는 행동: orderCast → _teleportCast / _recall / _massHeal (자동 보조로 쓰지 않는다)
     if (u.mp < a.mana || u.cd > 0 || !u.alive()) return false;
     if (forced) { if (!forced.alive() && a.sup !== "raise") return false; if (a.foe && (forced.t.immune || (a.sup === "assassin" && forced.t.fly === 2))) return false; tgt = forced; } else
     if (a.sup === "heal") { for (j = 0; j < L.length; j++) { o = L[j]; if (o.fac !== u.fac || !o.alive() || o.hp >= o.maxHp * (manual ? 1 : 0.75)) continue; var d = u.distTo(o), r = o.hp / o.maxHp; if (d <= rng && r < best) { best = r; tgt = o; } } }
@@ -101,7 +102,6 @@
       for (j = 0; j < L.length; j++) { o = L[j]; if (o.fac !== u.fac || !o.alive() || o === u || want.indexOf(o.t.id) < 0 || o.buffs.charm) continue; var dm = u.distTo(o); if (dm < md) { md = dm; mate = o; } }
       if (!mate) return false; u.mp -= 30; var keep = mate.level > u.level ? mate : u, gone = keep === u ? mate : u;
       gone.state = 'dead'; gone.deadT = 99; gone.hp = 0; keep.x = u.x; keep.y = u.y; keep.origType = null; keep.setType(this.typeOf(u.t.id === 32 ? 33 : 34)); keep.hp = keep.maxHp; keep.mp = Math.floor(keep.maxMp / 3); keep.buffs = {}; tgt = keep; }
-    else if (a.sup === "teleport") u.blink = a;                                        // 다음 이동 명령 때 그 자리로 순간이동
     else if (a.sup === "sight") { /* 화면 쪽에서 cast 사건을 받아 안개를 걷는다 */ }
     else { tgt.buffs[a.sup] = { k1: a.k1, k2: a.k2, arm: a.arm, until: a.sup === "hide" ? 1e12 : this.time + R.supDuration(a), orig: tgt.fac, block: a.sup === "shield" && a.arm < 0 };   // block: 방패 막기(이펙트 없는 자기 방어) — 막기 자세를 취한다
       if (tgt.buffs[a.sup].block) tgt.blockT = 0;
@@ -110,9 +110,9 @@
     this.events.emit("cast", u, tgt, a); return true;
   };
   /* 대상을 지정한 시전 명령: 사거리 밖이면 다가가서 쓴다. 순간이동은 지정한 땅으로 바로 */
-  P.orderCast = function (u, a, target, x, y) {
+  P.orderCast = function (u, a, target, x, y, skip) {
     if (!u.alive() || !a) return;
-    if (a.sup === "teleport") { if (u.mp < a.mana) return; u.mp -= a.mana; var p = this.map.nearestWalkable(this.map.clamp(x), this.map.clamp(y), u.t.moveClass); u.x = p[0]; u.y = p[1]; u.order = null; u.path = null; u.cd = (a.delay + 10) / this.rules.tps; this.events.emit("cast", u, u, a); return; }
+    if (a.sup === "teleport") { this._teleportCast(u, a, this.map.clamp(x), this.map.clamp(y), skip); return; }
     u.order = { type: 'cast', a: a, target: target, x: x, y: y }; u.tgt = null; u.path = null;
   };
   /* 지점 범위 타격: (x,y) 주변의 적 모두에게 행동 a의 피해. 자기 주변 공격도 이것으로 */
@@ -142,6 +142,64 @@ P._blast = function (u, a, x, y) {
         if (a.sup === 'charm') { o.fac = u.fac; o.order = null; o.tgt = null; o.path = null; } self.events.emit('cast', u, o, a); });
       return n > 0; }
     return this._cast(u, a, true);
+  };
+  /* ---- 순간이동·리콜·말다 소환 (원본 해독, 분석 8-29) ----
+     원본 거리 (FUN_004d9860, FUN_004b9590 case 0x38·0x3a): 화면 픽셀 차 dx, dy로
+     dy*2 < dx 이면 dx*10 + dy*8, 아니면 dx*4 + dy*20. 행동 +0x2A(range)·armData +0x3C(r)과 비교한다. */
+  P.origDist = function (ax, ay, bx, by) {
+    var m = this.map, p = m.t2w(ax, ay), q = m.t2w(bx, by), dx = Math.abs(p[0] - q[0]), dy = Math.abs(p[1] - q[1]);
+    return dy * 2 < dx ? dx * 10 + dy * 8 : dx * 4 + dy * 20;
+  };
+  /* 함께 옮길 수 있는 아군인가: 살아 있고, 건물 안·순간이동 중·변형 형태(77~79)가 아니고, 이동 등급이 상한 이하 */
+  P._tpOk = function (o, fac, lim) { return o.fac === fac && o.alive() && !o.tp && !(o.t.id >= 77 && o.t.id <= 79) && o.t.fly <= lim; };
+  /* 순간이동 상태로 들어간다. arm = 출발 지점 이펙트 칸 (3 또는 21) */
+  P._teleport = function (o, x, y, arm) {
+    o.tp = { f: 0, x: x, y: y, sx: o.x, sy: o.y, arm: arm, moved: false }; o.order = null; o.tgt = null; o.path = null; o.state = 'idle'; o.blockT = 0;
+    this.events.emit('teleport', o, arm);
+  };
+  /* 순간이동 진행 (FUN_004eb200): 원본 게임 틱마다 +1, 16틱째에 목적지로 옮기고 80틱째에 끝난다.
+     그리기(FUN_004f5370): 0~16틱 사라짐, 16~80틱 나타남, 0~15틱 출발 지점에 이펙트 */
+  P._tpStep = function (u) {
+    var tp = u.tp; tp.f += this._gt || 0; u.state = 'idle';
+    if (!tp.moved && tp.f >= 16) { var p = this.map.nearestWalkable(this.map.clamp(tp.x), this.map.clamp(tp.y), u.t.moveClass); u.x = p[0]; u.y = p[1]; tp.moved = true; this.events.emit('blink', u); }
+    if (tp.f >= 80) u.tp = null;
+  };
+  /* 텔레포테이션·셀프 텔레포테이션·라이딩 이블 스피리츠 (FUN_004d9860): 시전자와, 시전자 주변(행동 range 안)의 아군이
+     지정한 지점으로 대형을 유지한 채 함께 간다. 셀프는 range 15라 사실상 혼자. 라이딩은 이펙트 21, 나머지는 3.
+     skip: 같은 명령으로 직접 순간이동하는 다른 시전자 (원본: 선택된 유닛 중 마나가 되는 순간이동 보유자는 제외) */
+  P._teleportCast = function (u, a, x, y, skip) {
+    if (!u.alive() || u.tp || u.mp < a.mana) return false;
+    var arm = a.id === 36 ? 21 : 3, self = this, L = this.units;
+    u.mp -= a.mana; u.cd = (a.delay + 10) / this.rules.tps;
+    var go = [];
+    for (var i = 0; i < L.length; i++) { var o = L[i];
+      if (o !== u && (!this._tpOk(o, u.fac, a.kind) || (skip && skip.indexOf(o) >= 0 && o.mp >= a.mana))) continue;
+      if (o === u || this.origDist(o.x, o.y, u.x, u.y) <= a.range) go.push(o); }
+    go.forEach(function (o) { self._teleport(o, x + (o.x - u.x), y + (o.y - u.y), arm); });
+    this.events.emit('cast', u, u, a); return true;
+  };
+  /* 팔라니아 소환 = 리콜 (FUN_004b9590 case 0x3a, 이펙트 칸 58): 지정한 지점 주변(armData[58] +0x3C = 2000)의 아군을
+     대형을 유지한 채 시전자 곁으로 순간이동시킨다(상태 0xF, 이펙트 3). 시전자는 움직이지 않고 피해는 없다. */
+  P._recall = function (u, a, x, y) {
+    if (u.mp < a.mana || u.cd > 0 || !u.alive()) return false;
+    var A = this.rules.arms && this.rules.arms[a.arm] || {}, r = A.r || 2000, lim = A.lim != null ? A.lim : 2, L = this.units, self = this, go = [];
+    u.mp -= a.mana; u.cd = (a.delay + 10) / this.rules.tps; u.face(x - u.x, y - u.y);
+    for (var i = 0; i < L.length; i++) { var o = L[i]; if (o !== u && this._tpOk(o, u.fac, lim) && this.origDist(o.x, o.y, x, y) <= r) go.push(o); }
+    go.forEach(function (o) { self._teleport(o, u.x + (o.x - x), u.y + (o.y - y), 3); });
+    this.events.emit('cast', u, { x: x, y: y, t: { alt: 0 } }, a); return true;
+  };
+  /* 말다 소환 (FUN_004b9590 case 0x38, 이펙트 칸 56): 지정한 지점 주변(armData[56] +0x3C = 2000) 아군의 체력 +1000(최대치까지)과
+     상태 이상 해제(석화·감속·중독·약화 계열). 피해는 없다. 원본은 유닛 +0x20·+0x24·+0x2C·+0x34·+0x3C·+0x40·+0x4A 상태를 지운다 —
+     목업 버프와의 대응은 추정 */
+  P._massHeal = function (u, a, x, y) {
+    if (u.mp < a.mana || u.cd > 0 || !u.alive()) return false;
+    var A = this.rules.arms && this.rules.arms[a.arm] || {}, r = A.r || 2000, lim = A.lim != null ? A.lim : 2, L = this.units;
+    u.mp -= a.mana; u.cd = (a.delay + 10) / this.rules.tps; u.face(x - u.x, y - u.y);
+    for (var i = 0; i < L.length; i++) { var o = L[i];
+      if (o.fac !== u.fac || !o.alive() || o.t.fly > lim || this.origDist(o.x, o.y, x, y) > r) continue;
+      o.hp = Math.min(o.maxHp, o.hp + 1000);
+      ['stone', 'slow', 'poison', 'melt', 'meltw', 'melta'].forEach(function (k) { delete o.buffs[k]; }); }
+    this.events.emit('cast', u, { x: x, y: y, t: { alt: 0 } }, a); return true;
   };
   P._support = function (u) {
     var S = u.t.sups; for (var i = 0; i < S.length; i++) { if (S[i].sup === "heal" && u.fac === this.manualHeal) continue; if (this._cast(u, S[i], false)) return true; }
@@ -206,6 +264,7 @@ P._blast = function (u, a, x, y) {
       var bc = u.buffs.charm; if (bc && bc.until <= this.time) { u.fac = bc.orig; u.order = null; u.tgt = null; delete u.buffs.charm; }
       if (u.buffs.stone && u.buffs.stone.until > this.time && u.state !== 'attack') { u.state = 'idle'; continue; }   // 석화: 움직이지 못함
       if (u.mp < u.maxMp) u.mp = Math.min(u.maxMp, u.mp + R.manaRegen(u) * DT);
+      if (u.tp) { this._tpStep(u); continue; }                                         // 순간이동 중: 아무것도 하지 않는다 (FUN_004eb200)
       if (this._gt) {                                                                  // 게임 틱 단위 효과 (FUN_00454580, FUN_004516c0)
         var ps = u.buffs.poison; if (ps) { if (ps.until <= this.time) delete u.buffs.poison; else if (this.gtick % 2 === 0 && u.hp > 1) u.hp--; }   // 중독: 2틱마다 −1, 1 밑으로는 안 내려감
         if (u.t.regen && u.hp < u.maxHp && this.gtick % 16 === 0) u.hp++;             // 무도가·도사: 16틱마다 +1
@@ -245,7 +304,8 @@ P._blast = function (u, a, x, y) {
       } else if (o && o.type === 'cast') {
         var ct = o.target;
         if (!ct && o.x != null) {                                                       // 땅을 지정한 범위 행동
-          if (Math.hypot(o.x - u.x, o.y - u.y) <= Math.max(1.5, Math.min(12, o.a.range / 10 / 45.25))) { u.state = 'idle'; u.path = null; if (u.cd <= 0) { this._blast(u, o.a, o.x, o.y); u.order = null; } }
+          if (o.a.sup === 'recall' || Math.hypot(o.x - u.x, o.y - u.y) <= Math.max(1.5, Math.min(12, o.a.range / 10 / 45.25))) { u.state = 'idle'; u.path = null;   // 리콜은 사거리 65535 = 어디든 (걸어가지 않는다)
+            if (u.cd <= 0) { if (o.a.sup === 'recall') this._recall(u, o.a, o.x, o.y); else if (o.a.sup === 'massheal') this._massHeal(u, o.a, o.x, o.y); else this._blast(u, o.a, o.x, o.y); u.order = null; } }
           else this._moveToward(u, o.x, o.y);
         }
         else if (!ct || (!ct.alive() && o.a.sup !== 'raise')) { u.order = null; u.state = 'idle'; }

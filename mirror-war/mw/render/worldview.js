@@ -118,7 +118,7 @@
     for (var i = 0; i < list.length; i++) {
       var it = list[i], u = it.u;
       if (it.b) { var f0 = BF[it.b.f[0]], cp = this.toScreen(it.c[0], it.c[1]); this._cast(c, bimg, f0, Math.round(cp[0]), Math.round(cp[1]), Math.round(it.x - f0[4] - cp[0]), Math.round(it.y - f0[5] - cp[1]), false); n++; continue; }
-      if (!u || u.t.fly === 2 || !u.alive()) continue;
+      if (!u || u.t.fly === 2 || !u.alive() || u.tp) continue;   // 순간이동 중에는 그림자 없음
       var fi = u.frameIndex(tps), f = fi >= 0 ? u.t.frames[fi] : null, im = A.get((f && f[6]) || ('u' + u.t.id)); if (!f || !im) continue;
       this._cast(c, im, f, Math.round(it.p[0]), Math.round(it.p[1]), -f[4], -f[5], u.mir); n++;
     }
@@ -127,7 +127,7 @@
   P._airShadows = function (world, list, opts) {
     var ctx = this.ctx, A = this.assets, HB = root.MW && root.MW.hpbar, tps = world.rules.tps, c = this._shadowLayer(), n = 0, i, u, p;
     for (i = 0; i < list.length; i++) {
-      u = list[i].u; if (!u || u.t.fly !== 2 || !u.alive()) continue;
+      u = list[i].u; if (!u || u.t.fly !== 2 || !u.alive() || u.tp) continue;
       p = list[i].p; var fi = u.frameIndex(tps), f = fi >= 0 ? u.t.frames[fi] : null, im = A.get((f && f[6]) || ('u' + u.t.id)); if (!f || !im) continue;
       this._cast(c, im, f, Math.round(p[0]), Math.round(p[1]), -f[4], -f[3], u.mir); n++;                        // 아랫변을 지면 좌표에
     }
@@ -202,9 +202,13 @@
       var f = u.t.frames[fi];
       ctx.save();
       if (u.state === 'dead') ctx.globalAlpha = Math.max(0, Math.min(1, (7 - u.deadT) / 2));
+      else if (u.tp) ctx.globalAlpha = Math.max(0, Math.min(32, u.tp.f <= 16 ? (16 - u.tp.f) * 2 : (u.tp.f - 16) / 2)) / 32;   // 순간이동: 16틱 사라짐 → 64틱 나타남 (FUN_004f5370, 32단계)
       ctx.translate(Math.round(p[0]), Math.round(p[1] - alt)); if (u.mir) ctx.scale(-1, 1);
       ctx.drawImage(A.get(f[6] || ('u' + u.t.id)), f[0], f[1], f[2], f[3], -f[4], -f[5], f[2], f[3]);
       ctx.restore();
+      /* 순간이동 이펙트 (FUN_004f5370): 상태 틱 0~15 동안 출발 지점 바닥에 이펙트(유닛 +0xF6 = 칸 3 또는 21)를 틱 번호로 고른 그림으로 */
+      if (u.tp && u.tp.f < 16 && this.fx) { var td = this.fx.arms[u.tp.arm], ts = td && (td.seq || td.hit);
+        if (ts && ts.length) { var tq = this.toScreen(u.tp.sx, u.tp.sy); this._sprite(this.fx.frames[ts[Math.floor(u.tp.f) % ts.length]], tq[0], tq[1], false, !td.dir); } }
       /* 웨폰 계열 강화(파이어·매직·아이스·다크 웨폰): 걸려 있는 동안 이펙트가 발밑에서 계속 돌고 유닛을 따라다닌다.
          매 프레임 유닛의 발밑 좌표에 다시 그리므로 이동과 함께 움직인다. 원본도 유닛마다 발밑 좌표에 그린다
          (FUN_004f7490: 인스턴스 +0x34 = 이펙트 번호, +0x38 = 프레임 카운터). */

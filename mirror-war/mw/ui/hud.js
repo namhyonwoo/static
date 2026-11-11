@@ -25,7 +25,7 @@
     if (!s0) return null;
     if (c === 4) return s0.origType ? '원래 모습으로' : null;
     var a = s0.t.acts[c - 5]; if (!a) return null;
-    var KIND = { heal: '치유', weapon: '무기 강화', shield: '방어', berserk: '광폭화', haste: '가속', slow: '감속', stone: '석화', charm: '매혹', melt: '약화·해제', assassin: '암살', hide: '은신', teleport: '순간이동', sight: '시야', morph: '변형', copy: '변신', raise: '시체 소환', merge: '합체' };
+    var KIND = { heal: '치유', weapon: '무기 강화', shield: '방어', berserk: '광폭화', haste: '가속', slow: '감속', stone: '석화', charm: '매혹', melt: '약화·해제', assassin: '암살', hide: '은신', teleport: '순간이동', sight: '시야', morph: '변형', copy: '변신', raise: '시체 소환', merge: '합체', recall: '리콜', massheal: '광역 치유' };
     return a.name + ' — ' + (a.dmg ? (a.aoe ? '범위 공격' : '공격') : (KIND[a.sup] || '사용 불가')) + (a.mana ? ', 마나 ' + a.mana : '') + (a.need === 'none' ? ' · 즉시' : a.need === 'ground' ? ' · 지점 지정' : a.need === 'unit' ? ' · 대상 지정' : '');
   };
 /* 스킬 수치 한 줄: 해독한 행동 데이터에서 */

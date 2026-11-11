@@ -44,6 +44,9 @@
     this.ais = [0, 1, 2].map(function (fc) { return new MWE.SimpleAI(w, fc); });
     w.events.on('cast', function (u, t, a) { if (a.sup === 'sight' && u.fac === self.ctrl) self.view.reveal(u.x, u.y, 22, (a.dur || 400) / 40); if (a.arm >= 0 && a.sup !== 'weapon') self.view.addEffect(t.x, t.y, t.t.alt + 20, a.arm); self.sfx.play(a.snd, self._vol(u)); });   // 웨폰 계열은 걸린 유닛 발밑에서 계속 그린다 (worldview)
     w.events.on('impact', function (b, arm, a) { if (arm >= 0) self.view.addEffect(b.x, b.y, b.t.alt + 20, arm); if (a.act) self.sfx.play(a.act.snd2, self._vol(b)); });
+    w.events.on('teleport', function (u, arm) { if (u.fac === self.ctrl && u.tp) self.view.reveal(u.tp.x, u.tp.y, 6, 2);   // 순간이동 소리 (FUN_004eb200 1틱째): 라이딩(21)은 행동 36, 도사·의적은 행동 12, 그 밖은 행동 18의 소리
+      var tA = self.data.units.reduce(function (z, d) { return z || d.acts.filter(function (x) { return x && x.id === (arm === 21 ? 36 : (u.t.id === 9 || u.t.id === 10) ? 12 : 18); })[0]; }, null);
+      if (tA && self.view.time - (self._tpSnd || -9) > 0.15) { self._tpSnd = self.view.time; self.sfx.play(tA.snd, self._vol(u)); } });
     w.events.on('strike', function (u) { if (u.act) self.sfx.play(u.act.snd, self._vol(u)); });
     w.events.on('death', function (u) { self.sfx.play(u.t.snd.die, self._vol(u)); });
     w.events.on('produced', function (u) { if (u.fac === self.ctrl) self.sfx.play(u.t.snd.ready, 0.9); });
@@ -103,7 +106,7 @@ P._spawnTest = function (w) {
   /* 대상 지정 스킬 사용: 피해 행동 → 그 행동으로 대상 공격, 보조 행동 → 대상에게 시전, 순간이동 → 그 땅으로 */
   P._useSkill = function (sx, sy) {
     var a = this.skill, w = this.world, ctrl = this.ctrl, us = this.sel.filter(function (x) { return x.t.acts.indexOf(a) >= 0; }), u = us[0]; this.skill = null; if (!a || !u) return;   // 선택한 유닛 중 이 행동을 가진 유닛 모두
-    if (a.sup === 'teleport') { var g = this.view.groundAt(sx, sy); us.forEach(function (x) { w.orderCast(x, a, null, g[0], g[1]); }); this.view.addMark(g[0], g[1]); return; }
+    if (a.sup === 'teleport') { var g = this.view.groundAt(sx, sy); us.forEach(function (x) { w.orderCast(x, a, null, g[0], g[1], us); }); this.view.addMark(g[0], g[1]); return; }   // us: 같이 시전하는 유닛은 남의 순간이동에 끌려가지 않는다
     var gp = this.view.groundAt(sx, sy);
     if (a.need === 'ground') { us.forEach(function (x) { w.orderCast(x, a, null, gp[0], gp[1]); }); this.view.addMark(gp[0], gp[1]); this._voice(u); return; }   // 지점 범위 행동
     var foe = a.dmg || a.foe, ok = function (x) { return foe ? x.fac !== ctrl : x.fac === ctrl; }, t = this.view.unitAt(w, sx, sy, ok);
