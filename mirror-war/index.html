@@ -40,7 +40,7 @@ h1{margin:0;font-size:clamp(24px,5vw,34px);font-weight:700;letter-spacing:-.015e
 .lede{margin:0;max-width:62ch;color:var(--ink-soft);}
 
 .stagewrap{background:#000;border:1px solid var(--line);border-radius:4px;overflow:hidden;display:flex;justify-content:center;}
-#stage{display:block;width:100%;height:auto;max-width:800px;image-rendering:pixelated;cursor:crosshair;touch-action:none;}
+#stage{display:block;width:100%;height:auto;max-width:800px;image-rendering:pixelated;cursor:none;touch-action:none;}   /* 커서는 원본 mouse.spr를 캔버스에 그린다 (mw/modes/rts.js _cursor) */
 
 .bar{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;}
 .bar .lbl{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);}
@@ -173,7 +173,8 @@ input[type=number]{width:64px;}
 
 <div class="hint" data-mode="battle">
   <span><b>클릭·드래그</b> 선택</span>
-  <span><b>빈 땅 클릭 / 우클릭</b> 이동</span>
+  <span><b>빈 땅 클릭</b> 선택 해제</span>
+  <span><b>우클릭</b> 이동</span>
   <span><b>적 클릭 / 우클릭</b> 공격</span>
   <span><b>M 뒤 클릭</b> 이동</span>
   <span><b>A 뒤 클릭</b> 공격 이동</span>
@@ -245,6 +246,7 @@ input[type=number]{width:64px;}
 <script src="sim/data.js"></script>
 <script src="sim/hpbar.js"></script>
 <script src="sim/block.js"></script>
+<script src="sim/mouse.js"></script>
 <script src="mw/core/base.js"></script>
 <script src="mw/core/gamemap.js"></script>
 <script src="mw/core/pathfinder.js"></script>

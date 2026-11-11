@@ -9,7 +9,7 @@
     this.data = data; this.factions = opts.factions; this.colors = opts.factions.map(function (f) { return f.col; });
     this.startSlots = opts.startSlots; this.VW = 800; this.VH = 448;
     this.assets = new MWE.Assets(opts.base);
-    ['tiles', 'minimap', 'objs', 'blds', 'arms', 'acticons', 'movemark', 'hpbar', 'block', 'hud0', 'hud1', 'hud2', 'portraits', 'figs', 'icons'].forEach(function (k) { this.assets.load(k, k + '.png'); }, this);
+    ['tiles', 'minimap', 'objs', 'blds', 'arms', 'acticons', 'movemark', 'hpbar', 'block', 'mouse', 'hud0', 'hud1', 'hud2', 'portraits', 'figs', 'icons'].forEach(function (k) { this.assets.load(k, k + '.png'); }, this);
     data.units.forEach(function (u) { this.assets.load('u' + u.id, u.img); }, this);
     this.types = data.units.map(function (d) { return new MWE.UnitType(d); });
     this.maps = { battle: new MWE.GameMap(data.map), test: new MWE.GameMap(data.map2) };   // 전장(콜로세움)과 1:n 시험장(2인 맵의 평지)
@@ -208,6 +208,7 @@ P._spawnTest = function (w) {
       if (!u) { var hb = v.buildingAt(self.world, d.x0, d.y0); if (hb) { var bs = hb.b.snd; if (bs && bs.length) self.sfx.play(bs[(self._vc = (self._vc || 0) + 1) % bs.length], 0.9); }
         if (hb && !self.sel.length) { self.selB = hb; return; } if (hb && self.sel.length) { self.selB = hb; self.sel = []; return; } }
       self.selB = null;
+      if (!u && !self.cmdMode) { if (!d.add) self.sel = []; return; }                 // 빈 땅 왼쪽 클릭 = 선택 해제 (이동은 우클릭·M)
       if (u && (d.same || self._dbl('u' + u.t.id))) {                                   // 두 번 클릭·Ctrl + 클릭 → 화면에 보이는 같은 종류 아군 전부
         var tps = self.world.rules.tps, same = self.world.units.filter(function (x) { if (!x.alive() || !mine(x) || x.t.id !== u.t.id) return false; var q = v.unitRect(x, tps), cx = q[0] + q[2] / 2, cy = q[1] + q[3] * 0.6; return cx >= 0 && cx <= v.vw && cy >= 0 && cy <= v.vh; });
         self.sel = d.add ? self.sel.concat(same.filter(function (x) { return self.sel.indexOf(x) < 0; })) : same; self.focus = u; self._voice(u); return; }
@@ -251,6 +252,23 @@ P._spawnTest = function (w) {
     else if (this.cmdMode) { ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(8, 8, 150, 22); ctx.fillStyle = '#ffd36e'; ctx.font = '12px "IBM Plex Sans KR",sans-serif'; ctx.textBaseline = 'middle';
       ctx.fillText(this.cmdMode === 'amove' ? '공격 이동: 목적지 클릭' : '이동: 목적지 클릭', 16, 19); }
     this.hud.draw(this.world, { faction: this.ctrl, facName: this.factions[this.ctrl].name, colors: this.colors, selected: this.sel, focus: this._focus(), selB: this.selB, cmdMode: this.cmdMode, mouse: this.mouse, skill: this.skill });
+    this._cursor(mx, my);
+  };
+  /* 원본 마우스 커서(mouse.spr → sim-assets/mouse.*)를 캔버스 위에 그린다 (CSS 커서는 숨김). 묶음 배정은 목업 고유 — tools/mousebuild.js 주석 참고.
+     (mx,my): 이번 프레임의 가장자리 스크롤 방향 */
+  P._cursor = function (mx, my) {
+    var m = this.mouse, MC = root.MW && root.MW.mouse, im = this.assets.get('mouse'); if (!m.inside || !MC || !im) return;
+    var G = MC.groups, g = G.normal, w = this.world, v = this.view;
+    if ((mx || my) && m.near && !this.drag && (m.gx < 36 || m.gx > this.cv.width - 36 || m.gy < 36 || m.gy > this.cv.height - 10))
+      g = my < 0 ? (mx > 0 ? G.sUR : mx < 0 ? G.normal : G.sU) : my > 0 ? (mx > 0 ? G.sDR : mx < 0 ? G.sDL : G.sD) : (mx > 0 ? G.sR : G.sL);
+    else if (m.y < this.VH && w && !(this.drag && this.drag.box)) {
+      if (this.skill) g = this.skill.dmg || this.skill.foe ? G.gAttack : G.gSkill;
+      else if (this.cmdMode) g = this.cmdMode === 'amove' ? G.gAttack : G.gMove;
+      else { var ctrl = this.ctrl, hu = v.unitAt(w, m.x, m.y, function (x) { return x.alive(); });
+        if (hu) g = hu.fac === ctrl ? G.ally : G.enemy; else if (v.buildingAt(w, m.x, m.y)) g = G.building; }
+    }
+    var f = MC.frames[g[Math.floor(this.view.time * 10) % g.length]];
+    this.ctx.drawImage(im, f[0], f[1], f[2], f[3], Math.round(m.x - f[4]), Math.round(m.y - f[5]), f[2], f[3]);
   };
   MWE.RtsGame = RtsGame;
 })(window);
