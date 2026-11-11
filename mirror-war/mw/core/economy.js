@@ -11,8 +11,12 @@
   'use strict';
   var MWE = root.MWE, P = MWE.World.prototype;
 
-  P.orderEnter = function (u, b) { if (u.alive() && u.t.fly !== 2 && !u.buffs.charm) { u.order = { type: 'enter', b: b }; u.tgt = null; u.path = null; } };
-  P.canEnter = function (u, b) { return u.t.fly !== 2 && !u.buffs.charm && (b.owner === u.fac || b.claim === u.fac || b.inside.length === 0); };
+  /* 건물 점령 기능 스위치 (2026-11-11 사용자 요청으로 잠시 끔 — 나중에 점령 기능을 따로 다듬을 예정).
+     false면 자기 소유가 아닌 건물에는 들어갈 수 없다(시작할 때 모든 건물이 중립이라 사실상 진입·점령·생산이 모두 꺼짐).
+     true로 바꾸면 아래 원본 규칙대로 다시 동작한다. */
+  P.captureOn = false;
+  P.orderEnter = function (u, b) { if (!this.captureOn && b.owner !== u.fac) return; if (u.alive() && u.t.fly !== 2 && !u.buffs.charm) { u.order = { type: 'enter', b: b }; u.tgt = null; u.path = null; } };
+  P.canEnter = function (u, b) { return u.t.fly !== 2 && !u.buffs.charm && (b.owner === u.fac || (this.captureOn && (b.claim === u.fac || b.inside.length === 0))); };
 /* 건물 진입 (FUN_004ccd60). 중립 건물은 진영별 자원 한 가지를 내야 한다: 해방부대 금, 악령군 사람(민간인→전사형→마법사형), 흑마술파 젬.
      남의 건물은 비어 있으면 무료. 들어간 뒤 점령 시간(b.capT, 틱)이 0이 되어야 소유가 넘어온다. */
   P.captureCost = function (fac, b) { var c = b.b.cap; return fac === 0 ? [0, 0, 0, c.gold, 0] : fac === 2 ? [0, 0, 0, 0, c.gem] : [c.pop, 0, 0, 0, 0]; };

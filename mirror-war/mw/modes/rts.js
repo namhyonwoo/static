@@ -105,13 +105,14 @@ P._spawnTest = function (w) {
   };
   P.stopSel = function () { var w = this.world; this.sel.forEach(function (u) { w.orderStop(u); }); this.cmdMode = null; };
 
-  /* 부대 이동 (목업 고유): 목적지 주변에 1.1칸 간격 격자 칸을 만들고, 지금 대형에서의 상대 위치가 가장 가까운 칸부터
+  /* 부대 이동 (목업 고유): 목적지 주변에 1.1칸(큰 유닛이 있으면 그 크기만큼 넓힌) 간격 격자 칸을 만들고, 지금 대형에서의 상대 위치가 가장 가까운 칸부터
      짝지어 준다(욕심쟁이 배정) — 유닛들이 서로 엇갈려 지나가지 않게. 막혔을 때 도착으로 칠 거리는 부대 크기에 맞춘다. */
   P._groupMove = function (us, gx, gy, am) {
     var w = this.world, n = us.length; if (!n) return;
-    if (n === 1) { w.orderMove(us[0], gx, gy, am); return; }
-    var cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols), S = [], i, j, cx = 0, cy = 0;
-    for (i = 0; i < n; i++) S.push([((i % cols) - (cols - 1) / 2) * 1.1, (Math.floor(i / cols) - (rows - 1) / 2) * 1.1]);
+    if (n === 1) { var d1 = w.map.nearestWalkable(w.map.clamp(gx), w.map.clamp(gy), us[0].t.moveClass); w.orderMove(us[0], d1[0], d1[1], am); return; }   // 건물 위 등 못 서는 곳을 누르면 가장 가까운 설 수 있는 곳으로
+    var cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols), S = [], i, j, cx = 0, cy = 0, gap = 1.1;
+    us.forEach(function (u) { if (u.t.fly !== 2) gap = Math.max(gap, u.t.rad * 2 + 0.25); });   // 큰 유닛(엔트 등)이 있으면 칸 간격을 넓힌다
+    for (i = 0; i < n; i++) S.push([((i % cols) - (cols - 1) / 2) * gap, (Math.floor(i / cols) - (rows - 1) / 2) * gap]);
     us.forEach(function (u) { cx += u.x / n; cy += u.y / n; });
     var P = []; for (i = 0; i < n; i++) for (j = 0; j < n; j++) P.push([Math.hypot(us[i].x - cx - S[j][0], us[i].y - cy - S[j][1]), i, j]);
     P.sort(function (a, b) { return a[0] - b[0]; });
@@ -123,6 +124,7 @@ P._spawnTest = function (w) {
     if (!this.sel.length) return;
     var w = this.world, ctrl = this.ctrl, en = forceMove ? null : this.view.unitAt(w, sx, sy, function (u) { return u.fac !== ctrl; });
     var bd = en || forceMove ? null : this.view.buildingAt(w, sx, sy);
+    if (bd && !this.sel.some(function (u) { return w.canEnter(u, bd); })) bd = null;   // 들어갈 수 없는 건물(점령 기능 꺼짐 등)을 누르면 그냥 그 자리로 이동
     if (bd) { this.sel.forEach(function (u) { w.orderEnter(u, bd); }); this._voice(this.sel[0]); this.cmdMode = null; return; }   // 건물 우클릭 = 들어가기
     if (en) { this.sel.forEach(function (u) { w.orderAttack(u, en); }); this._voice(this.sel[0]); }
     else { var g = this.view.groundAt(sx, sy), n = this.sel.length; this.view.addMark(g[0], g[1]); this._voice(this.sel[0]); var am = this.cmdMode === 'amove';

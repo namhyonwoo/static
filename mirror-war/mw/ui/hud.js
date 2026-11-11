@@ -107,7 +107,7 @@
       ctx.fillText('보유 ' + sb.pool.map(function (p, k) { return RN[k].charAt(0) + p; }).join(' '), inf[0] + 10, by0);
       ctx.fillText('안의 유닛 ' + sb.inside.length + '기' + (sb.inside.length ? ': ' + sb.inside.slice(0, 3).map(function (u) { return u.t.name; }).join(', ') : ''), inf[0] + 10, by0 + 16);
       var q0 = sb.queue[0]; if (!q0 && sb.claim != null && sb.claim !== sb.owner) q0 = { type: { name: '' }, t: sb.b.cap.time - sb.capT, total: sb.b.cap.time, cap: 1 };
-      ctx.fillText(q0 && q0.cap ? '점령 중 ' + Math.floor(100 * q0.t / q0.total) + '%' : q0 ? '생산 중 ' + q0.type.name + ' (' + sb.queue.length + ')' : (sb.owner === s.faction ? '오른쪽 아이콘으로 생산' : sb.owner < 0 ? '점령 비용 ' + (s.faction === 0 ? '금 ' + sb.b.cap.gold : s.faction === 2 ? '젬 ' + sb.b.cap.gem : '사람 ' + sb.b.cap.pop) : '비어 있으면 무료로 점령'), inf[0] + 10, by0 + 32);
+      ctx.fillText(q0 && q0.cap ? '점령 중 ' + Math.floor(100 * q0.t / q0.total) + '%' : q0 ? '생산 중 ' + q0.type.name + ' (' + sb.queue.length + ')' : (!world.captureOn && sb.owner !== s.faction ? '점령 기능 준비 중 (지금은 꺼 둠)' : sb.owner === s.faction ? '오른쪽 아이콘으로 생산' : sb.owner < 0 ? '점령 비용 ' + (s.faction === 0 ? '금 ' + sb.b.cap.gold : s.faction === 2 ? '젬 ' + sb.b.cap.gem : '사람 ' + sb.b.cap.pop) : '비어 있으면 무료로 점령'), inf[0] + 10, by0 + 32);
       if (q0) { ctx.fillStyle = 'rgba(255,255,255,.2)'; ctx.fillRect(inf[0] + 10, by0 + 50, 150, 5); ctx.fillStyle = '#ffd36e'; ctx.fillRect(inf[0] + 10, by0 + 50, 150 * Math.min(1, q0.t / q0.total), 5); }
       if (sb.owner === s.faction) { ctx.font = '10px "IBM Plex Sans KR",sans-serif'; ctx.fillStyle = '#ffd36e'; ['퇴각', '◀전직', '전직▶'].forEach(function (t, k) { ctx.fillText(t, B[k][0] + 3, B[k][1] + 14); });
         var pl = world.producible(sb), fg = A.get('figs');

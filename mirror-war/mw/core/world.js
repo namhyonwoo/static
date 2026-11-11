@@ -235,11 +235,13 @@ P._blast = function (u, a, x, y) {
      움직이는 유닛은 장애물로 보지 않는다(같이 가는 무리끼리 서로 피하지 않게) — 그쪽은 겹침 처리가 맡는다.
      목적지 위에 서 있는 유닛(공격·시전 대상 포함)도 피하지 않는다. 한번 고른 쪽(u.avoidSide)은 다 돌 때까지 유지한다. */
   P._avoid = function (u, hx, hy, mv, gx, gy) {
+    if (u.t.fly === 2) return null;                                                   // 공중 유닛은 충돌이 없다 (원본: 점유 격자를 쓰지 않음, 8-31)
     var L = this.units, map = this.map, mc = u.t.moveClass, CLEAR = 0.95, LOOK = 1.8, best = null, bd = 1e9, blat = 0, i, o;
     for (i = 0; i < L.length; i++) {
       o = L[i]; if (o === u || !o.alive() || o.state === 'move' || o.state === 'inside' || (o.t.fly === 2) !== (u.t.fly === 2)) continue;
       if (o.fac === u.fac && this._pushable(o)) continue;                              // 그냥 서 있는 아군은 돌아가지 않고 밀고 지나간다 (겹침 처리)
       var ox = o.x - u.x, oy = o.y - u.y, ahead = ox * hx + oy * hy; if (ahead <= 0 || ahead > LOOK || ahead >= bd) continue;
+      CLEAR = u.t.rad + o.t.rad + 0.1;                                                 // 두 유닛 크기에 맞춘 비켜 갈 폭
       var lat = oy * hx - ox * hy; if (Math.abs(lat) >= CLEAR) continue;            // 진행 방향의 왼쪽이 +
       if (Math.hypot(o.x - gx, o.y - gy) < 0.9) continue;
       best = o; bd = ahead; blat = lat;
@@ -354,18 +356,19 @@ P._blast = function (u, a, x, y) {
     /* 겹침 처리 (목업 고유, 스타크래프트 2 방식):
        · 움직이는 유닛끼리는 반씩 비킨다. 한쪽이 벽이라 못 비키면 다른 쪽이 전부 비킨다.
        · 움직이는 유닛과 "그냥 서 있는 아군"(_pushable)이 겹치면 서 있는 쪽이 대부분(80%) 밀려 길을 내준다.
-       · 위치 사수·공격 중인 유닛이나 적과 겹치면 움직이는 쪽만 비킨다. 둘 다 서 있으면 그냥 서 있는 아군끼리만 0.7칸까지 천천히 벌린다.
+       · 위치 사수·공격 중인 유닛이나 적과 겹치면 움직이는 쪽만 비킨다. 둘 다 서 있으면 그냥 서 있는 아군끼리만 두 반지름 합의 82%까지 천천히 벌린다.
+       · 거리 기준은 유닛 크기(원본 +0x22 반폭 → UnitType.rad)에 비례한다. 공중 유닛은 충돌하지 않는다(원본 8-31).
        · 완전히 겹쳤을 때(거리 0)는 두 유닛 번호로 정한 방향으로 떼어 놓는다. 통행 불가 칸으로는 밀지 않는다. */
     for (i = 0; i < L.length; i++) {
       var a = L[i]; if (!a.alive()) continue;
       for (var j = i + 1; j < L.length; j++) {
-        var b = L[j]; if (!b.alive() || (a.t.fly === 2) !== (b.t.fly === 2)) continue;
-        var dx = b.x - a.x, dy = b.y - a.y, dd = Math.hypot(dx, dy), min = 0.85;
+        var b = L[j]; if (!b.alive() || a.t.fly === 2 || b.t.fly === 2) continue;      // 공중 유닛은 서로도 지상과도 겹친다 (원본 8-31)
+        var dx = b.x - a.x, dy = b.y - a.y, dd = Math.hypot(dx, dy), min = a.t.rad + b.t.rad;   // 원본 유닛 크기(+0x22)에 비례
         if (dd >= min) continue;
         if (dd < 0.001) { var ang = ((a.uid * 7 + b.uid * 13) % 16) / 16 * 6.283; dx = Math.cos(ang) * 0.01; dy = Math.sin(ang) * 0.01; dd = 0.01; }
         var am = a.state === 'move', bm = b.state === 'move', ux = dx / dd, uy = dy / dd;
         if (!am && !bm) {                                                                 // 둘 다 서 있으면: 그냥 서 있는 아군끼리만 아주 천천히 떼어 놓는다
-          if (a.fac === b.fac && dd < 0.7 && this._pushable(a) && this._pushable(b)) { var ps = (0.7 - dd) * DT * 1.5;
+          var sep = min * 0.82; if (a.fac === b.fac && dd < sep && this._pushable(a) && this._pushable(b)) { var ps = (sep - dd) * DT * 1.5;
             if (map.walkable(a.x - ux * ps, a.y - uy * ps, a.t.moveClass)) { a.x -= ux * ps; a.y -= uy * ps; }
             if (map.walkable(b.x + ux * ps, b.y + uy * ps, b.t.moveClass)) { b.x += ux * ps; b.y += uy * ps; } }
           continue; }

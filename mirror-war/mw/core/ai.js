@@ -10,7 +10,8 @@
     var free = L.filter(function (u) { return u.fac === f && u.alive() && !u.order && u.state !== 'attack'; });
     // 건물: 비어 있거나 우리 것인데 안이 빈 건물에 지상 유닛 한 기씩
     for (j = 0; j < B.length; j++) {
-      var b = B[j]; if (b.inside.length || (b.owner < 0 && b.claim !== f && !w.canPay(f, b)) || L.some(function (u) { return u.fac === f && u.order && u.order.type === 'enter' && u.order.b === b; })) continue;
+      var b = B[j]; if (!w.captureOn && b.owner !== f) continue;                     // 점령 기능이 꺼져 있으면 남의 건물은 건드리지 않는다
+      if (b.inside.length || (b.owner < 0 && b.claim !== f && !w.canPay(f, b)) || L.some(function (u) { return u.fac === f && u.order && u.order.type === 'enter' && u.order.b === b; })) continue;
       var pick = null, pd = 40;
       for (i = 0; i < free.length; i++) { var c = free[i]; if (c.t.fly === 2 || c.buffs.charm) continue; var d = Math.hypot(b.x - c.x, b.y - c.y); if (d < pd) { pd = d; pick = c; } }
       if (pick) { w.orderEnter(pick, b); free.splice(free.indexOf(pick), 1); }
