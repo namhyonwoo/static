@@ -11,10 +11,16 @@
      행동은 종류별 글자 — 기본 공격 A, L 범위 공격 마법, U 신성(범위 공격·회복), H 회복, V 시야, D 방어·방패 막기, T 순간 이동,
      R 아군 소환 이동(리콜), I 숨기·투명, W 공격 보조·속도 향상, E 합체·주위 동시 공격, B 폭탄 설치, O 변신, K 버서커, C 차밍,
      Y 암살·레이즈 언데드, N 마법 해제·거미줄·목 던지기·포이즌 밤·피어섬 테러. 한 유닛 안에서 겹치면 앞의 행동만 갖는다. */
+  /* 명령판 15칸 배치 (원본 화면 기준, 소환사 스크린샷으로 확인): 0 이동(M) · 1 정지·위치 사수(S) · 2 정찰(P) · 3 첫째 행동 · 4 (변형 되돌리기) · 5~ 둘째 행동부터.
+     기본 공격은 따로 버튼이 없다 — 공격 행동(isAtk)이 있는 유닛만 그 행동 아이콘이 공격(A)이다. 소환사·신수사·주교처럼 마법만 있는 유닛은 기본 공격이 없다. */
+  Hud.slot = function (i) { return i === 0 ? 3 : 4 + i; };
+  Hud.actAt = function (c) { return c === 3 ? 0 : c >= 5 ? c - 4 : -1; };
+  Hud.basic = function (t) { return t.ai >= 0 && t.acts[t.ai] && t.acts[t.ai].isAtk == 1 ? t.ai : -1; };
   var SUPKEY = { heal: 'H', sight: 'V', shield: 'D', teleport: 'T', recall: 'R', hide: 'I', weapon: 'W', haste: 'W', merge: 'E', morph: 'O', copy: 'O', berserk: 'K', charm: 'C', assassin: 'Y', raise: 'Y', dispel: 'N', melt: 'N', meltw: 'N', melta: 'N', slow: 'N', stone: 'N', massheal: 'U', massdispel: 'N' };
   function keyOfAct(t, i) {
-    var a = t.acts[i]; if (!a) return null; if (i === t.ai) return 'A';
+    var a = t.acts[i]; if (!a) return null; if (i === Hud.basic(t)) return 'A';
     if (a.cls === 22) return 'U';
+    if (a.cls === 19) return 'R';   // 소환 이동류(넨·팔라니아 소환): 원본 화면에서 R
     if (a.sup) return SUPKEY[a.sup] || null;
     if (!a.dmg) return null;
     if (a.cls === 48 || a.suicide) return 'B'; if (a.cls === 49 && a.need === 'ground') return 'N';
@@ -23,8 +29,8 @@
   /* 종류 t의 행동 번호 → 단축키 글자 (겹치면 앞의 것만) */
   Hud.keys = function (t) {
     if (t._keys) return t._keys; var used = {}, out = [];
-    if (t.ai >= 0) used.A = 1;
-    for (var i = 0; i < t.acts.length; i++) { var k = keyOfAct(t, i); if (k && (!used[k] || i === t.ai)) { out[i] = k; used[k] = 1; } else out[i] = null; }
+    var ba = Hud.basic(t); if (ba >= 0) used.A = 1;
+    for (var i = 0; i < t.acts.length; i++) { var k = keyOfAct(t, i); if (k && (!used[k] || i === ba)) { out[i] = k; used[k] = 1; } else out[i] = null; }
     return (t._keys = out);
   };
   /* 기본 공격이 행동 아이콘으로 나오는 유닛은 공격(A) 버튼을 따로 두지 않는다 — 그 아이콘이 공격(A) 버튼 */
@@ -35,7 +41,7 @@
     var o = u.order, doing = u.tp ? '순간이동 중' : u.state === 'attack' ? '공격 중' : o && o.type === 'cast' ? (o.a ? o.a.name + ' 시전' : '시전') : o && o.type === 'attack' ? '추격' : o && o.type === 'move' ? (o.amove ? '공격 이동' : '이동') : o && o.type === 'hold' ? '위치 사수' : u.state === 'move' ? '이동' : u.tgt ? '교전' : '대기';
     return doing + (b.length ? ' · ' + b.join(', ') : '');
   };
-  Hud.mergedAttack = function (t) { return t.ai >= 0 && t.icons && t.icons[t.ai] >= 0; };
+  Hud.mergedAttack = function (t) { var b = Hud.basic(t); return b >= 0 && t.icons && t.icons[b] >= 0; };
   P.setFaction = function (f) {
     var L = this.L = this.layouts[f], v = this.view, m = L.mini, w = m[2] - m[0], sc = w / v.map.worldW;
     this.mm = { x: m[0], y: m[1] + ((m[3] - m[1]) - v.map.worldH * sc) / 2, w: w, h: v.map.worldH * sc, sc: sc };
@@ -52,13 +58,13 @@
     if (sb) { if (sb.owner !== s.faction) return null; if (c === 0) return '퇴각 (T): 안의 유닛을 모두 내보냄'; if (c === 1) return '전직: 왼쪽 상급 유닛으로'; if (c === 2) return '전직: 오른쪽 상급 유닛으로';
       var pl = world.producible(sb)[c - 5]; if (!pl) return null; var cs = pl.cost, RN = ['민간인', '전사형', '마법사형', '금', '젬'];
       return pl.name + ' 생산 — ' + cs.map(function (v, k) { return v ? RN[k] + ' ' + v : ''; }).filter(Boolean).join(', '); }
-    if (c === 0) return '이동(M)'; if (c === 2) return '정지 · 위치 사수(S)';
-    if (c === 1) return s0 && Hud.mergedAttack(s0.t) ? null : '공격 이동(A)';
+    if (c === 0) return '이동(M)'; if (c === 1) return '정지 · 위치 사수(S)';
+    if (c === 2) return '정찰(P): 지정한 곳과 지금 자리를 오가며 보이는 적 공격';
     if (!s0) return null;
     if (c === 4) return s0.origType ? '원래 모습으로' : null;
-    var a = s0.t.acts[c - 5]; if (!a) return null; var hk = Hud.keys(s0.t)[c - 5];
+    var ai = Hud.actAt(c), a = s0.t.acts[ai]; if (!a) return null; var hk = Hud.keys(s0.t)[ai];
     var KIND = { heal: '치유', weapon: '무기 강화', shield: '방어', berserk: '광폭화', haste: '가속', slow: '감속', stone: '석화', charm: '매혹', melt: '약화·해제', assassin: '암살', hide: '은신', teleport: '순간이동', sight: '시야', morph: '변형', copy: '변신', raise: '시체 소환', merge: '합체', recall: '리콜', massheal: '광역 치유', massdispel: '광역 해제·정화' };
-    return a.name + (hk ? '(' + hk + ')' : '') + ' — ' + (c - 5 === s0.t.ai ? '기본 공격 · ' : '') + (a.dmg ? (a.aoe ? '범위 공격' : '공격') : (KIND[a.sup] || '사용 불가')) + (a.mana ? ', 마나 ' + a.mana : '') + (a.need === 'none' ? ' · 즉시' : a.need === 'ground' ? ' · 지점 지정' : a.need === 'unit' ? ' · 대상 지정' : '');
+    return a.name + (hk ? '(' + hk + ')' : '') + ' — ' + (ai === Hud.basic(s0.t) ? '기본 공격 · ' : '') + (a.dmg ? (a.aoe ? '범위 공격' : '공격') : (KIND[a.sup] || '사용 불가')) + (a.mana ? ', 마나 ' + a.mana : '') + (a.need === 'none' ? ' · 즉시' : a.need === 'ground' ? ' · 지점 지정' : a.need === 'unit' ? ' · 대상 지정' : '');
   };
 /* 스킬 수치 한 줄: 해독한 행동 데이터에서 */
   P.statLine = function (a, tps) {
@@ -74,28 +80,28 @@
   P._wrap = function (ctx, text, maxW) { var out = [], line = ""; for (var i = 0; i < text.length; i++) { var c = text.charAt(i); if (ctx.measureText(line + c).width > maxW && line) { out.push(line); line = c === " " ? "" : c; } else line += c; } if (line) out.push(line); return out; };
   P._tip = function (world, s) {
     var m = s.mouse; if (!m || !m.inside) return; var c = this.iconAt(m.x, m.y); if (c < 0) return; var t = this.tipFor(world, s, c); if (!t) return;
-    var ctx = this.ctx, s0 = s.focus || s.selected[0] || s.watch, a = !s.selB && s0 && c >= 5 ? s0.t.acts[c - 5] : null, W = 310, lines = [], desc = a && root.MWE.SKILL_DESC && root.MWE.SKILL_DESC[a.name];
+    var ctx = this.ctx, s0 = s.focus || s.selected[0] || s.watch, ai = Hud.actAt(c), a = !s.selB && s0 && ai >= 0 ? s0.t.acts[ai] : null, W = 310, lines = [], desc = a && root.MWE.SKILL_DESC && root.MWE.SKILL_DESC[a.name];
     ctx.textBaseline = "top"; ctx.font = "11px \"IBM Plex Sans KR\",sans-serif";
     if (a) { lines.push({ t: this.statLine(a, world.rules.tps), c: "#9fb4d8" }); if (desc) this._wrap(ctx, desc, W - 16).forEach(function (l) { lines.push({ t: l, c: "#d6dbe6" }); }); }
-    var ak = a && Hud.keys(s0.t)[c - 5], title = a ? a.name + (ak ? '(' + ak + ')' : '') + (c - 5 === s0.t.ai ? ' — 기본 공격' : '') : t, h = 24 + lines.length * 15 + (lines.length ? 5 : 0); ctx.font = "bold 12px \"IBM Plex Sans KR\",sans-serif";
+    var ak = a && Hud.keys(s0.t)[ai], title = a ? a.name + (ak ? '(' + ak + ')' : '') + (ai === Hud.basic(s0.t) ? ' — 기본 공격' : '') : t, h = 24 + lines.length * 15 + (lines.length ? 5 : 0); ctx.font = "bold 12px \"IBM Plex Sans KR\",sans-serif";
     var w = a ? W : ctx.measureText(title).width + 16, x = Math.min(this.view.vw - w - 4, Math.max(4, m.x - w / 2)), y = this.L.btn[0][1] - h - 8;
     ctx.fillStyle = "rgba(8,10,16,.94)"; ctx.fillRect(x, y, w, h); ctx.strokeStyle = "#c9a35a"; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
     ctx.fillStyle = "#ffe9b0"; ctx.fillText(title, x + 8, y + 6); ctx.font = "11px \"IBM Plex Sans KR\",sans-serif";
     lines.forEach(function (l, i) { ctx.fillStyle = l.c; ctx.fillText(l.t, x + 8, y + 25 + i * 15); });
   };
-  /* 버튼 하나: 원본 HUD처럼 아이콘을 칸 위쪽에 조금 작게, 그 아래에 단축키 "(M)"을 늘 표시한다 (원본 화면 기준, 글꼴은 목업) */
+  /* 버튼 하나: 원본 HUD처럼 아이콘을 원래 크기(1:1)로 칸에 채우고, 단축키 "(M)"을 오른쪽 아래에 겹쳐 쓴다 (원본 화면 기준, 글꼴은 목업) */
   P._btn = function (im, sx, sy, sw, sh, bb, key, alpha) {
-    var ctx = this.ctx, cw = bb[2] - bb[0], ch = bb[3] - bb[1], k = key ? 0.72 : 0.9, w = Math.round(sw * k), h = Math.round(sh * k);
+    var ctx = this.ctx, cw = bb[2] - bb[0], ch = bb[3] - bb[1], w = sw, h = sh;
     ctx.globalAlpha = alpha == null ? 1 : alpha;
-    ctx.drawImage(im, sx, sy, sw, sh, bb[0] + Math.round((cw - w) / 2), bb[1] + (key ? 1 : Math.round((ch - h) / 2)), w, h);
+    ctx.drawImage(im, sx, sy, sw, sh, bb[0] + Math.round((cw - w) / 2), bb[1] + Math.round((ch - h) / 2) - (key ? 3 : 0), w, h);
     ctx.globalAlpha = 1;
     if (!key) return;
-    var t = '(' + key + ')', x = bb[0] + cw / 2, y = bb[3] - 3;
-    ctx.font = 'bold 9px "IBM Plex Mono",monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    var t = '(' + key + ')', x = bb[2], y = bb[3] - 3;
+    ctx.font = 'bold 9px "IBM Plex Mono",monospace'; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
     ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.9)'; ctx.strokeText(t, x, y); ctx.fillStyle = alpha != null && alpha < 1 ? '#8a8f99' : '#f2f2f2'; ctx.fillText(t, x, y);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   };
-  /* 명령 버튼 번호(0~14). 없으면 -1. 0 이동, 1 공격 이동, 2 정지 */
+  /* 명령 버튼 번호(0~14). 없으면 -1. 0 이동, 1 정지, 2 정찰, 3·5~ 행동 (Hud.slot / Hud.actAt) */
   P.iconAt = function (sx, sy) { var B = this.L.btn; for (var c = 0; c < B.length; c++) if (sx >= B[c][0] && sx <= B[c][2] && sy >= B[c][1] && sy <= B[c][3]) return c; return -1; };
   /* s: { faction, facName, colors, selected, cmdMode } */
   P.draw = function (world, s) {
@@ -158,13 +164,13 @@
         ctx.fillText('Lv' + s0.level + ' ' + s0.hp + '/' + s0.maxHp + (s0.maxMp ? '  MP ' + Math.floor(s0.mp) + '/' + s0.maxMp : ''), inf[0] + 12, inf[3] - 22);
       }
     } else { ctx.fillStyle = '#8a94a8'; ctx.font = '12px "IBM Plex Sans KR",sans-serif'; ctx.fillText(s.facName + ' 유닛을 선택하세요', nm[0] + 4, nm[1]); }
-    // 명령 버튼: 윗줄 = 기본 명령(이동·공격 이동·정지), 둘째 줄부터 = 선택 유닛의 원본 행동 아이콘
-    var hot = [s.cmdMode === 'move', s.cmdMode === 'amove', false];
-    var CK = ['M', 'A', 'S'];
-    if (!wt) for (var c = 0; c < 3; c++) if (!(c === 1 && s0 && Hud.mergedAttack(s0.t))) this._btn(A.get('icons'), (c * 2 + (hot[c] ? 1 : 0)) * 33, 0, 33, 31, B[c], CK[c]);
+    // 명령 버튼: 윗줄 앞 세 칸 = 기본 명령(이동·정지·정찰), 넷째 칸부터 = 선택 유닛의 원본 행동 아이콘
+    var hot = [s.cmdMode === 'move', false, s.cmdMode === 'patrol'];
+    var CK = ['M', 'S', 'P'];
+    if (!wt) for (var c = 0; c < 3; c++) this._btn(A.get('icons'), (c * 2 + (hot[c] ? 1 : 0)) * 33, 0, 33, 31, B[c], CK[c]);
     if (s0 && s0.origType && !wt) { ctx.fillStyle = '#ffd36e'; ctx.font = '10px "IBM Plex Sans KR",sans-serif'; ctx.fillText('원래대로', B[4][0] + 1, B[4][1] + 14); }
     if (s0) { var ic = s0.t.icons, D = this.iconDef, im = A.get('acticons');
-      for (i = 0; i < ic.length && i < 10; i++) { if (ic[i] < 0) continue; var ac = s0.t.acts[i], fi = ic[i] * 2 + (ac === s0.act ? 1 : 0), bb = B[5 + i];   // 지금 쓰는 행동 = 눌림 그림, 쓸 수 없는 행동 = 흐리게
+      for (i = 0; i < ic.length && i < 11; i++) { if (ic[i] < 0) continue; var ac = s0.t.acts[i], fi = ic[i] * 2 + (ac === s0.act && i === Hud.basic(s0.t) ? 1 : 0), bb = B[Hud.slot(i)];   // 지금 쓰는 행동 = 눌림 그림, 쓸 수 없는 행동 = 흐리게
         if (s.skill === ac) fi = ic[i] * 2 + 1;
         this._btn(im, (fi % D.cols) * D.w, Math.floor(fi / D.cols) * D.h, D.w, D.h, bb, wt ? null : Hud.keys(s0.t)[i], wt ? 0.55 : ac.dmg || ac.sup ? 1 : 0.35); } }   // 적 관찰 중에는 단축키 없이 흐리게 (설명은 hover로)
     this._tip(world, s);

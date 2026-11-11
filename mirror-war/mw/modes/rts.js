@@ -109,12 +109,13 @@ P._spawnTest = function (w) {
   /* 명령 버튼 c(0~14)를 누른다 — HUD 클릭과 단축키가 같이 쓴다 */
   P._button = function (c) {
     var self = this, fu = this._focus(), merged = fu && MWE.Hud.mergedAttack(fu.t);
+    var ai = MWE.Hud.actAt(c);   // 칸 배치: 0 이동 · 1 정지 · 2 정찰 · 3 첫째 행동 · 4 되돌리기 · 5~ 나머지 행동 (원본 화면)
     if (c === 0) this.cmdMode = this.cmdMode === 'move' ? null : 'move';
-    else if (c === 1) { if (!merged) this.cmdMode = this.cmdMode === 'amove' ? null : 'amove'; }   // 기본 공격이 아이콘인 유닛은 이 버튼이 없다
-    else if (c === 2) this.stopSel();
+    else if (c === 1) this.stopSel();
+    else if (c === 2) this.cmdMode = this.cmdMode === 'patrol' ? null : 'patrol';
     else if (c === 4) { if (fu) this.world.revert(fu); }   // 변형 되돌리기
-    else if (c >= 5 && fu) { var ua = fu.t.acts[c - 5];                    // 스킬 버튼: 자기 자신에게 쓰는 행동은 즉시, 나머지는 대상 지정 대기
-      if (ua && c - 5 === fu.t.ai) { this.sel.forEach(function (x) { if (x.t.ai >= 0) x.act = x.t.acts[x.t.ai]; }); this.skill = null; this.cmdMode = this.cmdMode === 'amove' ? null : 'amove'; }   // 기본 공격 아이콘 = 공격(A): 기본 공격으로 되돌리고 공격 이동 대기
+    else if (ai >= 0 && fu) { var ua = fu.t.acts[ai];                    // 스킬 버튼: 자기 자신에게 쓰는 행동은 즉시, 나머지는 대상 지정 대기
+      if (ua && ai === MWE.Hud.basic(fu.t)) { this.sel.forEach(function (x) { if (x.t.ai >= 0) x.act = x.t.acts[x.t.ai]; }); this.skill = null; this.cmdMode = this.cmdMode === 'amove' ? null : 'amove'; }   // 기본 공격 아이콘 = 공격(A): 기본 공격으로 되돌리고 공격 이동 대기
       else if (ua && ua.need === 'none') this.sel.forEach(function (x) { if (x.t.acts.indexOf(ua) >= 0) self.world.castNow(x, ua); });   // 대상이 필요 없는 행동은 즉시
       else if (ua && ua.need) this.skill = this.skill === ua ? null : ua; }   // 스킬 버튼: 공격 행동 전환
   };
@@ -142,8 +143,9 @@ P._spawnTest = function (w) {
     if (bd && !this.sel.some(function (u) { return w.canEnter(u, bd); })) bd = null;   // 들어갈 수 없는 건물(점령 기능 꺼짐 등)을 누르면 그냥 그 자리로 이동
     if (bd) { this.sel.forEach(function (u) { w.orderEnter(u, bd); }); this._voice(this.sel[0]); this.cmdMode = null; return; }   // 건물 우클릭 = 들어가기
     if (en) { this.sel.forEach(function (u) { w.orderAttack(u, en); }); this._voice(this.sel[0]); }
-    else { var g = this.view.groundAt(sx, sy), n = this.sel.length; this.view.addMark(g[0], g[1]); this._voice(this.sel[0]); var am = this.cmdMode === 'amove';
-      this._groupMove(this.sel, g[0], g[1], am); }
+    else { var g = this.view.groundAt(sx, sy), n = this.sel.length; this.view.addMark(g[0], g[1]); this._voice(this.sel[0]); var pt = this.cmdMode === 'patrol', am = pt || this.cmdMode === 'amove', from = pt ? this.sel.map(function (u) { return [u.x, u.y]; }) : null;
+      this._groupMove(this.sel, g[0], g[1], am);
+      if (pt) this.sel.forEach(function (u, k) { if (u.order && u.order.type === 'move') u.order.patrol = { x: from[k][0], y: from[k][1] }; }); }   // 정찰(P): 떠난 자리와 찍은 곳을 오간다
     this.cmdMode = null;
   };
   /* 대상 지정 스킬 사용: 피해 행동 → 그 행동으로 대상 공격, 보조 행동 → 대상에게 시전, 순간이동 → 그 땅으로 */
@@ -212,7 +214,7 @@ P._spawnTest = function (w) {
         if (!np.length) return;                                                             // 빈 곳을 끌어도 선택은 그대로 둔다
         self.sel = np; self.watch = null; self.selB = null; self._voice(self.sel[0]); return;
       }
-      if (self.cmdMode) { self._command(d.x0, d.y0, self.cmdMode === 'move'); return; }
+      if (self.cmdMode) { self._command(d.x0, d.y0, self.cmdMode !== 'amove'); return; }
       var u = v.unitAt(self.world, d.x0, d.y0, mine);
       if (!u) { var eu = v.unitAt(self.world, d.x0, d.y0, function (x) { return x.fac !== ctrl; });   // 적 유닛 클릭 = 관찰 (HUD에 상태·정보만, 명령 없음)
         if (eu) { self.sel = []; self.selB = null; self.watch = eu; return; }
@@ -230,11 +232,12 @@ P._spawnTest = function (w) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       self.keys[e.key] = true; if (e.key.indexOf('Arrow') === 0) e.preventDefault();
       var kc = /^Key[A-Z]$/.test(e.code) ? e.code.charAt(3) : null;   // 한글 입력 상태와 상관없이 자판 위치로 (원본 단축키, hotkey.txt)
-      if (kc === 'A' && !self.selB && self.sel.length) { var fa = self._focus(); if (fa && MWE.Hud.mergedAttack(fa.t)) self._button(5 + fa.t.ai); else self.cmdMode = 'amove'; }   // 선택한 아군이 없으면(적 관찰 중 포함) 명령 모드로 들어가지 않는다
+      if (kc === 'A' && !self.selB && self.sel.length) { var fa = self._focus(); if (fa && MWE.Hud.mergedAttack(fa.t)) self._button(MWE.Hud.slot(MWE.Hud.basic(fa.t))); else self.cmdMode = 'amove'; }   // 선택한 아군이 없으면(적 관찰 중 포함) 명령 모드로 들어가지 않는다
       if (kc === 'M' && !self.selB && self.sel.length) self.cmdMode = 'move';
+      if (kc === 'P' && !self.selB && self.sel.length) self.cmdMode = 'patrol';   // 정찰 (hotkey.txt 'P')
       if (kc === 'S') self.stopSel();
-      if (kc && 'ASMHT'.indexOf(kc) < 0 && !self.selB && self._focus()) { var fk = self._focus(), ks = MWE.Hud.keys(fk.t), ki = ks.indexOf(kc); if (ki >= 0 && fk.t.icons[ki] >= 0) self._button(5 + ki); }   // 행동 단축키
-      if (kc === 'T' && !self.selB && self._focus()) { var ft = self._focus(), ti = MWE.Hud.keys(ft.t).indexOf('T'); if (ti >= 0) self._button(5 + ti); }   // T: 순간 이동 (건물을 골랐을 때는 아래 퇴각)
+      if (kc && 'ASMPHT'.indexOf(kc) < 0 && !self.selB && self._focus()) { var fk = self._focus(), ks = MWE.Hud.keys(fk.t), ki = ks.indexOf(kc); if (ki >= 0 && fk.t.icons[ki] >= 0) self._button(MWE.Hud.slot(ki)); }   // 행동 단축키
+      if (kc === 'T' && !self.selB && self._focus()) { var ft = self._focus(), ti = MWE.Hud.keys(ft.t).indexOf('T'); if (ti >= 0) self._button(MWE.Hud.slot(ti)); }   // T: 순간 이동 (건물을 골랐을 때는 아래 퇴각)
       if (e.key === 'Escape') { self.skill = null; self.cmdMode = null; self.sel = []; self.selB = null; self.watch = null; }
       if ((e.key === 'h' || e.key === 'H' || e.key === 'ㅗ') && self.world) self.sel.forEach(function (u) { u.t.sups.forEach(function (a) { if (a.sup === 'heal') self.world._cast(u, a, true); }); });   // H: 치유 (원본은 수동)
       if ((e.key === 't' || e.key === 'T' || e.key === 'ㅅ') && self.selB && self.selB.owner === self.ctrl) self.world.leave(self.selB);              // T: 건물 밖으로
@@ -260,7 +263,7 @@ P._spawnTest = function (w) {
     this.view.draw(this.world, { selected: this._watchList(), focus: this._focus(), selB: this.selB, colors: this.colors, dragBox: this.drag && this.drag.box ? this.drag : null, paths: this.showPaths, me: this.ctrl, bars: this.bars });
     if (this.skill) { ctx.font = '12px "IBM Plex Sans KR",sans-serif'; var st = this.skill.name + ': ' + (this.skill.need === 'ground' ? '지점' : this.skill.dmg || this.skill.foe ? '적' : '아군') + ' 클릭 (우클릭 취소)'; ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(8, 8, ctx.measureText(st).width + 16, 22); ctx.fillStyle = '#ffd36e'; ctx.textBaseline = 'middle'; ctx.fillText(st, 16, 19); }
     else if (this.cmdMode) { ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(8, 8, 150, 22); ctx.fillStyle = '#ffd36e'; ctx.font = '12px "IBM Plex Sans KR",sans-serif'; ctx.textBaseline = 'middle';
-      ctx.fillText(this.cmdMode === 'amove' ? '공격 이동: 목적지 클릭' : '이동: 목적지 클릭', 16, 19); }
+      ctx.fillText(this.cmdMode === 'amove' ? '공격 이동: 목적지 클릭' : this.cmdMode === 'patrol' ? '정찰: 목적지 클릭' : '이동: 목적지 클릭', 16, 19); }
     this.hud.draw(this.world, { faction: this.ctrl, facName: this.factions[this.ctrl].name, colors: this.colors, selected: this.sel, focus: this._focus(), watch: this.sel.length ? null : this._shown(), selB: this.selB, cmdMode: this.cmdMode, mouse: this.mouse, skill: this.skill });
     this._cursor(mx, my);
   };
@@ -273,7 +276,7 @@ P._spawnTest = function (w) {
       g = my < 0 ? (mx > 0 ? G.sUR : mx < 0 ? G.normal : G.sU) : my > 0 ? (mx > 0 ? G.sDR : mx < 0 ? G.sDL : G.sD) : (mx > 0 ? G.sR : G.sL);
     else if (m.y < this.VH && w && !(this.drag && this.drag.box)) {
       if (this.skill) g = this.skill.dmg || this.skill.foe ? G.gAttack : G.gSkill;
-      else if (this.cmdMode) g = this.cmdMode === 'amove' ? G.gAttack : G.gMove;
+      else if (this.cmdMode) g = this.cmdMode === 'move' ? G.gMove : G.gAttack;
       else { var ctrl = this.ctrl, hu = v.unitAt(w, m.x, m.y, function (x) { return x.alive(); });
         if (hu) g = hu.fac === ctrl ? G.ally : G.enemy; else if (v.buildingAt(w, m.x, m.y)) g = G.building; }
     }

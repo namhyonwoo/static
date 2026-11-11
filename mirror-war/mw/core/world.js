@@ -365,6 +365,7 @@ P._blast = function (u, a, x, y) {
           else u.state = 'idle';
           if (this.time - u.mvT > 20) { u.order = null; u.path = null; u.state = 'idle'; } }
         else if (this._moveToward(u, o.x, o.y)) { u.order = null; u.path = null; u.state = 'idle'; }
+        if (o.patrol && !u.order && u.alive()) { this.orderMove(u, o.patrol.x, o.patrol.y, true, o.tol); if (u.order) u.order.patrol = { x: o.x, y: o.y }; }   // 정찰(P, 목업 구현): 도착하면 떠난 자리로 되돌아가기를 되풀이
       } else u.state = 'idle';
     }
     /* 겹침 처리 (목업 고유 — 원본 8-31처럼 서 있는 유닛은 밀리지 않는다):
