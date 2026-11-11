@@ -16,14 +16,21 @@
     this.acts = d.acts || []; this.ai = d.ai == null ? -1 : d.ai;   // 원본 행동 목록(actionData.mwd)과 기본 공격 행동 번호. -1 = 공격 행동 없음
     this.cost = d.cost || [0, 0, 0, 0, 0]; this.btime = d.btime || 0; this.base = !!d.base; this.prod = d.prod || []; this.up = d.up || [];   // 생산 비용(민간인·전사형·마법사형·금·젬), 생산 틱, 전직 대상
     this.upGold = d.upGold || 0; this.upTime = d.upTime || 0; this.upLv = d.upLv || 1;
-    this.bon = d.bon || { prod: 0, hp: 0, mp: 0, pop: 0, gold: 0, gem: 0, cap: 0 }; this.regen = !!d.regen;
+    this.bon = d.bon || { hp: 0, mp: 0, pop: 0, gold: 0, gem: 0, cap: 0 }; this.regen = !!d.regen;
     this.sups = this.acts.filter(function (a) { return a.sup; });   // 보조 행동(치유·강화·방어막·광폭화·가속)
     this.lv = d.lv || { max: 1, exp: 0, hpGrow: 0, mpGrow: 0, tbl: null };
     this.actions = d.actions || []; this.defGrow = d.defGrow || 0; this.aff = d.aff || []; this.affMul = d.affMul || 8;
     this.icons = d.icons || []; this.mana = d.mana || { max: 0, init: 0 };
+    if (MANA_FIX[d.id] != null) this.mana = { max: MANA_FIX[d.id], init: this.mana.init };   // 목업 고유 보정 (아래 MANA_FIX)
     this.snd = d.snd || {};             // 원본 음성: sel 선택, mov 이동, atk 공격, die 사망
     this.img = d.img; this.frames = d.fr; this.anim = d.anim;
   }
+  /* 목업 고유 마나 보정: { 유닛 번호: 기본 최대 마나(mana.max) }. 원본 데이터(unitdata.mwd)는 그대로 두고 여기서만 덮어쓴다.
+     15 마법전사: 원본 100 + 레벨당 20 → 레벨 1 최대 마나 120이라 아이스 웨폰(마나 150)을 쓸 수 없었다.
+     180으로 올려 레벨 1 최대 마나 200 (2026-11-11 아레나 시험에서 발견).
+     20·58 소환사(원본 200 + 레벨당 25 → 225), 21 신수사(250 + 25 → 275): 케멘·말다·웨쓰 소환(마나 300)을 쓸 수 없었다.
+     275로 올려 셋 모두 레벨 1 최대 마나 300 (2026-11-11 소환 스킬 시험). */
+  var MANA_FIX = { 15: 180, 20: 275, 21: 275, 58: 275 };
   UnitType.prototype.canAttack = function () { return this.ai >= 0; };
   UnitType.prototype.maxHpAt = function (lv) { return this.hp + this.lv.hpGrow * lv; };                    // FUN_0044f230
   UnitType.prototype.maxMpAt = function (lv) { return this.mana.max ? this.mana.max + this.lv.mpGrow * lv : 0; };
@@ -35,7 +42,7 @@
     this.row = 4; this.mir = false;             // 스프라이트 방향 (5방향 + 좌우 반전)
     this.state = 'idle';                        // idle | move | attack | dead
     this.order = null; this.tgt = null;
-    this.at = 0; this.cd = 0; this.hitDone = false; this.walkT = 0; this.deadT = 0;
+    this.at = 0; this.cd = 0; this.hitDone = false; this.walkT = 0; this.deadT = 0; this.blockT = 0;   // blockT: 방패 막기 자세를 취한 시간(초), 0 = 막고 있지 않음
     this.buffs = {};                              // weapon·shield·berserk·haste → {k1,k2,until}
     this.path = null; this.pgx = 0; this.pgy = 0; this.repath = 0;
   }
@@ -67,6 +74,8 @@
     if (this.state === 'dead') return A.die ? A.die.f[Math.min(A.die.n - 1, Math.floor(this.deadT * fps))] : -1;
     if (this.state === 'attack' && A.atk) return A.atk.f[this.row * A.atk.n + Math.min(A.atk.n - 1, Math.floor(this.at))];
     if (this.state === 'move') return A.walk.f[this.row * A.walk.n + Math.floor(this.walkT * fps) % A.walk.n];
+    /* 방패 막기 (unitNN.mwa 레코드 2): 방패를 들어 올려 이벤트 프레임에서 멈추고, 효과가 이어지는 동안 서 있을 때 그 자세를 유지한다 */
+    if (A.block && this.blockT > 0) return A.block.f[this.row * A.block.n + Math.min(A.block.ev, A.block.n - 1, Math.floor(this.blockT * fps))];
     return A.idle[this.row];
   };
   MWE.UnitType = UnitType; MWE.Unit = Unit;

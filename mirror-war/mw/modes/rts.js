@@ -9,7 +9,7 @@
     this.data = data; this.factions = opts.factions; this.colors = opts.factions.map(function (f) { return f.col; });
     this.startSlots = opts.startSlots; this.VW = 800; this.VH = 448;
     this.assets = new MWE.Assets(opts.base);
-    ['tiles', 'minimap', 'objs', 'blds', 'arms', 'acticons', 'movemark', 'hud0', 'hud1', 'hud2', 'portraits', 'figs', 'icons'].forEach(function (k) { this.assets.load(k, k + '.png'); }, this);
+    ['tiles', 'minimap', 'objs', 'blds', 'arms', 'acticons', 'movemark', 'hpbar', 'block', 'hud0', 'hud1', 'hud2', 'portraits', 'figs', 'icons'].forEach(function (k) { this.assets.load(k, k + '.png'); }, this);
     data.units.forEach(function (u) { this.assets.load('u' + u.id, u.img); }, this);
     this.types = data.units.map(function (d) { return new MWE.UnitType(d); });
     this.maps = { battle: new MWE.GameMap(data.map), test: new MWE.GameMap(data.map2) };   // 전장(콜로세움)과 1:n 시험장(2인 맵의 평지)
@@ -20,6 +20,7 @@
     this.mode = 'battle'; this.test = { left: [{ id: 0, n: 1 }], right: [{ id: 28, n: 5 }], behave: 'dummy', tough: false };   // 양쪽 모두 [{유닛 번호, 수}] 목록   // mode: battle(전장) | test(아레나: n:m 시험)
     this.speed = 2; this.ais = []; this.aiOn = false; this.infMana = false;   // 컴퓨터 AI는 기본 꺼짐. infMana: 모든 유닛의 마나를 항상 가득 (시험용) this.selB = null; this.skill = null; this.focus = null;   // skill: 대상 지정을 기다리는 행동, focus: 그룹 중 HUD에 보이는 유닛
     this.ctrl = 0; this.sel = []; this.cmdMode = null; this.auto = false; this.showPaths = true;
+    this.bars = { ally: true, enemy: true, hurt: true };   // 머리 위 체력·마나 바: 아군 표시, 적군 표시, 체력이 닳았을 때만 (선택한 유닛은 항상)
     this.drag = null; this.mouse = { x: -1, y: -1, inside: false }; this.keys = {};
     this.world = null; this.view = null; this.hud = null; this.onReset = null; this.seed = 1;
     this._bind(); this._last = 0;
@@ -37,11 +38,11 @@
     w.events.on('death', function (u) { var k = self.sel.indexOf(u); if (k >= 0) self.sel.splice(k, 1); });
     w.rules.tps = MWE.OriginalRules.SPEEDS[this.speed];
     this.sel = []; this.selB = null; this.cmdMode = null; this.auto = false; w.types = this.types; w.manualHeal = this.ctrl;
-    if (!this.view || this.view.map !== map) { var keepFog = this.view ? this.view.fogOn : true, keepBlk = this.view ? this.view.showBlocked : false;
+    if (!this.view || this.view.map !== map) { var keepFog = this.view ? this.view.fogOn : false,   /* 안개는 기본 꺼짐 */ keepBlk = this.view ? this.view.showBlocked : false;
       this.view = new MWE.WorldView(this.ctx, map, this.assets, this.VW, this.VH); this.hud = new MWE.Hud(this.ctx, this.assets, this.view, this.VH, this.data.hud, this.data.fx.icon); this.hud.setFaction(this.ctrl); this.view.fogOn = keepFog; this.view.showBlocked = keepBlk; }
     this.view.fx = this.data.fx; this.view.effects = []; this.view.marks = []; this.view.resetFog(this.ctrl);
     this.ais = [0, 1, 2].map(function (fc) { return new MWE.SimpleAI(w, fc); });
-    w.events.on('cast', function (u, t, a) { if (a.sup === 'sight' && u.fac === self.ctrl) self.view.reveal(u.x, u.y, 22, (a.dur || 400) / 40); if (a.arm >= 0) self.view.addEffect(t.x, t.y, t.t.alt + 20, a.arm); self.sfx.play(a.snd, self._vol(u)); });
+    w.events.on('cast', function (u, t, a) { if (a.sup === 'sight' && u.fac === self.ctrl) self.view.reveal(u.x, u.y, 22, (a.dur || 400) / 40); if (a.arm >= 0 && a.sup !== 'weapon') self.view.addEffect(t.x, t.y, t.t.alt + 20, a.arm); self.sfx.play(a.snd, self._vol(u)); });   // 웨폰 계열은 걸린 유닛 발밑에서 계속 그린다 (worldview)
     w.events.on('impact', function (b, arm, a) { if (arm >= 0) self.view.addEffect(b.x, b.y, b.t.alt + 20, arm); if (a.act) self.sfx.play(a.act.snd2, self._vol(b)); });
     w.events.on('strike', function (u) { if (u.act) self.sfx.play(u.act.snd, self._vol(u)); });
     w.events.on('death', function (u) { self.sfx.play(u.t.snd.die, self._vol(u)); });
@@ -144,6 +145,11 @@ P._spawnTest = function (w) {
       d.x1 = p[0]; d.y1 = Math.min(p[1], self.VH - 1); if (Math.abs(d.x1 - d.x0) + Math.abs(d.y1 - d.y0) > 8) d.box = true;
     });
     cv.addEventListener('pointerleave', function () { self.mouse.inside = false; });
+    /* 가장자리 스크롤용: 캔버스 밖으로 조금 벗어나도 위치를 계속 따라간다 (캔버스 좌표, 밖이면 음수이거나 크기를 넘는다) */
+    window.addEventListener('pointermove', function (e) { var p = self._pos(e), OX = 160, OY = 28; self.mouse.gx = p[0]; self.mouse.gy = p[1];   // 위아래는 버튼·체크박스가 붙어 있어 여유를 작게
+      self.mouse.near = p[0] > -OX && p[0] < cv.width + OX && p[1] > -OY && p[1] < cv.height + OY; });
+    document.documentElement.addEventListener('pointerleave', function () { self.mouse.near = false; });
+    window.addEventListener('blur', function () { self.mouse.near = false; });
     cv.addEventListener('pointerup', function () {
       var d = self.drag; self.drag = null; if (!d || d.mini || !self.world) return;
       var ctrl = self.ctrl, v = self.view, mine = function (u) { return u.fac === ctrl; };
@@ -182,12 +188,13 @@ P._spawnTest = function (w) {
     var dt = this._last ? Math.min((ts - this._last) / 1000, 0.05) : 0; this._last = ts;
     var k = this.keys, m = this.mouse, mx = 0, my = 0;
     if (k.ArrowLeft) mx--; if (k.ArrowRight) mx++; if (k.ArrowUp) my--; if (k.ArrowDown) my++;
-    if (m.inside && !this.drag) { if (m.x < 14) mx--; if (m.x > this.VW - 14) mx++; if (m.y < 14) my--; if (m.y > 596) my++; }
+    /* 가장자리 스크롤: 안쪽 36px 띠(아래는 HUD가 있어 10px)에 들어오면 움직이고, 캔버스 밖으로 좌우 160px, 위아래 28px까지 벗어나도 계속 움직인다 */
+    if (m.near && !this.drag) { var EDGE = 36; if (m.gx < EDGE) mx--; if (m.gx > this.cv.width - EDGE) mx++; if (m.gy < EDGE) my--; if (m.gy > this.cv.height - 10) my++; }
     if (mx || my) this.view.scroll(mx * 520 * dt, my * 520 * dt);
     if (this.aiOn && !this.auto && this.mode !== 'test') for (var ai = 0; ai < this.ais.length; ai++) if (ai !== this.ctrl) this.ais[ai].update(dt);
     if (this.infMana) this.world.units.forEach(function (u) { if (u.living()) u.mp = u.maxMp || 9999; });   // 전체 진영
     this.world.update(dt); this.view.time += dt;
-    this.view.draw(this.world, { selected: this.sel, focus: this._focus(), selB: this.selB, colors: this.colors, dragBox: this.drag && this.drag.box ? this.drag : null, paths: this.showPaths });
+    this.view.draw(this.world, { selected: this.sel, focus: this._focus(), selB: this.selB, colors: this.colors, dragBox: this.drag && this.drag.box ? this.drag : null, paths: this.showPaths, me: this.ctrl, bars: this.bars });
     if (this.skill) { ctx.font = '12px "IBM Plex Sans KR",sans-serif'; var st = this.skill.name + ': ' + (this.skill.need === 'ground' ? '지점' : this.skill.dmg || this.skill.foe ? '적' : '아군') + ' 클릭 (우클릭 취소)'; ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(8, 8, ctx.measureText(st).width + 16, 22); ctx.fillStyle = '#ffd36e'; ctx.textBaseline = 'middle'; ctx.fillText(st, 16, 19); }
     else if (this.cmdMode) { ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(8, 8, 150, 22); ctx.fillStyle = '#ffd36e'; ctx.font = '12px "IBM Plex Sans KR",sans-serif'; ctx.textBaseline = 'middle';
       ctx.fillText(this.cmdMode === 'amove' ? '공격 이동: 목적지 클릭' : '이동: 목적지 클릭', 16, 19); }

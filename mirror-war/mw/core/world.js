@@ -103,7 +103,8 @@
       gone.state = 'dead'; gone.deadT = 99; gone.hp = 0; keep.x = u.x; keep.y = u.y; keep.origType = null; keep.setType(this.typeOf(u.t.id === 32 ? 33 : 34)); keep.hp = keep.maxHp; keep.mp = Math.floor(keep.maxMp / 3); keep.buffs = {}; tgt = keep; }
     else if (a.sup === "teleport") u.blink = a;                                        // 다음 이동 명령 때 그 자리로 순간이동
     else if (a.sup === "sight") { /* 화면 쪽에서 cast 사건을 받아 안개를 걷는다 */ }
-    else { tgt.buffs[a.sup] = { k1: a.k1, k2: a.k2, arm: a.arm, until: a.sup === "hide" ? 1e12 : this.time + R.supDuration(a), orig: tgt.fac };
+    else { tgt.buffs[a.sup] = { k1: a.k1, k2: a.k2, arm: a.arm, until: a.sup === "hide" ? 1e12 : this.time + R.supDuration(a), orig: tgt.fac, block: a.sup === "shield" && a.arm < 0 };   // block: 방패 막기(이펙트 없는 자기 방어) — 막기 자세를 취한다
+      if (tgt.buffs[a.sup].block) tgt.blockT = 0;
       if (a.sup === "meltw" || a.sup === "melta" || a.sup === "dispel" || a.sup === "melt") { delete tgt.buffs.weapon; delete tgt.buffs.shield; delete tgt.buffs.haste; delete tgt.buffs.berserk; if (a.sup === "dispel") delete tgt.buffs.dispel; }   // 강화 마법 해제
       if (a.sup === "charm") { tgt.fac = u.fac; tgt.order = null; tgt.tgt = null; tgt.path = null; } }
     this.events.emit("cast", u, tgt, a); return true;
@@ -146,6 +147,29 @@ P._blast = function (u, a, x, y) {
     var S = u.t.sups; for (var i = 0; i < S.length; i++) { if (S[i].sup === "heal" && u.fac === this.manualHeal) continue; if (this._cast(u, S[i], false)) return true; }
     return false;
   };
+  /* 유닛 우회 (목업 고유 — 원본의 유닛 회피 방식은 미해독): 진행 방향 바로 앞에 서 있는 유닛이 길을 막으면 옆으로 돌아간다.
+     (hx,hy) 진행 방향, mv 이번 틱 이동량, (gx,gy) 최종 목적지. 돌아갈 방향 벡터를 돌려주고, 막는 유닛이 없으면 null.
+     움직이는 유닛은 장애물로 보지 않는다(같이 가는 무리끼리 서로 피하지 않게) — 그쪽은 겹침 처리가 맡는다.
+     목적지 위에 서 있는 유닛(공격·시전 대상 포함)도 피하지 않는다. 한번 고른 쪽(u.avoidSide)은 다 돌 때까지 유지한다. */
+  P._avoid = function (u, hx, hy, mv, gx, gy) {
+    var L = this.units, map = this.map, mc = u.t.moveClass, CLEAR = 0.95, LOOK = 1.8, best = null, bd = 1e9, blat = 0, i, o;
+    for (i = 0; i < L.length; i++) {
+      o = L[i]; if (o === u || !o.alive() || o.state === 'move' || o.state === 'inside' || (o.t.fly === 2) !== (u.t.fly === 2)) continue;
+      var ox = o.x - u.x, oy = o.y - u.y, ahead = ox * hx + oy * hy; if (ahead <= 0 || ahead > LOOK || ahead >= bd) continue;
+      var lat = oy * hx - ox * hy; if (Math.abs(lat) >= CLEAR) continue;            // 진행 방향의 왼쪽이 +
+      if (Math.hypot(o.x - gx, o.y - gy) < 0.9) continue;
+      best = o; bd = ahead; blat = lat;
+    }
+    if (!best) { u.avoidSide = 0; return null; }
+    var side = u.avoidSide || (blat > 0 ? -1 : 1);                                  // 막는 유닛이 왼쪽에 있으면 오른쪽으로
+    for (var k = 0; k < 2; k++, side = -side) {
+      var w = 0.7 + 1.3 * (1 - bd / LOOK), sx = hx - hy * side * w, sy = hy + hx * side * w;   // 가까울수록 더 크게 꺾는다
+      var dist = Math.hypot(best.x - u.x, best.y - u.y); if (dist < CLEAR && dist > 0.001) { sx -= (best.x - u.x) / dist * 0.8; sy -= (best.y - u.y) / dist * 0.8; }   // 너무 붙었으면 바깥으로
+      var n = Math.hypot(sx, sy); if (n < 0.001) continue; sx /= n; sy /= n;
+      if (map.walkable(u.x + sx * mv, u.y + sy * mv, mc)) { u.avoidSide = side; return [sx, sy]; }   // 그쪽이 막혀 있으면 반대쪽으로
+    }
+    return null;
+  };
   /* 경로를 따라 한 틱 이동. 도착하면 true */
   P._moveToward = function (u, tx, ty) {
     var map = this.map, mc = u.t.moveClass;
@@ -158,7 +182,8 @@ P._blast = function (u, a, x, y) {
     var wp = u.path[0], dx = wp[0] - u.x, dy = wp[1] - u.y, d = Math.hypot(dx, dy), mv = this.rules.speed(u) * DT;
     if (d <= mv) { u.x = wp[0]; u.y = wp[1]; u.path.shift(); }
     else {
-      var nx = u.x + dx / d * mv, ny = u.y + dy / d * mv;
+      var hx = dx / d, hy = dy / d, av = this._avoid(u, hx, hy, mv, tx, ty); if (av) { hx = av[0]; hy = av[1]; }
+      var nx = u.x + hx * mv, ny = u.y + hy * mv;
       if (map.walkable(nx, ny, mc)) { u.x = nx; u.y = ny; }
       else if (map.walkable(nx, u.y, mc)) u.x = nx;
       else if (map.walkable(u.x, ny, mc)) u.y = ny;
@@ -176,6 +201,7 @@ P._blast = function (u, a, x, y) {
       if (u.state === 'dead') { u.deadT += DT; continue; }
       if (u.state === 'inside') continue;
       if (u.cd > 0) u.cd -= DT;
+      var bsh = u.buffs.shield; if (bsh && bsh.block && bsh.until > this.time) u.blockT += DT; else u.blockT = 0;   // 방패 막기 자세 시간
       if (u.morphUntil && u.morphUntil <= this.time && u.origType) { u.setType(u.origType); u.origType = null; u.morphUntil = 0; }
       var bc = u.buffs.charm; if (bc && bc.until <= this.time) { u.fac = bc.orig; u.order = null; u.tgt = null; delete u.buffs.charm; }
       if (u.buffs.stone && u.buffs.stone.until > this.time && u.state !== 'attack') { u.state = 'idle'; continue; }   // 석화: 움직이지 못함

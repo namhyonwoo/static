@@ -9,7 +9,7 @@
     this.showBlocked = false; this.time = 0;
     this.fx = null; this.effects = []; this.marks = [];
     /* 안개: 0 미탐사, 1 탐사함, 2 지금 보임. 시야 반경은 추정 */
-    this.reveals = []; this.fogOn = true; this.fogFac = 0; this.fog = new Uint8Array(map.M * map.M); this._fogT = 0; this.sight = 9;   // 타격 이펙트, 이동 표시 (화면 전용 상태)
+    this.reveals = []; this.fogOn = false; this.fogFac = 0; this.fog = new Uint8Array(map.M * map.M); this._fogT = 0; this.sight = 9;   // 타격 이펙트, 이동 표시 (화면 전용 상태)
   }
   var P = WorldView.prototype;
   P.clampCam = function () {
@@ -29,7 +29,7 @@
 /* 화면 좌표에 있는 유닛. 지금 그려진 스프라이트의 영역(좌우 반전·비행 높이 포함)으로 판정한다.
      그림이 작은 유닛은 최소 24×30 영역을 보장하고, 겹치면 영역 중심에 가까운 쪽을 고른다. */
   P.unitRect = function (u, fps) {
-    var p = this.toScreen(u.x, u.y), fi = u.frameIndex(fps), f = fi >= 0 ? u.t.frames[fi] : null, ax = p[0], ay = p[1] - u.t.alt;
+    var p = this.toScreen(u.x, u.y), fi = u.frameIndex(fps), f = fi >= 0 ? u.t.frames[fi] : null, ax = p[0], ay = p[1];   // 비행 높이는 스프라이트 오프셋에 이미 들어 있다 (alt를 또 빼면 두 배로 뜬다)
     if (!f) return [ax - 14, ay - 44, 28, 48];
     var l = u.mir ? ax - (f[2] - f[4]) : ax - f[4], t = ay - f[5], w = f[2], h = f[3];
     if (w < 24) { l -= (24 - w) / 2; w = 24; } if (h < 30) { t -= (30 - h); h = 30; }
@@ -91,6 +91,55 @@
       ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(p[0], p[1] - 7); ctx.lineTo(p[0] + 14, p[1]); ctx.lineTo(p[0], p[1] + 7); ctx.lineTo(p[0] - 14, p[1]); ctx.fill();
     }
   };
+  /* 실루엣 그림자 (목업 고유 — 원본에 그림자가 있는지는 확인하지 않음).
+     유닛·건물의 지금 프레임을 검게 칠해 바닥에 눕힌다: 세로를 shadow.sy배로 누르고 shadow.skew만큼 기울인다.
+       지상·저공 유닛  발밑 기준점을 축으로 눕힌다 (발에서 그림자가 뻗어 나온다)
+       건물            바닥 마름모의 중심을 축으로 눕힌다
+       공중 유닛       그림의 아랫변을 지면 좌표에 맞춘다 (본체는 그 위에 떠 있다)
+     겹친 그림자가 더 진해지지 않도록 화면 크기의 층에 불투명한 검정으로 모은 뒤 shadow.alpha로 한 번에 얹는다.
+     매 프레임 좌표·프레임에서 다시 만들기 때문에 이동·동작·좌우 반전을 그대로 따라간다.
+     순서 (draw): 지상 그림자 → 배치물·건물·지상 유닛 → 공중 그림자와 진영 원 → 공중 유닛 본체. */
+  P.shadow = { sy: 0.45, skew: -0.95, alpha: 0.38 };   // 세로 압축, 기울기(위쪽이 오른쪽으로), 투명도. 덜 기울이면 그림자가 본체 뒤에 가려 거의 안 보인다
+  P._shadowLayer = function () {
+    var L = this._shL || (this._shL = document.createElement('canvas')); if (L.width !== this.vw || L.height !== this.vh) { L.width = this.vw; L.height = this.vh; }
+    var c = L.getContext('2d'); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, L.width, L.height); return c;
+  };
+  /* 프레임 f = [sx, sy, w, h, …]의 실루엣을 층 c에 눕혀 그린다. (px,py) 축, (dx,dy) 축에서 그림 왼쪽 위까지 */
+  P._cast = function (c, im, f, px, py, dx, dy, mir) {
+    var S = this.shadow, cv = this._shCv || (this._shCv = document.createElement('canvas')), sc = this._shCtx || (this._shCtx = cv.getContext('2d'));
+    if (cv.width < f[2] || cv.height < f[3]) { cv.width = Math.max(cv.width, f[2]); cv.height = Math.max(cv.height, f[3]); }
+    sc.globalCompositeOperation = 'source-over'; sc.clearRect(0, 0, cv.width, cv.height); sc.drawImage(im, f[0], f[1], f[2], f[3], 0, 0, f[2], f[3]);
+    sc.globalCompositeOperation = 'source-in'; sc.fillStyle = '#000'; sc.fillRect(0, 0, f[2], f[3]);            // 그림 모양 그대로 검게
+    c.setTransform(1, 0, 0, 1, px, py); c.transform(1, 0, S.skew, S.sy, 0, 0); if (mir) c.scale(-1, 1);
+    c.drawImage(cv, 0, 0, f[2], f[3], dx, dy, f[2], f[3]);
+  };
+  P._groundShadows = function (world, list) {
+    var c = this._shadowLayer(), A = this.assets, m = this.map, BF = m.bldFrames, bimg = A.get(m.keys.blds), tps = world.rules.tps, n = 0;
+    for (var i = 0; i < list.length; i++) {
+      var it = list[i], u = it.u;
+      if (it.b) { var f0 = BF[it.b.f[0]], cp = this.toScreen(it.c[0], it.c[1]); this._cast(c, bimg, f0, Math.round(cp[0]), Math.round(cp[1]), Math.round(it.x - f0[4] - cp[0]), Math.round(it.y - f0[5] - cp[1]), false); n++; continue; }
+      if (!u || u.t.fly === 2 || !u.alive()) continue;
+      var fi = u.frameIndex(tps), f = fi >= 0 ? u.t.frames[fi] : null, im = A.get((f && f[6]) || ('u' + u.t.id)); if (!f || !im) continue;
+      this._cast(c, im, f, Math.round(it.p[0]), Math.round(it.p[1]), -f[4], -f[5], u.mir); n++;
+    }
+    if (n) { this.ctx.save(); this.ctx.globalAlpha = this.shadow.alpha; this.ctx.drawImage(this._shL, 0, 0); this.ctx.restore(); }
+  };
+  P._airShadows = function (world, list, opts) {
+    var ctx = this.ctx, A = this.assets, HB = root.MW && root.MW.hpbar, tps = world.rules.tps, c = this._shadowLayer(), n = 0, i, u, p;
+    for (i = 0; i < list.length; i++) {
+      u = list[i].u; if (!u || u.t.fly !== 2 || !u.alive()) continue;
+      p = list[i].p; var fi = u.frameIndex(tps), f = fi >= 0 ? u.t.frames[fi] : null, im = A.get((f && f[6]) || ('u' + u.t.id)); if (!f || !im) continue;
+      this._cast(c, im, f, Math.round(p[0]), Math.round(p[1]), -f[4], -f[3], u.mir); n++;                        // 아랫변을 지면 좌표에
+    }
+    if (n) { ctx.save(); ctx.globalAlpha = this.shadow.alpha; ctx.drawImage(this._shL, 0, 0); ctx.restore(); }
+    for (i = 0; i < list.length; i++) {
+      u = list[i].u; if (!u || u.t.fly !== 2 || !u.alive()) continue;
+      p = list[i].p; var px = Math.round(p[0]), py = Math.round(p[1]), bw = HB && HB.units[u.t.id] ? HB.units[u.t.id][1] : 31, rx = bw * 0.45, ry = rx * 0.42, isSel = opts.selected && opts.selected.indexOf(u) >= 0;
+      ctx.strokeStyle = u.fac === opts.me ? (isSel ? 'rgba(110,185,255,1)' : 'rgba(90,170,255,.5)') : (isSel ? 'rgba(255,95,70,1)' : 'rgba(247,77,49,.5)');
+      ctx.lineWidth = isSel ? 2 : 1; ctx.beginPath(); ctx.ellipse(px, py + 1, rx + 2, ry + 1.5, 0, 0, 6.283); ctx.stroke();
+      if (isSel && opts.focus === u && opts.selected.length > 1) { ctx.strokeStyle = 'rgba(255,226,150,.9)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(px, py + 1, rx * 0.7, ry * 0.7, 0, 0, 6.283); ctx.stroke(); }
+    }
+  };
   /* opts: { selected:Set-like(has), colors:[진영색], dragBox, paths:bool } */
   P.draw = function (world, opts) {
     var ctx = this.ctx, m = this.map, cam = this.cam, vw = this.vw, vh = this.vh, A = this.assets, i;
@@ -122,8 +171,14 @@
     var B = m.blds, BF = m.bldFrames, bimg = A.get(m.keys.blds);
     for (i = 0; i < B.length; i++) { var bb = B[i], bx = bb.x - cam.x, by = bb.y - cam.y; if (bx < -300 || bx > vw + 300 || by < -80 || by > vh + 400) continue; list.push({ d: bb.d, b: bb, x: bx, y: by, own: world.buildings[i].claim != null ? world.buildings[i].claim : world.buildings[i].owner, sel: opts.selB === world.buildings[i], c: bb.c }); }
     list.sort(function (a, b) { return a.d - b.d; });
+    /* 두 겹으로 그린다: ① 지상(배치물·건물·지상 유닛) → 공중 유닛의 바닥 그림자 → ② 공중 유닛(fly = 2) 본체.
+       그림자는 지상의 모든 것 위에, 공중 유닛 본체 아래에 놓인다. */
+    this._groundShadows(world, list);
+    for (var pass = 0; pass < 2; pass++) {
+    if (pass === 1) this._airShadows(world, list, opts);
     for (i = 0; i < list.length; i++) {
       var it = list[i];
+      if ((pass === 1) !== !!(it.u && it.u.t.fly === 2)) continue;
       if (it.b) { var bf = it.b.f, f0 = BF[bf[0]];
         if (it.own >= 0 || it.sel) { if (it.own < 0) ctx.setLineDash([5, 4]); var cp = this.toScreen(it.c[0], it.c[1]); ctx.strokeStyle = it.sel ? 'rgba(120,255,140,.95)' : opts.colors[it.own]; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cp[0], cp[1] - 44); ctx.lineTo(cp[0] + 88, cp[1]); ctx.lineTo(cp[0], cp[1] + 44); ctx.lineTo(cp[0] - 88, cp[1]); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]); }
         ctx.drawImage(bimg, f0[0], f0[1], f0[2], f0[3], Math.round(it.x - f0[4]), Math.round(it.y - f0[5]), f0[2], f0[3]);
@@ -132,10 +187,15 @@
         continue; }
       if (it.o) { var fl = OD[it.o[0]].f, fr = OF[fl[fl.length > 1 ? Math.floor(this.time * 8) % fl.length : 0]];
         ctx.drawImage(objs, fr[0], fr[1], fr[2], fr[3], Math.round(it.x - fr[4]), Math.round(it.y - fr[5]), fr[2], fr[3]); continue; }
-      u = it.u; p = it.p; var alt = u.t.alt, fi = u.frameIndex(world.rules.tps), isSel = opts.selected && opts.selected.indexOf(u) >= 0;
-      if (u.alive()) {
-        ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(p[0], p[1], 13, 6, 0, 0, 6.283); ctx.fill();
-        if (isSel) { ctx.strokeStyle = 'rgba(120,255,140,.95)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.ellipse(p[0], p[1] + 1, 14, 6.5, 0, 0, 6.283); ctx.stroke();   // 선택 표시: 발밑의 작은 원
+      /* 비행 높이: 공중 유닛의 프레임 오프셋(oy)에 고도가 이미 들어 있다(박쥐: 그림 아래가 기준점보다 94 위 = unitData +0x28 = 94).
+         예전에는 여기서 alt를 한 번 더 빼서 두 배 높이에 그렸다. 발사체·이펙트의 z(alt + 24)는 한 번만 띄운 높이와 맞는다. */
+      u = it.u; p = it.p; var alt = 0, fi = u.frameIndex(world.rules.tps), isSel = opts.selected && opts.selected.indexOf(u) >= 0;
+      if (u.alive() && pass === 0) {                 // 공중 유닛의 그림자·진영 원은 _airShadows가 그린다
+        /* 발밑 진영 원 (목업 고유): 모든 유닛에 항상. 아군 파랑, 적군 빨강. 선택한 유닛은 굵고 진하게 */
+        var cmine = u.fac === opts.me;
+        ctx.strokeStyle = cmine ? (isSel ? 'rgba(110,185,255,1)' : 'rgba(90,170,255,.5)') : (isSel ? 'rgba(255,95,70,1)' : 'rgba(247,77,49,.5)');
+        ctx.lineWidth = isSel ? 2 : 1; ctx.beginPath(); ctx.ellipse(p[0], p[1] + 1, 14, 6.5, 0, 0, 6.283); ctx.stroke();
+        if (isSel) {
           if (opts.focus === u && opts.selected.length > 1) { ctx.strokeStyle = 'rgba(255,226,150,.9)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(p[0], p[1] + 1, 10.5, 4.5, 0, 0, 6.283); ctx.stroke(); } }
       }
       if (fi < 0) continue;
@@ -143,20 +203,33 @@
       ctx.save();
       if (u.state === 'dead') ctx.globalAlpha = Math.max(0, Math.min(1, (7 - u.deadT) / 2));
       ctx.translate(Math.round(p[0]), Math.round(p[1] - alt)); if (u.mir) ctx.scale(-1, 1);
-      ctx.drawImage(A.get('u' + u.t.id), f[0], f[1], f[2], f[3], -f[4], -f[5], f[2], f[3]);
+      ctx.drawImage(A.get(f[6] || ('u' + u.t.id)), f[0], f[1], f[2], f[3], -f[4], -f[5], f[2], f[3]);
       ctx.restore();
-      if (u.alive() && (u.hp < u.maxHp || isSel)) {
-        if (isSel) {                                   // 선택된 유닛: 발밑 원 아래에 체력·마나 바 (체력은 비율에 따라 초록→노랑→빨강)
-          var sw = 28, sx0 = Math.round(p[0] - sw / 2), sy0 = Math.round(p[1] + 10), hr = Math.max(0, Math.min(1, u.hp / u.maxHp));
-          ctx.fillStyle = 'rgba(6,8,12,.8)'; ctx.fillRect(sx0 - 1, sy0 - 1, sw + 2, u.maxMp ? 9 : 5);
-          ctx.fillStyle = hr > 0.5 ? '#5fc46a' : hr > 0.25 ? '#d9b23c' : '#d2513f'; ctx.fillRect(sx0, sy0, Math.round(sw * hr), 3);
-          if (u.maxMp) { ctx.fillStyle = '#4f8fe0'; ctx.fillRect(sx0, sy0 + 4, Math.round(sw * Math.max(0, Math.min(1, u.mp / u.maxMp))), 3); }
-        } else {
-        var bw = 30, by = p[1] - alt - f[5] - 7;
-        ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(p[0] - bw / 2 - 1, by - 1, bw + 2, 5);
-        ctx.fillStyle = opts.colors[u.fac]; ctx.fillRect(p[0] - bw / 2, by, bw * u.hp / u.maxHp, 3);
+      /* 웨폰 계열 강화(파이어·매직·아이스·다크 웨폰): 걸려 있는 동안 이펙트가 발밑에서 계속 돌고 유닛을 따라다닌다.
+         매 프레임 유닛의 발밑 좌표에 다시 그리므로 이동과 함께 움직인다. 원본도 유닛마다 발밑 좌표에 그린다
+         (FUN_004f7490: 인스턴스 +0x34 = 이펙트 번호, +0x38 = 프레임 카운터). */
+      var wb = u.buffs.weapon;
+      if (wb && wb.arm >= 0 && wb.until > world.time && u.alive() && this.fx) { var wd = this.fx.arms[wb.arm], wf = wd && (wd.fly.length ? wd.fly : wd.hit);
+        if (wf && wf.length) this._sprite(this.fx.frames[wf[Math.floor(this.time * 15) % wf.length]], p[0], p[1], false, !wd.dir); }
+      /* 체력·마나 바. 그림·색·폭·채움 식은 원본 그대로 (FUN_004f7cf0, 분석 8-27): bar.spr 틀, 종류별 폭(+0x100),
+         체력은 초록·폭의 1/3 이하면 빨강, 마나 바는 마나가 있는 내 유닛만 6픽셀 아래, 오른쪽에 레벨 숫자(helpnum.mwl).
+         위치와 표시 조건은 목업 고유: 원본은 발밑(+0x102)에 선택한 유닛만 그리지만, 여기서는 잘 보이도록 머리 위에 두고
+         opts.bars = { ally, enemy, hurt }로 아군·적군 표시와 "체력이 닳았을 때만"을 고른다. 선택한 유닛은 항상 그린다. */
+      var HB = root.MW && root.MW.hpbar, own = u.fac === opts.me, BO = opts.bars || {};
+      if (HB && u.alive() && (isSel || (own ? BO.ally && (!BO.hurt || u.hp < u.maxHp) : BO.enemy))) {   // "닳았을 때만"은 아군에만 적용
+        if (u.t.headY == null) u.t.headY = u.t.frames[0] ? u.t.frames[0][5] : 40;   // 머리 높이: 첫 프레임 기준으로 고정 (동작마다 흔들리지 않게)
+        var hb = HB.units[u.t.id] || HB.units[0], bw = hb[1], hx = Math.round(p[0]), x0 = hx - (bw >> 1), hy = Math.round(p[1] - alt - u.t.headY) - (u.maxMp && own ? 12 : 6);
+        var hf = HB.frames[hb[0]], him = A.get('hpbar'), fill = Math.floor(Math.max(0, u.hp) * bw / u.maxHp), ly = hy - 3;
+        ctx.fillStyle = !own || fill <= Math.floor(bw / 3) ? HB.low : HB.hp; ctx.fillRect(x0, hy, fill + 1, 3);   // 적군은 항상 빨강 (목업 고유, 피아 구분용)
+        ctx.drawImage(him, hf[0], hf[1], hf[2], hf[3], hx - hf[4], hy - 11 - hf[5], hf[2], hf[3]);
+        if (u.maxMp && own) {
+          ctx.fillStyle = HB.mp; ctx.fillRect(x0, hy + 6, Math.floor(Math.max(0, u.mp) * bw / u.maxMp) + 1, 3);
+          ctx.drawImage(him, hf[0], hf[1], hf[2], hf[3], hx - hf[4], hy - 5 - hf[5], hf[2], hf[3]); ly = hy + 1;
         }
+        for (var ls = String(u.level), li = 0, lx = x0 + bw + 3; li < ls.length; li++, lx += 5) { var lg = HB.digits[ls.charCodeAt(li) - 48]; if (lg) ctx.drawImage(him, lg[0], lg[1], lg[2], lg[3], lx - lg[4], ly - lg[5], lg[2], lg[3]); }
+        if (hb[3] === 1) { var st = HB.frames[7]; ctx.save(); ctx.globalAlpha = 0.6; ctx.drawImage(him, st[0], st[1], st[2], st[3], x0 - st[4], hy - 20 - st[5], st[2], st[3]); ctx.restore(); }   // 영웅 별 (반투명 단계 3, 비율은 추정)
       }
+    }
     }
     if (opts.paths && opts.selected) {           // 선택 유닛의 경로 표시
       ctx.strokeStyle = 'rgba(255,220,120,.7)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);

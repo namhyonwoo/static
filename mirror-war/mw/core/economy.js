@@ -52,8 +52,8 @@
   function at(tb, i) { return tb[Math.min(tb.length - 1, i)]; }
   /* 원본 게임 틱 한 번 (FUN_004c9b60 건물 틱): 점령 진행, 채취, 건물 안 회복 */
   P._buildingTick = function (b) {
-    var n = b.inside.length, k, u, bon = { prod: 0, hp: 0, mp: 0, pop: 0, gold: 0, gem: 0, cap: 0 };
-    for (k = 0; k < n; k++) { var tb = b.inside[k].t.bon; bon.prod += tb.prod; bon.hp += tb.hp; bon.mp += tb.mp; bon.pop += tb.pop; bon.gold += tb.gold; bon.gem += tb.gem; bon.cap += tb.cap; }
+    var n = b.inside.length, k, u, bon = { hp: 0, mp: 0, pop: 0, gold: 0, gem: 0, cap: 0 };
+    for (k = 0; k < n; k++) { var tb = b.inside[k].t.bon; bon.hp += tb.hp; bon.mp += tb.mp; bon.pop += tb.pop; bon.gold += tb.gold; bon.gem += tb.gem; bon.cap += tb.cap; }
     if (b.claim != null && b.claim !== b.owner) {            // 점령 중: 틱마다 1 + 보너스÷16 씩 줄고, 그동안 채취·회복 없음
       if (!n) return; b.capT -= 1 + bon.cap / 16;
       if (b.capT <= 0) { b.owner = b.claim; b.capT = 0; this.events.emit('capture', b, b.owner); }
@@ -72,8 +72,7 @@
       if (u.mp < u.maxMp && this.gtick % 6 === 0) u.mp++;
       if (u.promo && ++u.promo.t >= u.promo.total) { u.setType(u.promo.type); u.promo = null; this.events.emit('promote', u, b); } }
     var q = b.queue[0];
-    if (q) q.t += 1 + bon.prod;
-    if (q && q.t >= q.total) { b.queue.shift(); var p = this.exitPoint(b, this.gtick % 7, q.type.moveClass), nu = this.spawn(q.type, b.owner, p[0], p[1]); nu.made = true; this.events.emit('produced', nu, b); }
+    if (q && ++q.t >= q.total) { b.queue.shift(); var p = this.exitPoint(b, this.gtick % 7, q.type.moveClass), nu = this.spawn(q.type, b.owner, p[0], p[1]); nu.made = true; this.events.emit('produced', nu, b); }
   };
   P._economy = function () { for (var t = 0; t < this._gt; t++) for (var i = 0; i < this.buildings.length; i++) this._buildingTick(this.buildings[i]); };
 })(typeof window !== 'undefined' ? window : globalThis);

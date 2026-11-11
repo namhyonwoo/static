@@ -117,13 +117,21 @@ input[type=number]{width:64px;}
 
 <div class="stagewrap"><canvas id="stage" width="800" height="600" aria-label="거울전쟁 전투 시뮬레이션 화면"></canvas></div>
 
+<div class="bar" id="hbOpts">
+  <span class="lbl">체력·마나 바</span>
+  <label><input id="hbAlly" type="checkbox" checked> 아군 표시</label>
+  <label id="hbHurtLbl" title="아군에만 적용됩니다. 적군은 체력과 상관없이 표시합니다.">└ <input id="hbHurt" type="checkbox" checked> 아군은 체력이 닳았을 때만</label>
+  <span class="sp"></span>
+  <label><input id="hbEnemy" type="checkbox" checked> 적군 표시</label>
+</div>
+
 <div class="bar" data-mode="battle">
   <span class="lbl">조작 진영</span>
   <button id="fac0" aria-pressed="true">해방부대</button>
   <button id="fac1" aria-pressed="false">악령군</button>
   <button id="fac2" aria-pressed="false">흑마술파</button>
   <span class="sp"></span>
-  <button id="fog" aria-pressed="true">안개</button>
+  <button id="fog" aria-pressed="false">안개</button>
   <button id="ai" aria-pressed="false">컴퓨터 AI</button>
   <button id="mana" aria-pressed="false">마나 무한</button>
   <button id="spd">속도 3/5</button>
@@ -228,6 +236,8 @@ input[type=number]{width:64px;}
 </div>
 
 <script src="sim/data.js"></script>
+<script src="sim/hpbar.js"></script>
+<script src="sim/block.js"></script>
 <script src="mw/core/base.js"></script>
 <script src="mw/core/gamemap.js"></script>
 <script src="mw/core/pathfinder.js"></script>
@@ -277,6 +287,9 @@ input[type=number]{width:64px;}
     game.setFaction(i); [0,1,2].forEach(function(j){ press($("fac"+j), j===i); }); }); });
   $("auto").addEventListener("click", function(){ if (!game.world) return; game.setAuto(!game.auto); press(this, game.auto); });
   $("reset").addEventListener("click", function(){ if (game.world) game.reset(); });
+  [["hbAlly","ally"],["hbEnemy","enemy"],["hbHurt","hurt"]].forEach(function(p){ var el=$(p[0]); game.bars[p[1]]=el.checked; el.addEventListener("change", function(){ game.bars[p[1]]=this.checked; hbSync(); }); });
+  function hbSync(){ var on=$("hbAlly").checked; $("hbHurt").disabled=!on; $("hbHurtLbl").style.opacity=on?"":"0.45"; }   // "닳았을 때만"은 아군 표시의 하위 옵션
+  hbSync();
   $("blk").addEventListener("click", function(){ if (!game.view) return; game.view.showBlocked=!game.view.showBlocked; press(this, game.view.showBlocked); });
   $("fog").addEventListener("click", function(){ if (!game.view) return; game.view.fogOn=!game.view.fogOn; press(this, game.view.fogOn); });
   $("ai").addEventListener("click", function(){ game.aiOn=!game.aiOn; press(this, game.aiOn); });

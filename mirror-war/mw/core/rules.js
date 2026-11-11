@@ -60,8 +60,7 @@
   };
   /* 이동 속도: 틱마다 걷기 프레임 1장, 그 프레임의 이동량만큼 (FUN_004e7290) */
   O.animRate = function (u) { return this.tps; };
-  O.speed = function (u) { return u.t.walkPx * this.tps / 45.25 * (1 + 1.4 * Math.max(-8, Math.min(8, (this.buff(u, "haste") ? 8 : 0) - (this.buff(u, "slow") ? 8 : 0))) / 32); };
-  /* 속도 보정 = 1 + 1.4 × 상태값 ÷ 32, 상태값은 헤이스트 +8, 감속류 −8, ±8로 제한 (FUN_004e7290, 값은 FUN_004b87d0·004b9590). 오르막·내리막 보정은 넣지 않았다 */   // 가속 배수는 추정
+  O.speed = function (u) { return u.t.walkPx * this.tps / 45.25 * (this.buff(u, "haste") ? 1.5 : 1) * (this.buff(u, "slow") ? 0.5 : 1); };   // 가속 배수는 추정
   /* 치유 (FUN_004b87d0): 남은 마나 × k ÷ 2 만큼, 부족분까지만. k = 4(힐링·다크 힐링), 3(파워 힐링). 쓴 만큼 마나 차감.
      대상에 상태 이상이 있으면 그 시전은 해제만 한다 (힐링 기준 비용: 매혹 200, 석화 150, 약화 80, 중독 60, 마비·감속 20) */
   O.heal = function (u, t, a) {
