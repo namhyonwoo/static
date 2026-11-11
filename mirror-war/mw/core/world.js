@@ -228,8 +228,8 @@ P._blast = function (u, a, x, y) {
     var S = u.t.sups; for (var i = 0; i < S.length; i++) { if (S[i].sup === "heal" && u.fac === this.manualHeal) continue; if (this._cast(u, S[i], false)) return true; }
     return false;
   };
-  /* 밀어서 비키게 할 수 있는 아군인가 (스타크래프트 2 방식, 목업 고유): 명령 없이 그냥 서 있는 유닛만.
-     위치 사수(hold)·공격 대상이 있는 유닛·순간이동·석화·방패 막기 중인 유닛은 밀리지 않는다. 적은 따로 걸러 낸다(같은 진영끼리만 호출). */
+  /* 명령 없이 그냥 서 있는 유닛인가. 지금은 "서 있는 아군끼리 겹쳐 있을 때 천천히 벌리기"에만 쓴다.
+     원본(분석 8-31)은 서 있는 유닛을 밀지 않으므로, 움직이는 유닛이 서 있는 아군을 밀어내는 처리(스타크래프트 2 방식)는 2026-11-11 사용자 확인 뒤 껐다. */
   P._pushable = function (o) {
     return o.state === 'idle' && !o.order && !o.tgt && !o.tp && !(o.buffs.stone && o.buffs.stone.until > this.time) && !o.blockT;
   };
@@ -242,7 +242,6 @@ P._blast = function (u, a, x, y) {
     var L = this.units, map = this.map, mc = u.t.moveClass, CLEAR = 0.95, LOOK = 1.8, best = null, bd = 1e9, blat = 0, i, o;
     for (i = 0; i < L.length; i++) {
       o = L[i]; if (o === u || !o.alive() || o.state === 'move' || o.state === 'inside' || (o.t.fly === 2) !== (u.t.fly === 2)) continue;
-      if (o.fac === u.fac && this._pushable(o)) continue;                              // 그냥 서 있는 아군은 돌아가지 않고 밀고 지나간다 (겹침 처리)
       var ox = o.x - u.x, oy = o.y - u.y, ahead = ox * hx + oy * hy; if (ahead <= 0 || ahead > LOOK || ahead >= bd) continue;
       CLEAR = u.t.rad + o.t.rad + 0.1;                                                 // 두 유닛 크기에 맞춘 비켜 갈 폭
       var lat = oy * hx - ox * hy; if (Math.abs(lat) >= CLEAR) continue;            // 진행 방향의 왼쪽이 +
@@ -260,6 +259,13 @@ P._blast = function (u, a, x, y) {
     return null;
   };
   /* 경로를 따라 한 틱 이동. 도착하면 true */
+  /* 목적지 쪽 바로 앞(반지름 합 + 0.35칸)에 명령 없이 서 있는 아군이 있는가 — 부대 이동에서 늦게 온 유닛이 바깥에 서는 판정 */
+  P._blockedByIdleAlly = function (u, gx, gy) {
+    var L = this.units, dx = gx - u.x, dy = gy - u.y, d = Math.hypot(dx, dy); if (d < 0.001) return false; dx /= d; dy /= d;
+    for (var i = 0; i < L.length; i++) { var o = L[i]; if (o === u || o.fac !== u.fac || !o.alive() || o.order || o.state !== 'idle' || o.t.fly !== u.t.fly) continue;
+      var ox = o.x - u.x, oy = o.y - u.y, od = Math.hypot(ox, oy); if (od > u.t.rad + o.t.rad + 0.35) continue; if (ox * dx + oy * dy > 0) return true; }
+    return false;
+  };
   P._moveToward = function (u, tx, ty) {
     var map = this.map, mc = u.t.moveClass;
     if (Math.hypot(tx - u.x, ty - u.y) < 0.08) return true;
@@ -353,14 +359,18 @@ P._blast = function (u, a, x, y) {
         if (u.mvOrder !== o) { u.mvOrder = o; u.mvBest = gd; u.mvT = this.time; }
         else if (gd < u.mvBest - 0.1) { u.mvBest = gd; u.mvT = this.time; }
         if (this.time - u.mvT > 1.0 && gd <= (o.tol || 1.2)) { u.order = null; u.path = null; u.state = 'idle'; }
-        else { if (this.time - u.mvT > 2.5) { u.path = null; u.mvT = this.time; }
-          if (this._moveToward(u, o.x, o.y)) { u.order = null; u.path = null; u.state = 'idle'; } }
+        else if (this.time - u.mvT > 1.0 && this._blockedByIdleAlly(u, o.x, o.y)) { u.order = null; u.path = null; u.state = 'idle'; }   // 먼저 도착해 서 있는 아군이 길을 막으면 그 자리에 선다 (부대가 모일 때 바깥에 서는 것)
+        else if (this.time - u.mvT > 1.0) {                                             // 멀리서 막힘: 원본(8-31)처럼 서서 기다리다 2.5초마다 경로를 다시 찾고, 20초 넘게 못 나가면 포기
+          if (this.time - (u.mvRetry || 0) > 2.5) { u.mvRetry = this.time; u.path = null; if (this._moveToward(u, o.x, o.y)) { u.order = null; u.path = null; } }
+          else u.state = 'idle';
+          if (this.time - u.mvT > 20) { u.order = null; u.path = null; u.state = 'idle'; } }
+        else if (this._moveToward(u, o.x, o.y)) { u.order = null; u.path = null; u.state = 'idle'; }
       } else u.state = 'idle';
     }
-    /* 겹침 처리 (목업 고유, 스타크래프트 2 방식):
+    /* 겹침 처리 (목업 고유 — 원본 8-31처럼 서 있는 유닛은 밀리지 않는다):
        · 움직이는 유닛끼리는 반씩 비킨다. 한쪽이 벽이라 못 비키면 다른 쪽이 전부 비킨다.
-       · 움직이는 유닛과 "그냥 서 있는 아군"(_pushable)이 겹치면 서 있는 쪽이 대부분(80%) 밀려 길을 내준다.
-       · 위치 사수·공격 중인 유닛이나 적과 겹치면 움직이는 쪽만 비킨다. 둘 다 서 있으면 그냥 서 있는 아군끼리만 두 반지름 합의 82%까지 천천히 벌린다.
+       · 움직이는 유닛과 서 있는 유닛(아군·적 모두)이 겹치면 움직이는 쪽만 비킨다. 서 있는 유닛은 돌아가야 할 장애물(_avoid)이고, 돌아갈 수 없으면 막힘 도착 처리가 받는다.
+       · 둘 다 서 있으면 그냥 서 있는 아군끼리만 두 반지름 합의 82%까지 천천히 벌린다(배치 때 겹친 것 풀기).
        · 거리 기준은 유닛 크기(원본 +0x22 반폭 → UnitType.rad)에 비례한다. 공중 유닛은 충돌하지 않는다(원본 8-31).
        · 완전히 겹쳤을 때(거리 0)는 두 유닛 번호로 정한 방향으로 떼어 놓는다. 통행 불가 칸으로는 밀지 않는다. */
     for (i = 0; i < L.length; i++) {
@@ -378,8 +388,8 @@ P._blast = function (u, a, x, y) {
           continue; }
         var p = (min - dd) * Math.min(1, DT * 8), wa, wb;
         if (am && bm) { wa = 0.5; wb = 0.5; }
-        else if (am) { if (b.fac === a.fac && this._pushable(b)) { wa = 0.2; wb = 0.8; } else { wa = 1; wb = 0; } }
-        else { if (a.fac === b.fac && this._pushable(a)) { wa = 0.8; wb = 0.2; } else { wa = 0; wb = 1; } }
+        else if (am) { wa = 1; wb = 0; }
+        else { wa = 0; wb = 1; }
         var okA = wa > 0 && map.walkable(a.x - ux * p * wa, a.y - uy * p * wa, a.t.moveClass), okB = wb > 0 && map.walkable(b.x + ux * p * wb, b.y + uy * p * wb, b.t.moveClass);
         if (okA && !okB && (bm || am)) wa = Math.min(1, wa + wb); else if (okB && !okA) wb = Math.min(1, wa + wb);   // 한쪽이 막혔으면 다른 쪽이 마저 비킨다
         if (okA && map.walkable(a.x - ux * p * wa, a.y - uy * p * wa, a.t.moveClass)) { a.x -= ux * p * wa; a.y -= uy * p * wa; }
