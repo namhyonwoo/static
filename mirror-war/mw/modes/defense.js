@@ -40,6 +40,10 @@
     LANE_ROWS: [-56, -28, 0, 28, 56],   // 유닛이 서는 세로 줄 5개 (전투 줄 중심에서의 거리)
     UNIT_GAP: 30,                // 줄 서기: 같은 편 앞사람과 벌려 두는 간격(px)
     ROW_NEAR: 18,                // 세로로 이만큼 안이면 "같은 줄"로 본다
+    ROW_WEIGHT: 0.35,            // 근접 공격: 세로 줄 차이를 거리에 얼마나 넣을지 (작을수록 옆줄의 적도 쳐서 한 적을 여럿이 에워싼다)
+    PASS_WAIT: 0.5,              // 앞사람에게 이만큼(초) 막혀 있으면 빈 옆줄로 추월을 시도한다
+    ALT_MAX: 16,                 // 공중 유닛이 땅에서 떠 보이는 높이의 한도(px). 원본 그림은 엔젤 나이트가 100px 넘게 떠 있어 위쪽 표시를 가린다
+    RANGE_SPREAD: 0.2,           // 원거리 유닛마다 서는 거리를 사거리의 (1 − 이 값)~1배 사이에서 다르게 (한 줄로 뭉치지 않게)
     CAM: { follow: 2.5, manualSec: 5 },   // 카메라: 전선을 따라가는 빠르기, 손으로 움직인 뒤 자동으로 돌아오기까지(초)
     BASE: { hp: 600, x: 78, front: 196 },   // 아군 기지(성): 체력, 그림 기준점의 가로 위치, 성 앞 선(아군이 나오고 적이 멈춰 때리는 곳)
     LAIR: { back: 74, mouth: 150 },         // 적 출구(마굴): 그림 기준점이 화면 오른쪽 끝에서 떨어진 거리, 적이 나오는 입구까지의 거리
@@ -146,7 +150,7 @@
     this.W = Math.max(C.MIN_W, Math.min(C.MAX_W, Math.round(C.VIEW_H * vw / vh)));
     this.cv.width = this.W; this.cv.height = this.H;
     this.ctx.imageSmoothingEnabled = false;                  // 도트 그림이 뭉개지지 않게 (크기를 바꾸면 다시 켜지므로 매번 끈다)
-    this.laneY = Math.round((this.H - C.HUD_H) * 0.6);       // 전투 줄의 세로 중심
+    this.laneY = Math.round((this.H - C.HUD_H) * 0.70);      // 전투 줄의 세로 중심 (위쪽 표시와 겹치지 않게 조금 아래)
     this.spawnX = C.WORLD_W - C.LAIR.mouth;                  // 적이 나오는 곳 (마굴 입구) — 전장 좌표
     this.frontX = C.WORLD_W - C.LAIR.mouth - 40;             // 아군이 나아가는 한계 (마굴 앞)
     this.cam = this.cam || { x: 0 };                         // 카메라: 화면 왼쪽 끝이 전장의 어디인가
@@ -206,7 +210,8 @@
     u.x = side === 0 ? C.BASE.front - 8 : this.spawnX;
     u.y = this.laneY + C.LANE_ROWS[Math.floor(this.rng.next() * C.LANE_ROWS.length)];
     if (side === 1) { u.maxHp = Math.round(u.maxHp * C.ENEMY_HP_MUL); u.hp = u.maxHp; }
-    u.state = 'move'; u.cd = 0; u.fade = 0; u.stunUntil = 0;
+    u.state = 'move'; u.cd = 0; u.fade = 0; u.stunUntil = 0; u.blockT = 0; u.passY = null;
+    u.rangeK = 1 - C.RANGE_SPREAD * this.rng.next();         // 이 유닛이 서는 거리 배수 (원거리만 쓴다)
     this._setSide(u, side);
     this._applyType(u);
     // 마법 유닛이면 스킬 칸을 만들어 서로 가리키게 한다 (유닛 ↔ 칸 1:1)
@@ -223,8 +228,17 @@
   /* 종류에서 나오는 값(기본 공격·사거리·속도)을 유닛에 다시 적는다. 처음 소환할 때와 변형할 때 */
   P._applyType = function (u) {
     var C = CONFIG, t = u.t;
+    // 떠 있는 높이: 원본 스프라이트는 공중 유닛의 고도가 그림 안에 이미 들어 있다(발밑 기준점보다 그림 아랫변이 위에 있음).
+    // 그 높이가 ALT_MAX를 넘으면 넘는 만큼 그림을 내려 그린다(drop). headY = 발밑에서 머리 꼭대기까지 — 체력 바·글자·발사체 위치의 기준
+    var f0 = t.frames[t.anim.idle[u.row]] || t.frames[0], lift = f0 ? Math.max(0, f0[5] - f0[3]) : 0;
+    u.drop = Math.max(0, lift - C.ALT_MAX);
+    u.headY = (f0 ? Math.max(t.h, f0[5]) : t.h) - u.drop;
+    u.air = t.fly === 2;                                     // 공중 유닛(엔젤 나이트): 줄 서기 없이 아군 위를 지나간다 — 원본도 공중 유닛은 충돌이 없다
     u.act = basicAct(t);
     u.rangePx = (u.act ? u.act.range : 0) * C.RANGE_SCALE;
+    if (u.rangePx >= 80) u.rangePx *= u.rangeK;              // 원거리: 유닛마다 조금씩 다른 거리에서 멈춘다
+    // reach = "적에게 얼마나 가까이 가려는가". 줄 서기에서 reach가 짧은 유닛(근접)은 긴 유닛(원거리·지원)을 지나쳐 앞으로 나간다
+    u.reach = u.act ? u.rangePx : C.SUPPORT_DIST;
     u.speedPx = t.walkPx * this.rules.tps * C.MOVE_SCALE;    // 초당 이동 px
   };
 
@@ -356,6 +370,7 @@
 
     this._updateWave(dt);
     for (i = 0; i < this.units.length; i++) this._updateUnit(this.units[i], dt);
+    this._separate(dt);
     this._updateShots(dt);
     this._updateCamera(dt);
 
@@ -418,29 +433,61 @@
     if (u.side === 0 && u.x >= this.frontX) { u.state = 'idle'; return; }
     if (u.side === 1 && u.x <= C.BASE.front) { u.state = 'idle'; return; }
     // 줄 서기: 같은 줄 바로 앞에 같은 편이 있으면 멈춰 기다린다. 기다리는 동안 적이 있는 줄 쪽으로 조금씩 비켜 서서 빈자리를 찾는다
-    if (this._blockedAhead(u)) { u.state = 'idle'; if (tgt && Math.abs(tgt.y - u.y) > C.ROW_NEAR) this._shiftRow(u, tgt.y, 30 * dt); return; }
+    // 줄 서기와 추월: 같은 줄 바로 앞에 같은 편이 있으면 멈춰 기다린다.
+    // 막힌 시간이 쌓이면(앞사람이 느려서 붙었다 떨어졌다 해도 쌓이도록 천천히 줄인다) 가까운 빈 줄을 골라 그 줄로 옮겨 가서 앞지른다
+    var blocked = this._blockedAhead(u);
+    if (blocked) u.blockT += dt; else u.blockT = Math.max(0, u.blockT - dt * 0.5);
+    if (u.blockT >= C.PASS_WAIT && u.passY == null) { u.passY = this._freeRow(u); u.passT = 0; if (u.passY == null) u.blockT = 0; }
+    if (u.passY != null) { u.passT += dt; this._shiftRow(u, u.passY, 45 * dt); if (Math.abs(u.passY - u.y) < 1 || u.passT > 2) { u.passY = null; u.blockT = 0; } }
+    if (blocked) { if (u.passY != null) { u.state = 'move'; u.walkT += dt; } else u.state = 'idle'; return; }
     u.state = 'move'; u.walkT += dt; u.x += u.dir * u.speedPx * dt;
   };
 
   /* 두 유닛 사이의 "닿는 거리". 원거리는 가로 거리만, 근접은 세로 줄 차이도 더한다 (다른 줄의 적은 옆으로 가야 때릴 수 있다) */
-  P._dist = function (u, o) { var dx = Math.abs(o.x - u.x); return u.rangePx < 80 ? dx + Math.abs(o.y - u.y) * 0.6 : dx; };
+  P._dist = function (u, o) { var dx = Math.abs(o.x - u.x); return u.rangePx < 80 ? dx + Math.abs(o.y - u.y) * CONFIG.ROW_WEIGHT : dx; };
 
   /* 세로로 y 쪽을 향해 step만큼 옮긴다 (전투 줄 범위 안에서) */
   P._shiftRow = function (u, y, step) {
     var R = CONFIG.LANE_ROWS, lo = this.laneY + R[0], hi = this.laneY + R[R.length - 1], d = y - u.y;
     var ny = Math.max(lo, Math.min(hi, u.y + Math.max(-step, Math.min(step, d)))), C = CONFIG, L = this.units;
     // 옮겨 갈 자리에 같은 편이 이미 서 있으면 그대로 둔다 (포개지지 않게)
-    for (var i = 0; i < L.length; i++) { var o = L[i]; if (o === u || o.side !== u.side || o.state === 'dead') continue;
+    for (var i = 0; i < L.length; i++) { var o = L[i]; if (o === u || o.air || u.air || o.side !== u.side || o.state === 'dead') continue;
       if (Math.abs(o.x - u.x) < C.UNIT_GAP * 0.7 && Math.abs(o.y - ny) < C.ROW_NEAR && Math.abs(o.y - u.y) >= Math.abs(o.y - ny)) return; }
     u.y = ny;
   };
 
-  /* 같은 줄, 가는 방향 바로 앞(UNIT_GAP 안)에 같은 편 유닛이 있는가. 정확히 같은 자리면 먼저 나온 유닛이 앞 */
+  /* 같은 줄, 가는 방향 바로 앞(UNIT_GAP 안)에 나를 막는 같은 편 유닛이 있는가.
+     나보다 reach가 긴 유닛(원거리·지원)은 막는 것으로 치지 않는다 → 전사는 궁수·마법사·성직자를 지나쳐 앞줄로 나간다.
+     정확히 같은 자리면 먼저 나온 유닛이 앞 */
   P._blockedAhead = function (u) {
-    var C = CONFIG, L = this.units;
-    for (var i = 0; i < L.length; i++) { var o = L[i]; if (o === u || o.side !== u.side || o.state === 'dead' || Math.abs(o.y - u.y) >= C.ROW_NEAR) continue;
+    var C = CONFIG, L = this.units; if (u.air) return false;   // 공중 유닛은 막히지 않는다
+    for (var i = 0; i < L.length; i++) { var o = L[i]; if (o === u || o.air || o.side !== u.side || o.state === 'dead' || Math.abs(o.y - u.y) >= C.ROW_NEAR) continue;
+      if (o.reach > u.reach + 1) continue;
       var ahead = (o.x - u.x) * u.dir; if ((ahead > 0 && ahead < C.UNIT_GAP) || (ahead === 0 && o.uid < u.uid)) return true; }
     return false;
+  };
+
+  /* 추월할 줄 고르기: 지금 줄에서 가까운 순서로, 내 옆과 바로 앞에 나를 막을 같은 편이 없는 줄. 없으면 null */
+  P._freeRow = function (u) {
+    var C = CONFIG, L = this.units, self = this, rows = C.LANE_ROWS.map(function (r) { return self.laneY + r; })
+      .filter(function (y) { return Math.abs(y - u.y) >= C.ROW_NEAR; }).sort(function (a, b) { return Math.abs(a - u.y) - Math.abs(b - u.y); });
+    for (var k = 0; k < rows.length; k++) { var y = rows[k], free = true;
+      for (var i = 0; i < L.length && free; i++) { var o = L[i]; if (o === u || o.air || o.side !== u.side || o.state === 'dead' || Math.abs(o.y - y) >= C.ROW_NEAR || o.reach > u.reach + 1) continue;
+        var ahead = (o.x - u.x) * u.dir; if (ahead > -C.UNIT_GAP * 0.7 && ahead < C.UNIT_GAP) free = false; }
+      if (free) return y; }
+    return null;
+  };
+
+  /* 포개짐 풀기: 같은 편 둘이 거의 같은 자리에 서 있으면(주로 사거리 끝에서 멈춘 원거리 유닛) 나중에 온 쪽이 위아래로 조금씩 비켜 선다.
+     전투 줄 끝이라 더 비킬 데가 없으면 뒤로 물러난다 */
+  P._separate = function (dt) {
+    var C = CONFIG, L = this.units, R = C.LANE_ROWS, lo = this.laneY + R[0], hi = this.laneY + R[R.length - 1];
+    for (var i = 0; i < L.length; i++) { var u = L[i]; if (u.state === 'dead' || u.air) continue;   // 공중 유닛은 땅 위 유닛과 겹쳐도 된다
+      for (var j = 0; j < L.length; j++) { var o = L[j]; if (o === u || o.air || o.side !== u.side || o.state === 'dead' || o.uid > u.uid) continue;
+        var dy = u.y - o.y; if (Math.abs(u.x - o.x) >= 14 || Math.abs(dy) >= 12) continue;
+        var dir = dy !== 0 ? (dy > 0 ? 1 : -1) : (u.uid % 2 ? 1 : -1), ny = u.y + dir * 30 * dt;
+        if (ny < lo || ny > hi) u.x -= u.dir * 20 * dt; else u.y = ny;
+        break; } }
   };
 
   /* 맞은편 유닛 중 가장 가까운 것 (_dist 기준) */
@@ -472,13 +519,13 @@
     if (tgt === 'base') { this._hitBase(R.attackValue(u)); return; }
     if (!tgt || tgt.state === 'dead' || tgt.side === u.side) return;
     var dmg = R.damage(u, tgt, this.rng), arm = u.act.arm, def = arm >= 0 ? this.data.fx.arms[arm] : null;
-    if (def) this.shots.push({ x: u.x + u.dir * 14, y: u.y - u.t.alt - u.t.h * 0.6, tgt: tgt, dmg: dmg, arm: arm, def: def, dir: u.dir, t0: this.time, speed: 380 });
+    if (def) this.shots.push({ x: u.x + u.dir * 14, y: u.y - u.headY * 0.6, tgt: tgt, dmg: dmg, arm: arm, def: def, dir: u.dir, t0: this.time, speed: 380 });
     else this._damage(tgt, dmg);
   };
 
   P._damage = function (u, dmg) {
     if (u.state === 'dead') return;
-    this._say(u.x, u.y - u.t.alt - u.t.h - 6, dmg > 0 ? String(dmg) : 'miss', u.side === 1 ? '#ffe9a8' : '#ff9a8a');
+    this._say(u.x, u.y - u.headY - 6, dmg > 0 ? String(dmg) : 'miss', u.side === 1 ? '#ffe9a8' : '#ff9a8a');
     if (dmg <= 0) return;
     u.hp -= dmg;
     if (u.hp <= 0) {
@@ -498,7 +545,7 @@
   P._updateShots = function (dt) {
     var keep = [];
     for (var i = 0; i < this.shots.length; i++) {
-      var s = this.shots[i], t = s.tgt, tx = t.x, ty = t.y - t.t.alt - t.t.h * 0.5, dx = tx - s.x, dy = ty - s.y, d = Math.hypot(dx, dy), step = s.speed * dt;
+      var s = this.shots[i], t = s.tgt, tx = t.x, ty = t.y - t.headY * 0.5, dx = tx - s.x, dy = ty - s.y, d = Math.hypot(dx, dy), step = s.speed * dt;
       if (d <= step || t.state === 'dead') {
         if (t.state !== 'dead') { this._damage(t, s.dmg); if (s.def.hit.length) this._addEffect(tx, ty, s.arm, 0); }
         continue;
@@ -576,7 +623,7 @@
 
   /* 유닛 한 기: 그림자 → 강화 이펙트 → 원본 스프라이트(Unit.frameIndex가 고른 프레임) → 체력 바 → 스킬 칸 번호 */
   P._drawUnit = function (u) {
-    var ctx = this.ctx, fi = u.frameIndex(this.rules.tps), f = fi >= 0 ? u.t.frames[fi] : null, x = Math.round(u.x), y = Math.round(u.y), alt = u.t.alt || 0, T = this.time;
+    var ctx = this.ctx, fi = u.frameIndex(this.rules.tps), f = fi >= 0 ? u.t.frames[fi] : null, x = Math.round(u.x), y = Math.round(u.y), drop = u.drop || 0, T = this.time;
     if (!f) return;
     ctx.globalAlpha = u.state === 'dead' ? 1 - u.fade : 1;
     ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(x, y + 2, 13, 5, 0, 0, 6.3); ctx.fill();
@@ -584,14 +631,14 @@
     if (u.state !== 'dead') { ctx.strokeStyle = u.side === 0 ? 'rgba(90,170,255,.9)' : 'rgba(255,90,70,.9)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(x, y + 2, 14, 6, 0, 0, 6.3); ctx.stroke(); }
     // 공격 강화(웨폰): 발밑에서 도는 원본 이펙트. 방어 강화(베리어)는 몸 가운데 높이 — 전장 시뮬(worldview.js)과 같은 방식
     var wb = u.buffs.weapon, sb = u.buffs.shield;
-    if (wb && wb.until > T) this._loopFx(wb.arm, x, y - alt);
-    ctx.save(); ctx.translate(x, y - alt); if (u.mir) ctx.scale(-1, 1);
+    if (wb && wb.until > T) this._loopFx(wb.arm, x, y);
+    ctx.save(); ctx.translate(x, y + drop); if (u.mir) ctx.scale(-1, 1);
     if (u.stunUntil > T) ctx.filter = 'grayscale(1) brightness(1.25)';   // 멈춘 적은 돌처럼 회색으로 (지원하지 않는 브라우저에서는 그대로 보인다)
     ctx.drawImage(this.assets.get(f[6] || ('u' + u.t.id)), f[0], f[1], f[2], f[3], -f[4], -f[5], f[2], f[3]);
     ctx.restore(); ctx.globalAlpha = 1;
-    if (sb && sb.until > T) this._loopFx(sb.arm, x, y - alt - (sb.arm === 7 || sb.arm === 43 ? u.t.h : u.t.h >> 1));
+    if (sb && sb.until > T) this._loopFx(sb.arm, x, y - (sb.arm === 7 || sb.arm === 43 ? u.headY : u.headY >> 1));
     if (u.state === 'dead') return;
-    var top = y - alt - u.t.h - 8;
+    var top = y - u.headY - 8;
     if (u.hp < u.maxHp) this._bar(x - 15, top, 30, 4, u.hp / u.maxHp, u.side === 0 ? '#5fd46a' : '#e0584a');
     // 마법 유닛: 스킬 패널의 몇 번째 칸과 묶였는지 머리 위에 번호로
     if (u.slot) { var k = this.slots.indexOf(u.slot) + 1, by = top - 12;
