@@ -7,6 +7,7 @@
      - MWE.GameMap / TerrainRenderer : 원본 맵 지형을 배경으로 (core/gamemap.js, render/terrain.js)
      - MWE.Assets / MWE.Sfx / MWE.Bgm : 그림·효과음·배경음 (render/assets.js, ui/sfx.js, ui/hud.js)
      - MW.units / MW.fx / MW.map2 : 원본에서 뽑은 데이터 (sim/data.js)
+     - MW_DEF + defense.png       : 원본 건물 그림(성·마굴)을 이 게임 크기로 구운 것 (sim/defense.js, tools/defbuild.js)
 
    ■ 이 파일의 구성 (위에서 아래로 읽으면 된다)
      1. CONFIG   — 숫자만 바꿔도 게임이 달라지는 설정 (아군 목록, 웨이브, 스킬, 기지 체력 …)
@@ -25,10 +26,11 @@
   /* ───────────────────────── 1. CONFIG ───────────────────────── */
   var CONFIG = {
     VIEW_H: 450,                 // 논리 화면 높이(px). 가로는 화면 비율로 정한다
-    MIN_W: 640, MAX_W: 1100,
+    MIN_W: 720, MAX_W: 1100,
     HUD_H: 92,                   // 아래 버튼 줄 높이
     LANE_ROWS: [-26, 0, 26],     // 전투 줄 안에서 유닛이 서는 세로 위치 3개 (겹쳐 보이지 않게)
-    BASE: { hp: 600, x: 64 },    // 아군 기지 체력과 가로 위치
+    BASE: { hp: 600, x: 78, front: 196 },   // 아군 기지(성): 체력, 그림 기준점의 가로 위치, 성 앞 선(아군이 나오고 적이 멈춰 때리는 곳)
+    LAIR: { back: 74, mouth: 150 },         // 적 출구(마굴): 그림 기준점이 화면 오른쪽 끝에서 떨어진 거리, 적이 나오는 입구까지의 거리
     MANA: { max: 200, start: 70, regen: 10, perKill: 6 },   // 마나: 최대, 시작, 초당 회복, 처치 보상
     MOVE_SCALE: 0.45,            // 원본 걷기 속도(px/틱)를 이 게임 속도로 줄이는 배수
     RANGE_SCALE: 0.07,           // 원본 사거리 → 화면 px (근접 700 → 49px, 원거리 3000 → 210px)
@@ -67,7 +69,8 @@
 
     // 그림: 필요한 것만 불러온다 (배경 타일, 이펙트, 스킬 아이콘, 유닛 작은 그림, 쓰는 유닛의 스프라이트)
     var A = this.assets = new MWE.Assets(opts.base), self = this;
-    A.load('tiles', this.map.keys.tiles + '.png').load('arms', 'arms.png').load('acticons', 'acticons.png').load('figs', 'figs.png');
+    A.load('tiles', this.map.keys.tiles + '.png').load('arms', 'arms.png').load('acticons', 'acticons.png').load('figs', 'figs.png').load('defense', 'defense.png');
+    this.bld = root.MW_DEF || {};                            // 건물 그림 위치표 { base, lair } (sim/defense.js)
     this._usedUnitIds().forEach(function (id) { A.load('u' + id, self.types[id].img); });
     this.terrain = null;                                     // 그림이 다 오면 만든다
 
@@ -97,8 +100,8 @@
     this.cv.width = this.W; this.cv.height = this.H;
     this.ctx.imageSmoothingEnabled = false;                  // 도트 그림이 뭉개지지 않게 (크기를 바꾸면 다시 켜지므로 매번 끈다)
     this.laneY = Math.round((this.H - C.HUD_H) * 0.6);       // 전투 줄의 세로 중심
-    this.spawnX = this.W + 24;                               // 적이 나오는 곳 (화면 오른쪽 바깥)
-    this.frontX = this.W - 70;                               // 아군이 나아가는 한계
+    this.spawnX = this.W - C.LAIR.mouth;                     // 적이 나오는 곳 (마굴 입구)
+    this.frontX = this.W - C.LAIR.mouth - 40;                // 아군이 나아가는 한계 (마굴 앞)
     this._layout();
   };
 
@@ -138,7 +141,7 @@
   P.spawn = function (typeId, side) {
     var C = CONFIG, t = this.types[typeId], u = new MWE.Unit(t, side, 0, 0);
     u.side = side;
-    u.x = side === 0 ? C.BASE.x + 40 : this.spawnX;
+    u.x = side === 0 ? C.BASE.front - 8 : this.spawnX;
     u.y = this.laneY + C.LANE_ROWS[Math.floor(this.rng.next() * C.LANE_ROWS.length)];
     if (side === 1) { u.maxHp = Math.round(u.maxHp * C.ENEMY_HP_MUL); u.hp = u.maxHp; }
     u.dir = side === 0 ? 1 : -1;
@@ -244,7 +247,7 @@
     }
 
     // 공격할 대상 찾기: 맞은편 유닛 중 가장 가까운 것. 적은 대상이 없으면 기지를 친다
-    var tgt = this._nearestFoe(u), baseDist = u.side === 1 ? u.x - (C.BASE.x + 30) : Infinity;
+    var tgt = this._nearestFoe(u), baseDist = u.side === 1 ? u.x - C.BASE.front : Infinity;
     var canHitUnit = tgt && Math.abs(tgt.x - u.x) <= u.rangePx, canHitBase = !canHitUnit && baseDist <= u.rangePx;
     if (canHitUnit || canHitBase) {
       if (u.cd <= 0 && u.act) { u.state = 'attack'; u.at = 0; u.hitDone = false; u.tgt = canHitUnit ? tgt : 'base'; this._play(u.act.snd, 0.5); }
@@ -285,7 +288,7 @@
     }
   };
 
-  P._hitBase = function (dmg) { this.baseHp -= dmg; this.baseHit = 0.25; this.texts.push({ x: CONFIG.BASE.x, y: this.laneY - 96, s: '-' + dmg, t0: this.time, col: '#ff7a6a' }); };
+  P._hitBase = function (dmg) { this.baseHp -= dmg; this.baseHit = 0.25; this.texts.push({ x: CONFIG.BASE.front - 50, y: this.laneY - 70, s: '-' + dmg, t0: this.time, col: '#ff7a6a' }); };
 
   /* 발사체: 대상을 향해 날아가 닿으면 피해 + 명중 이펙트 */
   P._updateShots = function (dt) {
@@ -348,20 +351,17 @@
     ctx.restore();
   };
 
-  /* 아군 기지(왼쪽 탑)와 적 출구(오른쪽 문). 뼈대 단계라 도형으로 그린다 — 나중에 원본 건물 그림으로 바꿀 자리 */
+  /* 아군 기지(왼쪽 성)와 적 출구(오른쪽 마굴): 원본 건물 그림. 그림의 기준점(ax, ay = 땅에 닿는 앞쪽 모서리)을 전투 줄 바로 아래에 맞춘다 */
   P._drawBases = function () {
-    var ctx = this.ctx, bx = CONFIG.BASE.x, y = this.laneY + 34, hit = this.baseHit > 0;
-    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(bx, y, 46, 12, 0, 0, 6.3); ctx.fill();
-    ctx.fillStyle = hit ? '#d98a7a' : '#8f96a8'; ctx.fillRect(bx - 26, y - 104, 52, 104);
-    ctx.fillStyle = hit ? '#b96a5a' : '#6d7487'; ctx.fillRect(bx - 32, y - 116, 64, 16);
-    for (var k = 0; k < 4; k++) ctx.fillRect(bx - 32 + k * 17, y - 126, 12, 12);              // 성벽 톱니
-    ctx.fillStyle = '#2a2f3c'; ctx.fillRect(bx - 9, y - 30, 18, 30);                          // 문
-    ctx.fillStyle = '#3f7fd9'; ctx.fillRect(bx - 1, y - 160, 2, 36); ctx.beginPath(); ctx.moveTo(bx + 1, y - 160); ctx.lineTo(bx + 24, y - 152); ctx.lineTo(bx + 1, y - 144); ctx.fill();   // 깃발
-    // 적 출구: 어두운 문
-    var ex = this.W - 26;
-    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(ex, y, 40, 11, 0, 0, 6.3); ctx.fill();
-    ctx.fillStyle = '#3a2233'; ctx.beginPath(); ctx.ellipse(ex, y - 52, 30, 56, 0, 0, 6.3); ctx.fill();
-    ctx.fillStyle = 'rgba(190,80,200,' + (0.35 + 0.2 * Math.sin(this.time * 4)) + ')'; ctx.beginPath(); ctx.ellipse(ex, y - 52, 20, 44, 0, 0, 6.3); ctx.fill();
+    var ctx = this.ctx, C = CONFIG, img = this.assets.get('defense'), B = this.bld.base, L = this.bld.lair, gy = this.laneY + 44;
+    if (B) { var sh = this.baseHit > 0 ? Math.round(Math.sin(this.time * 90) * 2) : 0;                  // 맞으면 살짝 흔들린다
+      ctx.drawImage(img, B.x, B.y, B.w, B.h, C.BASE.x - B.ax + sh, gy - B.ay, B.w, B.h); }
+    if (L) { var lx = this.W - C.LAIR.back;
+      ctx.drawImage(img, L.x, L.y, L.w, L.h, lx - L.ax, gy - L.ay, L.w, L.h);
+      // 마굴 입구의 으스스한 빛 (가산 합성으로 깜박임)
+      var gx = lx - L.w * 0.16, gcy = gy - L.h * 0.30, g = ctx.createRadialGradient(gx, gcy, 2, gx, gcy, 46);
+      g.addColorStop(0, 'rgba(190,90,220,' + (0.30 + 0.16 * Math.sin(this.time * 3)) + ')'); g.addColorStop(1, 'rgba(190,90,220,0)');
+      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(gx - 46, gcy - 46, 92, 92); ctx.globalCompositeOperation = 'source-over'; }
   };
 
   /* 유닛 한 기: 그림자 → 원본 스프라이트(Unit.frameIndex가 고른 프레임) → 체력 바 */
