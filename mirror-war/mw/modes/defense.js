@@ -204,7 +204,7 @@
     if (side === 1) { u.maxHp = Math.round(u.maxHp * C.ENEMY_HP_MUL); u.hp = u.maxHp; }
     u.state = 'move'; u.cd = 0; u.fade = 0; u.stunUntil = 0; u.blockT = 0; u.passY = null;
     u.rangeK = 1 - C.RANGE_SPREAD * this.rng.next();         // 이 유닛이 서는 거리 배수 (원거리만 쓴다)
-    u.lookDir = 0; u.slotOf = null; u.slotA = null; u.skipUid = null; u.skipUntil = 0; this._setSide(u, side);
+    u.lookDir = 0; u.slotOf = null; u.slotA = null; u.slotAt = null; u.slotT = 0; u.skipUid = null; u.skipUntil = 0; this._setSide(u, side);
     this._applyType(u);
     // 마법 유닛이면 가진 마법마다 스킬 칸을 만들어 서로 가리키게 한다 (유닛 하나 ↔ 칸 여러 개)
     u.slots = []; u.castSkill = function (i) { return self.castUnitSkill(u, i || 0); };
@@ -434,15 +434,22 @@
       // 공격할 대상: 맞은편 유닛 중 가장 가까운 것. 적은 대상이 없으면 기지를 친다
       var baseDist = u.side === 1 ? u.x - C.BASE.front : Infinity;
       var canHitUnit = dist <= u.rangePx, canHitBase = !canHitUnit && baseDist <= u.rangePx;
+      // 근접 유닛이 적에게 닿았어도, 맡은 자리(적 둘레의 빈칸)에 아직 못 갔으면 먼저 자리로 간다 — 앞에서 멈춰 뒤따르는 유닛의 길을 막지 않게.
+      // 단, 내가 둘러싸이는 쪽(besieged)이면 움직이지 않고 그 자리에서 싸운다 (서로 자리를 잡으려다 뒤로 밀려나는 것 방지)
+      var melee = u.rangePx < 80, held = melee && tgt && this._besieged(u);
+      if (held) { u.slotOf = null; u.slotA = null; }                   // 지키는 쪽은 자기가 맡았던 자리를 내려놓는다 — 서로 "네가 와라" 하며 멈춰 서는 것을 막는다
+      if (canHitUnit && melee && !held && u.slotAt !== tgt.uid) { this._approach(u, tgt, dt); return; }
       if (canHitUnit || canHitBase) {
         if (canHitUnit) this._look(u, tgt.x >= u.x ? 1 : -1);          // 때릴 적을 바라본다 (에워싸면 뒤돌아 칠 수도 있다)
         if (u.cd <= 0) { u.state = 'attack'; u.at = 0; u.hitDone = false; u.tgt = canHitUnit ? tgt : 'base'; this._play(u.act.snd, 0.5); }
-        else if (canHitUnit && u.rangePx < 80) this._approach(u, tgt, dt);   // 근접: 다음 공격을 기다리는 동안에도 자기 자리(둘레의 빈칸)로 옮겨 간다
         else u.state = 'idle';
         return;
       }
       // 근접 유닛: 적이 가까이 있으면 줄을 풀고 그 적에게 바로 다가간다 → 한 적을 여럿이 둘러싸서 친다 (_approach)
-      if (tgt && u.rangePx < 80 && adx <= u.rangePx + C.SURROUND.engage) { this._approach(u, tgt, dt); return; }
+      if (tgt && melee && adx <= u.rangePx + C.SURROUND.engage) {
+        if (held) { this._look(u, tgt.x >= u.x ? 1 : -1); u.state = 'idle'; } else this._approach(u, tgt, dt);   // 둘러싸이는 쪽은 서서 기다린다
+        return;
+      }
       // 원거리 유닛: 가로로는 닿는데 못 쏘는 경우는 없다 (거리를 가로로만 잰다)
     } else if (adx <= C.SUPPORT_DIST) { u.state = 'idle'; return; }   // 기본 공격이 없는 유닛은 적과 거리를 두고 선다
     // 전진 한계: 아군은 마굴 앞, 적은 성 앞 (매혹된 적은 아군 규칙)
@@ -472,7 +479,8 @@
      자리가 하나도 없으면 그 적은 잠시 두고(skip) 위아래로 비켜서 지나간다 → 다음 적이나 기지로 간다 */
   P._approach = function (u, tgt, dt) {
     var S = CONFIG.SURROUND, R = CONFIG.LANE_ROWS, lo = this.laneY + R[0] - 14, hi = this.laneY + R[R.length - 1] + 14, r = u.rangePx * 0.85;
-    if (u.slotOf !== tgt.uid || u.slotA == null) { u.slotOf = tgt.uid; u.slotA = this._pickSlot(u, tgt, r, lo, hi); }
+    if (u.slotOf !== tgt.uid || u.slotA == null) { u.slotOf = tgt.uid; u.slotA = this._pickSlot(u, tgt, r, lo, hi); u.slotAt = null; u.slotT = 0; }
+    if (this._dist(u, tgt) <= u.rangePx) u.slotT += dt;      // 이미 닿는 거리인데도 자리를 못 찾고 도는 시간만 잰다
     this._look(u, tgt.x >= u.x ? 1 : -1);
     if (u.slotA == null) {                                   // 둘레가 꽉 찼다 → 이 적은 건너뛰고 돌아서 간다
       u.skipUid = tgt.uid; u.skipUntil = this.time + S.skipSec; u.slotOf = null;
@@ -481,7 +489,7 @@
     }
     var ang = u.slotA * 2 * Math.PI / S.slots, sx = tgt.x + Math.cos(ang) * r, sy = tgt.y + Math.sin(ang) * r / S.yScale;
     var dx = sx - u.x, dy = sy - u.y, d = Math.hypot(dx, dy);
-    if (d < 3) { u.state = 'idle'; return; }                 // 자리에 도착
+    if (d < 3 || u.slotT > 2.5) { u.slotAt = tgt.uid; u.state = 'idle'; return; }   // 자리에 도착 (너무 오래 걸리면 지금 자리에서 싸운다). 이후로는 이 적을 상대로 다시 움직이지 않는다
     var vx = dx / d, vy = dy / d;
     // 적 몸 가까이로는 들어가지 않는다: 안쪽이면 바깥으로 미는 힘을 더해 둘레를 따라 돌게 한다
     var tx = u.x - tgt.x, ty = (u.y - tgt.y) * S.yScale, td = Math.hypot(tx, ty) || 1;
@@ -489,6 +497,14 @@
     var v = Math.hypot(vx, vy) || 1, step = Math.min(d, this._speed(u) * dt);
     u.x += vx / v * step; u.y = Math.max(lo, Math.min(hi, u.y + vy / v * step));
     u.state = 'move'; u.walkT += dt; u.blockT = 0; u.passY = null;
+  };
+
+  /* 내가 둘러싸이는 쪽인가: 나를 둘러싸려고 자리를 맡은(slotOf = 나) 적이 가까이에 있다.
+     두 근접 유닛이 마주치면 먼저 움직인 쪽이 상대 둘레에 자리를 잡고, 상대는 이 판정으로 제자리를 지킨다 */
+  P._besieged = function (u) {
+    var L = this.units;
+    for (var i = 0; i < L.length; i++) { var o = L[i]; if (o.side !== u.side && o.state !== 'dead' && o.slotOf === u.uid && Math.hypot(o.x - u.x, o.y - u.y) < 220) return true; }
+    return false;
   };
 
   /* 적 tgt 둘레에서 u가 맡을 자리(각도 번호)를 고른다: 지금 위치에서 가까운 각도부터, 같은 편이 이미 맡지 않았고 전투 줄 안에 있는 자리. 없으면 null */
