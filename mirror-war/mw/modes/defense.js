@@ -624,7 +624,7 @@
       }
       // 근접 유닛: 적이 가까이 있으면 줄을 풀고 그 적에게 바로 다가간다 → 한 적을 여럿이 둘러싸서 친다 (_approach)
       if (tgt && melee && adx <= u.rangePx + C.SURROUND.engage) {
-        if (held) { this._look(u, tgt.x >= u.x ? 1 : -1); u.state = 'idle'; } else this._approach(u, tgt, dt);   // 둘러싸이는 쪽은 서서 기다린다
+        if (held) this._stepToward(u, tgt, dt); else this._approach(u, tgt, dt);   // 둘러싸이는 쪽은 자리를 잡으러 돌지 않고, 닿을 때까지만 곧장 다가간다
         return;
       }
       // 원거리 유닛: 가로로는 닿는데 못 쏘는 경우는 없다 (거리를 가로로만 잰다)
@@ -676,6 +676,17 @@
     var v = Math.hypot(vx, vy) || 1, step = Math.min(d, this._speed(u) * dt);
     u.x += vx / v * step; u.y = Math.max(lo, Math.min(hi, u.y + vy / v * step));
     u.state = 'move'; u.walkT += dt; u.blockT = 0; u.passY = null;
+  };
+
+  /* 둘러싸이는 쪽의 이동: 가장 가까운 적에게 곧장, 내 사거리에 닿을 때까지만 (닿으면 다음 틱부터 공격한다).
+     서서 기다리기만 하면 사거리가 짧은 유닛(무도가·격투가 42px)이 사거리가 긴 적(49px)에게 맞기만 하고 못 때리는 일이 생긴다 */
+  P._stepToward = function (u, tgt, dt) {
+    var R = this.rows, lo = this.laneY + R[0] - 14, hi = this.laneY + R[R.length - 1] + 14, dx = tgt.x - u.x, dy = tgt.y - u.y, d = Math.hypot(dx, dy) || 1;
+    this._look(u, dx >= 0 ? 1 : -1);
+    var step = Math.min(this._speed(u) * dt, Math.max(0, this._dist(u, tgt) - u.rangePx + 1));
+    if (step <= 0) { u.state = 'idle'; return; }
+    u.x += dx / d * step; u.y = Math.max(lo, Math.min(hi, u.y + dy / d * step));
+    u.state = 'move'; u.walkT += dt;
   };
 
   /* 내가 둘러싸이는 쪽인가: 나를 둘러싸려고 자리를 맡은(slotOf = 나) 적이 가까이에 있다.
