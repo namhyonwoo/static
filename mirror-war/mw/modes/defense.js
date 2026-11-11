@@ -176,10 +176,11 @@
   P.reset = function () {
     var C = CONFIG;
     this.units = [];             // 전장 위의 모든 유닛 (아군·적)
-    this.slots = [];             // 스킬 칸(SkillSlot) — 전장의 마법 유닛이 가진 마법마다 하나 (패널에 보이는 순서)
+    this.slots = [];             // 스킬 칸(SkillSlot) — 전장의 마법 유닛이 가진 마법마다 하나 (만든 순서)
+    this.slotView = [];          // 패널에 보이는 순서: 쓸 수 있게 된 순서대로 앞에, 쿨타임 중인 칸은 곧 끝날 것부터 뒤에 (_sortSlots)
     this.magicUnits = [];        // 전장의 마법 유닛 (최대 MAX_MAGIC기). 순서 = 머리 위 번호
     this.recallArm = null;       // 회수 확인 대기: { unit, until } — 칩을 한 번 누른 상태
-    this.slotFirst = 0; this.slotPos = 0;   // 캐러셀: 맨 왼쪽에 보이는 칸 번호, 넘기는 동작용 현재 위치
+    this.slotFirst = 0; this.slotPos = 0; this.slotView = [];   // 캐러셀: 맨 왼쪽에 보이는 칸 번호, 넘기는 동작용 현재 위치
     this.shots = [];             // 날아가는 발사체
     this.effects = [];           // 터지는 이펙트
     this.texts = [];             // 떠오르는 숫자·글자 (피해량 등)
@@ -273,6 +274,8 @@
     this.unit = unit; this.act = act;
     this.cdMax = Math.max(6, Math.min(30, act.mana / 8));    // 쿨타임(초): 원본 마나 소모가 클수록 길게 (목업 환산)
     this.cd = CONFIG.SKILL.firstWait;                        // 소환 직후 잠깐은 못 쓴다
+    this.readyAt = 0;                                        // 쿨타임이 끝난 시각 (패널에서 앞에 설 순서를 정한다)
+    this.vi = null;                                          // 패널에서 지금 그려지는 자리 (순서가 바뀌면 그 자리로 미끄러져 간다)
     this.kind = skillKind(act);
   }
   SkillSlot.prototype.ready = function () { return this.cd <= 0 && this.unit.state !== 'dead'; };
@@ -296,12 +299,12 @@
   function skillsOf(t) { return t.acts.filter(function (a) { return a.isAtk != 1 && a.mana > 0 && skillKind(a); }); }
 
   /* 동적 UI 만들기: 마법 유닛이 소환될 때 마법마다 한 칸 */
-  P._addSlot = function (u, act) { var s = new SkillSlot(u, act); u.slots.push(s); this.slots.push(s); return s; };
+  P._addSlot = function (u, act) { var s = new SkillSlot(u, act); u.slots.push(s); this.slots.push(s); this._sortSlots(); return s; };
 
   /* 동적 UI 없애기: 마법 유닛이 쓰러질 때 그 유닛의 칸을 모두 뺀다 — 뒤의 칸들이 앞으로 당겨진다 */
   P._removeSlots = function (u) {
     if (!u.slots || !u.slots.length) return;
-    this.slots = this.slots.filter(function (s) { return s.unit !== u; });
+    this.slots = this.slots.filter(function (s) { return s.unit !== u; }); this._sortSlots();
     u.slots.forEach(function (s) { s.unit = null; }); u.slots = [];
     var k = this.magicUnits.indexOf(u); if (k >= 0) this.magicUnits.splice(k, 1);
     this.scrollSlots(0);
@@ -309,8 +312,24 @@
 
   /* 쿨타임 처리: 모든 칸의 남은 시간을 줄인다. 캐러셀이 넘어가는 동작도 여기서 진행 */
   P._updateSlots = function (dt) {
-    for (var i = 0; i < this.slots.length; i++) this.slots[i].cd = Math.max(0, this.slots[i].cd - dt);
+    for (var i = 0; i < this.slots.length; i++) { var s = this.slots[i]; if (s.cd > 0) { s.cd = Math.max(0, s.cd - dt); if (s.cd === 0) s.readyAt = this.time; } }
+    this._sortSlots();
+    // 칸마다 지금 순서의 자리로 미끄러져 간다 (순서가 바뀔 때 툭 튀지 않게)
+    for (i = 0; i < this.slotView.length; i++) { var v = this.slotView[i]; v.vi = v.vi == null ? i : v.vi + (i - v.vi) * Math.min(1, dt * 10); }
     this.slotPos += (this.slotFirst - this.slotPos) * Math.min(1, dt * 14);
+  };
+
+  /* 패널 순서를 다시 정한다 (실시간):
+       ① 쓸 수 있는 칸이 앞 — 먼저 쓸 수 있게 된 칸일수록 앞  ② 쿨타임 중인 칸은 뒤 — 곧 끝날 칸일수록 앞
+     같은 값이면 만든 순서 그대로 */
+  P._sortSlots = function () {
+    var base = this.slots;
+    this.slotView = base.slice().sort(function (a, b) {
+      var ra = a.cd <= 0, rb = b.cd <= 0;
+      if (ra !== rb) return ra ? -1 : 1;
+      var d = ra ? a.readyAt - b.readyAt : a.cd - b.cd;
+      return d || base.indexOf(a) - base.indexOf(b);
+    });
   };
 
   /* 캐러셀을 d칸 넘긴다 (음수 = 왼쪽). 범위를 벗어나지 않게 맞춘다 */
@@ -318,8 +337,8 @@
 
   /* i번째 칸(this.slots 기준)을 누름 → 그 칸에 묶인 유닛의 castSkill(그 유닛의 몇 번째 마법) */
   P.pressSlot = function (i) { var s = this.slots[i]; return !!(s && this.screen === 'play' && s.unit.castSkill(s.unit.slots.indexOf(s))); };
-  /* 지금 보이는 칸 중 k번째(0~2)를 누름 — 단축키 A·S·D */
-  P.pressVisible = function (k) { return this.pressSlot(this.slotFirst + k); };
+  /* 지금 보이는 칸 중 k번째(0~2)를 누름 — 단축키 A·S·D. 보이는 순서(slotView)에서 고른다 */
+  P.pressVisible = function (k) { var s = this.slotView[this.slotFirst + k]; return !!s && this.pressSlot(this.slots.indexOf(s)); };
 
   /* 마법 유닛 칩 i를 누름. 첫 번째 누름 = 그 유닛의 마법으로 캐러셀을 넘기고 칩을 "회수"로 바꾼다(확인 대기).
      confirmSec 안에 같은 칩을 한 번 더 누르면 회수 */
@@ -328,7 +347,7 @@
     var arm = this.recallArm;
     if (arm && arm.unit === u && this.time < arm.until) return this.recall(u);
     this.recallArm = { unit: u, until: this.time + C.RECALL.confirmSec };
-    this.slotFirst = this.slots.indexOf(u.slots[0]); this.scrollSlots(0);
+    var view = this.slotView; this.slotFirst = Math.min.apply(null, u.slots.map(function (q) { return view.indexOf(q); })); this.scrollSlots(0);   // 그 유닛의 마법 중 맨 앞에 있는 칸으로
     return false;
   };
 
@@ -387,7 +406,7 @@
       if (to) { var ratio = u.hp / u.maxHp; u.setType(to); u.hp = Math.max(1, Math.round(u.maxHp * ratio)); this._applyType(u); u.face(u.dir, -u.dir); ok = true; }
     }
     if (!ok) { this._say(u.x, u.y - u.t.h - 10, '대상 없음', '#c9d1e3'); return false; }
-    s.cd = s.cdMax;
+    s.cd = s.cdMax; this._sortSlots();                       // 방금 쓴 칸은 바로 뒤로 간다
     this._say(u.x, u.y - u.t.h - 18, a.name, '#ffd36e');
     this._play(a.snd, 1);
     return true;
@@ -888,8 +907,9 @@
       ctx.textAlign = 'center'; ctx.font = '9px sans-serif'; ctx.fillStyle = '#4a5268'; ctx.fillText('빈 칸', e.x + e.w / 2, e.y + e.h / 2); } return; }
     // 칸들: 창 밖으로 나간 부분은 잘라낸다
     ctx.save(); ctx.beginPath(); ctx.rect(A.x, A.y, A.w, A.h); ctx.clip();
-    for (i = Math.max(0, Math.floor(this.slotPos) - 1); i < n && i < this.slotPos + vis + 1; i++) {
-      var s = this.slots[i], bx = Math.round(A.x + (i - this.slotPos) * this.slotStep), cx = bx + B.w / 2, ok = s.ready(), a = s.act, fi = a.icon * 2, vk = i - this.slotFirst;
+    for (i = 0; i < n; i++) {
+      var s = this.slotView[i], vp = (s.vi == null ? i : s.vi) - this.slotPos; if (vp < -1.2 || vp > vis + 0.2) continue;   // 창 밖
+      var bx = Math.round(A.x + vp * this.slotStep), cx = bx + B.w / 2, ok = s.ready(), a = s.act, fi = a.icon * 2, vk = i - this.slotFirst;
       ctx.fillStyle = ok ? '#3a2a12' : '#191d27'; ctx.fillRect(bx, B.y, B.w, B.h);
       ctx.strokeStyle = ok ? '#ffd36e' : '#3a4152'; ctx.lineWidth = 2; ctx.strokeRect(bx + 1, B.y + 1, B.w - 2, B.h - 2);
       ctx.globalAlpha = ok ? 1 : 0.45; ctx.drawImage(icons, (fi % D.cols) * D.w, Math.floor(fi / D.cols) * D.h, D.w, D.h, Math.round(cx - D.w / 2), B.y + 1, D.w, D.h); ctx.globalAlpha = 1;
