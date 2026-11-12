@@ -46,11 +46,13 @@
     SCREEN: { portZoom: 1, portMinW: 340, portMaxW: 520, portMinH: 560, portMaxH: 1000, refW: 390, refH: 844 },
     WORLD_W: 2000,               // 전장 전체 가로 길이(px). 화면보다 길어서 카메라가 좌우로 움직인다
     LANE_ROWS: [-136, -102, -68, -34, 0, 34, 68, 102, 136],   // 유닛이 서는 세로 줄 9개 (전투 줄 중심에서의 거리). 세로 전용 화면의 남는 높이를 써서 접촉면을 넓힌다 — 전에는 5줄 ±56
+    PACK: { bands: 3, min: 3, max: 5 },   // 적은 3~5기씩 무리를 지어 위·가운데·아래 중 한 띠로 나온다 (무리마다 띠가 바뀐다) — 범위 마법을 어느 무리에 쓸지 고르게
     UNIT_GAP: 30,                // 줄 서기: 같은 편 앞사람과 벌려 두는 간격(px)
     ROW_NEAR: 18,                // 세로로 이만큼 안이면 "같은 줄"로 본다
     /* 에워싸기(근접 유닛): 적이 engage(px) 안에 들어오면 줄을 풀고 그 적에게 바로 다가가 사방에서 친다.
        yScale = 세로 거리를 가로보다 얼마나 멀게 칠지(비스듬한 화면이라 세로가 눌려 보인다), personal = 같은 편끼리 벌리는 거리 */
     SURROUND: { engage: 220, yScale: 1.3, personal: 26, slots: 8, skipSec: 4, detour: 52, holdDist: 85 },   // holdDist = 나를 둘러싸러 오는 적이 이 거리 안에 왔을 때부터 제자리를 지킨다   // slots = 적 하나를 둘러싸는 자리 수, 자리가 다 차면 skipSec 동안 그 적을 두고 detour(px)만큼 비켜 돌아간다
+    PASS_LOOK: 2.5,              // 앞지르기 미리 보기: 같은 줄 앞쪽 UNIT_GAP × 이 값 안에 나보다 느리게 걷는 같은 편이 있으면, 붙어서 멈추기 전에 걸어가면서 옆줄로 비켜 앞지른다 (0 = 끔)
     PASS_WAIT: 0.5,              // 앞사람에게 이만큼(초) 막혀 있으면 빈 옆줄로 추월을 시도한다
     ALT_MAX: 16,                 // 공중 유닛이 땅에서 떠 보이는 높이의 한도(px). 원본 그림은 엔젤 나이트가 100px 넘게 떠 있어 위쪽 표시를 가린다
     RANGE_SPREAD: 0.2,           // 원거리 유닛마다 서는 거리를 사거리의 (1 − 이 값)~1배 사이에서 다르게 (한 줄로 뭉치지 않게)
@@ -224,6 +226,7 @@
     this.roster.forEach(function (list) { list.forEach(function (r) { r.wait = 0; }); });   // 소환 버튼별 남은 대기 시간
     this.flash = 0;
     this.cam.x = 0; this.manualUntil = 0; this.drag = null;
+    this.pack = null;            // 지금 나오는 적 무리 { band(0 위·1 가운데·2 아래), left(남은 수) }
     this.wave = 0; this.queue = this._waveQueue(0); this.spawnT = 2; this.restT = 0; this.kills = 0;
   };
 
@@ -245,12 +248,21 @@
 
   function basicAct(t) { var a = t.ai >= 0 ? t.acts[t.ai] : null; return a && a.isAtk == 1 ? a : null; }
 
+  /* 적이 나올 줄 번호: 지금 무리(pack)의 띠 안에서 고른다. 무리가 다 나오면 다른 띠로 새 무리를 시작한다 */
+  P._packRow = function () {
+    var K = CONFIG.PACK, n = this.rows.length, per = Math.max(1, Math.floor(n / K.bands)), p = this.pack;
+    if (!p || p.left <= 0) { var b = Math.floor(this.rng.next() * K.bands); if (p && b === p.band) b = (b + 1) % K.bands;
+      p = this.pack = { band: b, left: K.min + Math.floor(this.rng.next() * (K.max - K.min + 1)) }; }
+    p.left--;
+    return Math.min(n - 1, p.band * per + Math.floor(this.rng.next() * per));
+  };
+
   /* 유닛 한 기를 전장에 올린다. side: 0 아군(왼쪽에서 오른쪽으로), 1 적(오른쪽에서 왼쪽으로) */
   P.spawn = function (typeId, side) {
     var C = CONFIG, t = this.types[typeId], u = new MWE.Unit(t, side, 0, 0), self = this;
     u.side = side;
     u.x = side === 0 ? C.BASE.front - 8 : this.spawnX;
-    u.y = this.laneY + this.rows[Math.floor(this.rng.next() * this.rows.length)];
+    u.y = this.laneY + this.rows[side === 1 ? this._packRow() : Math.floor(this.rng.next() * this.rows.length)];
     if (side === 1) { u.maxHp = Math.round(u.maxHp * C.ENEMY_HP_MUL); u.hp = u.maxHp; }
     u.state = 'move'; u.cd = 0; u.fade = 0; u.stunUntil = 0; u.blockT = 0; u.passY = null;
     u.rangeK = 1 - C.RANGE_SPREAD * this.rng.next();         // 이 유닛이 서는 거리 배수 (원거리만 쓴다)
@@ -673,9 +685,11 @@
     // 줄 서기와 추월: 같은 줄 바로 앞에 같은 편이 있으면 멈춰 기다린다.
     // 막힌 시간이 쌓이면(앞사람이 느려서 붙었다 떨어졌다 해도 쌓이도록 천천히 줄인다) 가까운 빈 줄을 골라 그 줄로 옮겨 가서 앞지른다
     var blocked = this._blockedAhead(u);
+    // 앞지르기: 앞사람이 나보다 느리게 걷고 있으면 기다리지 않는다 — 멀리서 미리 옆줄로 비켜 걸음을 멈추지 않고 지나간다 (빠른 유닛이 느린 유닛 뒤에서 섰다 갔다 하던 것을 없앤다)
+    if (u.passY == null && C.PASS_LOOK > 0 && this._slowAhead(u)) { u.passY = this._freeRow(u); u.passT = 0; }
     if (blocked) u.blockT += dt; else u.blockT = Math.max(0, u.blockT - dt * 0.5);
     if (u.blockT >= C.PASS_WAIT && u.passY == null) { u.passY = this._freeRow(u); u.passT = 0; if (u.passY == null) u.blockT = 0; }
-    if (u.passY != null) { u.passT += dt; this._shiftRow(u, u.passY, 45 * dt); if (Math.abs(u.passY - u.y) < 1 || u.passT > 2) { u.passY = null; u.blockT = 0; } }
+    if (u.passY != null) { u.passT += dt; this._shiftRow(u, u.passY, Math.max(45, this._speed(u) * 0.9) * dt); if (Math.abs(u.passY - u.y) < 1 || u.passT > 2) { u.passY = null; u.blockT = 0; } }
     if (blocked) { if (u.passY != null) { u.state = 'move'; u.walkT += dt; } else u.state = 'idle'; return; }
     if (u.lookDir !== u.dir) this._look(u, u.dir);           // 싸우느라 돌아봤으면 다시 가던 쪽을 본다
     u.slotOf = null; u.slotA = null;                         // 다시 전진한다 = 둘러싸려던 적을 놓았다 (남겨 두면 그 적이 "나를 노리는 중"으로 잘못 알고 서 있는다)
@@ -769,6 +783,15 @@
     for (var i = 0; i < L.length; i++) { var o = L[i]; if (o === u || o.air || o.side !== u.side || o.state === 'dead' || Math.abs(o.y - u.y) >= C.ROW_NEAR) continue;
       if (o.reach > u.reach + 1) continue;
       var ahead = (o.x - u.x) * u.dir; if ((ahead > 0 && ahead < C.UNIT_GAP) || (ahead === 0 && o.uid < u.uid)) return true; }
+    return false;
+  };
+
+  /* 같은 줄 앞쪽(UNIT_GAP × PASS_LOOK 안)에 나보다 느리게 "걷고 있는" 같은 편이 있는가. 서서 싸우는 유닛은 해당 없음(그건 줄 서기·에워싸기가 맡는다) */
+  P._slowAhead = function (u) {
+    var C = CONFIG, L = this.units, mine = this._speed(u); if (u.air) return false;
+    for (var i = 0; i < L.length; i++) { var o = L[i]; if (o === u || o.air || o.side !== u.side || o.state !== 'move' || Math.abs(o.y - u.y) >= C.ROW_NEAR) continue;
+      if (o.reach > u.reach + 1) continue;
+      var ahead = (o.x - u.x) * u.dir; if (ahead > 0 && ahead < C.UNIT_GAP * C.PASS_LOOK && this._speed(o) < mine * 0.9) return true; }
     return false;
   };
 
@@ -1188,15 +1211,18 @@
       ['마법도 마나를 씁니다 — 소환과 마법 중 어디에 쓸지 고르세요. 적을 쓰러뜨리면 마나를 얻습니다', 12, G, 6],
       ['전장의 마법 유닛을 누르면 [회수] 버튼 — 남은 체력만큼 마나를 돌려받습니다', 12, G, 6],
       ['[성 배치]를 켜고 궁수·명궁·창검사·마법사·장로를 소환하면 성에서 적을 쏩니다', 12, G, 6],
-      ['전장은 좌우로 깁니다 — 화면을 끌거나 위쪽 막대를 눌러 둘러보세요', 12, G, 6], ['화면을 눌러 시작', 16, '#fff', 18]];
+      ['전장은 좌우로 깁니다 — 화면을 끌거나 위쪽 막대를 눌러 둘러보세요', 12, G, 6], ['화면을 눌러 시작', 16, '#fff', 18],
+      // 팬 게임 고지 (사용자 2026-11-12 확정 문구) — 전장 시뮬 페이지 하단과 같은 문장
+      ['이 게임은 원작 「거울전쟁」에 대한 팬심으로 만든 비영리 팬 게임입니다.', 10, '#7b8397', 22],
+      ['원작 자산의 저작권은 제작사 L&K Logic Korea에 있으며, 요청이 있으면 즉시 내리겠습니다.', 10, '#7b8397', 4]];
     else if (sc === 'win') items = [['스테이지 클리어!', 28, '#8fe89a', 0], ['처치 ' + this.kills + '   ·   남은 기지 체력 ' + Math.ceil(this.baseHp), 14, '#dfe6f5', 14], ['화면을 눌러 다시 하기', 16, '#fff', 22]];
     else items = [['게임 오버', 28, '#ff7a6a', 0], ['웨이브 ' + Math.min(this.wave + 1, CONFIG.WAVES.length) + ' 에서 기지가 무너졌습니다', 14, '#dfe6f5', 14], ['화면을 눌러 다시 하기', 16, '#fff', 22]];
     var lines = [], total = 0, maxW = W - 28, self = this;
-    items.forEach(function (it) { ctx.font = 'bold ' + it[1] + 'px sans-serif';
+    items.forEach(function (it) { ctx.font = (it[1] <= 10 ? '' : 'bold ') + it[1] + 'px sans-serif';
       self._wrap(it[0], maxW).forEach(function (ln, k) { var gap = k ? 3 : it[3], lh = Math.round(it[1] * 1.25); lines.push([ln, it[1], it[2], gap, lh]); total += gap + lh; }); });
     var y = Math.max(8, Math.round((H - total) / 2));
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    lines.forEach(function (l) { y += l[3]; ctx.font = 'bold ' + l[1] + 'px sans-serif'; ctx.fillStyle = l[2]; ctx.fillText(l[0], W / 2, y + l[4] / 2); y += l[4]; });
+    lines.forEach(function (l) { y += l[3]; ctx.font = (l[1] <= 10 ? '' : 'bold ') + l[1] + 'px sans-serif'; ctx.fillStyle = l[2]; ctx.fillText(l[0], W / 2, y + l[4] / 2); y += l[4]; });
     ctx.textAlign = 'left';
   };
   /* 글을 폭 w 안에 들어가게 띄어쓰기에서 나눈다 (지금 ctx.font 기준) */
