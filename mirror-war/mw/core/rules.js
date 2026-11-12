@@ -96,7 +96,10 @@
   O.manaCost = function (u) { var c = u.act; return c ? c.mana : 0; };
   O.manaRegen = function (u) { return this.tps / 11; };              // 원본: 11틱마다 마나 +1 (FUN_004515c0)
   /* 공격 간격 (FUN_004548d0): 행동 +0x26 틱 + rand % (틱÷4 + 1) */
-  O.cooldown = function (u, rng) { var c = u.act; if (!c) return 1; return (c.delay + Math.floor(rng.next() * 32768) % ((c.delay >> 2) + 1)) / this.tps; };
+  /* 공격 뒤 다음 공격까지의 대기(초). 원본 FUN_004dace0 (분석 8-38): 기다릴 틱 = 행동 +0x26 지연 + rand % (지연/4 + 1).
+     유닛 상태 +0x40 이 1(가속: 케멘 소환·헤이스트)이면 **대기 없이 바로** 다시 공격하고, 2(감속)이면 3배를 기다린다 */
+  O.cooldown = function (u, rng) { var c = u.act; if (!c) return 1; var d = (c.delay + Math.floor(rng.next() * 32768) % ((c.delay >> 2) + 1)) / this.tps;
+    return this.buff(u, "haste") ? 0 : this.buff(u, "slow") ? d * 3 : d; };
   /* 발사체 속도: armData +56 = 틱당 가로 픽셀 (FUN_004aba40) */
   O.shotSpeed = function (u) { var c = u.act, a = c && this.arms[c.arm]; return a && a.spd > 0 ? a.spd * this.tps / 45.25 : 16; };
   /* 처치 경험치 (FUN_004b75e0): 대상의 +0x2AE 를 레벨 차로 보정 */
