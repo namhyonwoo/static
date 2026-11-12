@@ -663,6 +663,8 @@
       this._makeGround();
       if (this.screen === 'loading') this.screen = 'title';
     }
+    // 바닥 조각을 0.5초마다 다시 그린다: 큰 이펙트 시트(arms.png, 2,150만 픽셀)를 펼칠 때 아이폰에서 보조 캔버스가 비워져 전장 바닥만 검게 나오던 문제의 복구 (448×192 한 장이라 비용은 작다)
+    else if (this.ground && this.terrain && this.time - this._groundAt > 0.5) this._makeGround();
     if (this.screen === 'play' && !this.paused) this.update(dt);
     this.time += dt;
     this.draw();
@@ -999,10 +1001,11 @@
      (맵을 그대로 깔면 2000px 안에 절벽·맵 가장자리가 들어와서, 평지 조각을 되풀이해 긴 전장을 만든다) */
   var GW = 448, GH = 192;
   P._makeGround = function () {
-    var map = this.map, c = map.t2w(map.arena[0], map.arena[1]), cv = document.createElement('canvas'); cv.width = GW; cv.height = GH;
-    var g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
+    // 이미 있으면 같은 캔버스에 다시 그린다 (새로 만들지 않는다) — 아이폰 WebKit 은 메모리가 모자라면 다시 그리지 않는 캔버스의 내용을 비우므로, 주기적으로 다시 그려 복구한다 (_frame)
+    var map = this.map, c = map.t2w(map.arena[0], map.arena[1]), cv = this.ground || document.createElement('canvas'); if (cv.width !== GW) cv.width = GW; if (cv.height !== GH) cv.height = GH;
+    var g = cv.getContext('2d'); g.imageSmoothingEnabled = false; g.clearRect(0, 0, GW, GH);
     this.terrain.draw(g, { x: Math.round(c[0] / 64) * 64 - GW / 2, y: Math.round(c[1] / 32) * 32 - GH / 2 }, GW, GH);
-    this.ground = cv;
+    this.ground = cv; this._groundAt = this.time;
   };
 
   /* 배경: 평지 조각을 카메라에 맞춰 이어 깔고, 전투 줄을 살짝 어둡게 표시 */
