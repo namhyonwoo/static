@@ -129,7 +129,7 @@
     this.terrain = null;                                     // 그림이 다 오면 만든다
 
     this.sfx = new MWE.Sfx(opts.base + 'sfx.js', data.sfx);
-    this.bgm = new MWE.Bgm(opts.base, ['bgm0.mp3', 'bgm1.mp3', 'bgm2.mp3']);
+    this.bgm = new MWE.Bgm(opts.base, [['bgm0.mp3', 'bgm0b.mp3', 'bgm0c.mp3'], ['bgm1.mp3', 'bgm1b.mp3', 'bgm1c.mp3'], ['bgm2.mp3', 'bgm2b.mp3', 'bgm2c.mp3']]);
     this.soundOn = true;
 
     this.screen = 'loading';     // loading(불러오는 중) → title(시작 화면) → play(진행) → win / lose

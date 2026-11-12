@@ -77,6 +77,10 @@ footer{border-top:1px solid var(--line);padding-top:14px;font-size:12px;color:va
 /* 대메뉴와 아레나(n:m 시험) 패널 */
 .modes{display:flex;gap:6px;border-bottom:1px solid var(--line);padding-bottom:10px;}
 .modes button{font-size:14px;font-weight:600;padding:7px 16px;}
+.modes{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;}
+/* 전투 시작(전체 자동 전투): 맨 위 줄 오른쪽에 채운 색으로 — 가장 먼저 눈에 띄게 */
+.modes button.go{background:var(--amber);border-color:var(--amber);color:#1a1206;padding:7px 20px;}
+.modes button.go[aria-pressed="true"]{background:var(--amber-soft);color:var(--amber);}
 .tpanel{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;}
 @media (max-width:640px){.tpanel{grid-template-columns:1fr;}}
 .tcol{border:1px solid var(--line);border-radius:4px;background:var(--panel);padding:10px 12px 12px;min-width:0;display:flex;flex-direction:column;gap:8px;}
@@ -116,6 +120,8 @@ input[type=number]{width:64px;}
   <button id="zoom1" aria-pressed="true">1배</button>
   <button id="zoom2" aria-pressed="false">2배</button>
   <button id="zoom3" aria-pressed="false">3배</button>
+  <span class="sp"></span>
+  <button id="auto" class="go" aria-pressed="false" data-mode="battle">▶ 전투 시작</button>
 </nav>
 
 <div class="stagewrap"><canvas id="stage" width="800" height="600" aria-label="거울전쟁 전투 시뮬레이션 화면"></canvas></div>
@@ -141,7 +147,6 @@ input[type=number]{width:64px;}
   <button id="blk" aria-pressed="false">통행 불가 칸 보기</button>
   <button id="bgm" aria-pressed="false">배경음</button>
   <button id="sfx" aria-pressed="true">효과음</button>
-  <button id="auto" aria-pressed="false">전체 자동 전투</button>
   <button id="reset">처음으로</button>
 </div>
 <div class="score" id="score" aria-live="off" data-mode="battle"></div>
@@ -232,7 +237,7 @@ input[type=number]{width:64px;}
   function setZoom(z){ document.documentElement.style.setProperty("--stage", (800*z)+"px"); [1,2,3].forEach(function(k){ press($("zoom"+k), k===z); }); try{ localStorage.setItem("mw.zoom", String(z)); }catch(e){} }
   [1,2,3].forEach(function(z){ $("zoom"+z).addEventListener("click", function(){ setZoom(z); }); });
   (function(){ var z=1; try{ z=+localStorage.getItem("mw.zoom")||1; }catch(e){} if (z===2||z===3) setZoom(z); })();
-  game.onReset=function(){ press($("auto"),false); };
+  game.onReset=function(){ press($("auto"),false); $("auto").textContent = "▶ 전투 시작"; };
   setInterval(function(){
     if (!game.world) return;
     var alive=[0,0,0], tot=[0,0,0];
@@ -241,7 +246,7 @@ input[type=number]{width:64px;}
   }, 400);
   [0,1,2].forEach(function(i){ $("fac"+i).addEventListener("click", function(){
     game.setFaction(i); [0,1,2].forEach(function(j){ press($("fac"+j), j===i); }); }); });
-  $("auto").addEventListener("click", function(){ if (!game.world) return; game.setAuto(!game.auto); press(this, game.auto); });
+  $("auto").addEventListener("click", function(){ if (!game.world) return; game.setAuto(!game.auto); press(this, game.auto); this.textContent = game.auto ? "■ 전투 멈춤 (자동 전투 중)" : "▶ 전투 시작"; });
   $("reset").addEventListener("click", function(){ if (game.world) game.reset(); });
   [["hbAlly","ally"],["hbEnemy","enemy"],["hbHurt","hurt"]].forEach(function(p){ var el=$(p[0]); game.bars[p[1]]=el.checked; el.addEventListener("change", function(){ game.bars[p[1]]=this.checked; hbSync(); }); });
   function hbSync(){ var on=$("hbAlly").checked; $("hbHurt").disabled=!on; $("hbHurtLbl").style.opacity=on?"":"0.45"; }   // "닳았을 때만"은 아군 표시의 하위 옵션

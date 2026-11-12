@@ -178,13 +178,18 @@
   };
   MWE.Hud = Hud;
 
-  /* Bgm: 진영별 원본 배경음. 브라우저 정책상 버튼을 눌러야 재생된다. */
-  function Bgm(base, files) { this.base = base; this.files = files; this.el = null; this.on = false; this.cur = -1; }
-  Bgm.prototype.set = function (i) { this.cur = i; if (this.on) this._play(); };
+  /* Bgm: 진영별 원본 배경음. 브라우저 정책상 버튼을 눌러야 재생된다.
+     files[진영] = 파일 이름 하나 또는 여러 곡의 목록(원본 CD의 진영별 01~03). 여러 곡이면 한 곡이 끝날 때 다음 곡으로 넘어가며 돈다.
+     파일은 재생할 때 처음 받는다(미리 받지 않음) — 첫 로딩 크기에는 들어가지 않는다 */
+  function Bgm(base, files) { this.base = base; this.files = files.map(function (f) { return typeof f === 'string' ? [f] : f; }); this.el = null; this.on = false; this.cur = -1; this.track = 0; }
+  Bgm.prototype.set = function (i) { if (i !== this.cur) this.track = 0; this.cur = i; if (this.on) this._play(); };
   Bgm.prototype.toggle = function () { this.on = !this.on; if (this.on) this._play(); else if (this.el) this.el.pause(); return this.on; };
   Bgm.prototype._play = function () {
-    if (!this.el) { this.el = new Audio(); this.el.loop = true; this.el.volume = 0.5; }
-    var src = this.base + this.files[this.cur < 0 ? 0 : this.cur];
+    var self = this, list = this.files[this.cur < 0 ? 0 : this.cur];
+    if (!this.el) { this.el = new Audio(); this.el.volume = 0.5;
+      this.el.addEventListener('ended', function () { var l = self.files[self.cur < 0 ? 0 : self.cur]; self.track = (self.track + 1) % l.length; if (self.on) self._play(); }); }
+    this.el.loop = list.length < 2;                          // 한 곡뿐이면 되풀이, 여러 곡이면 'ended'에서 다음 곡
+    var src = this.base + list[this.track % list.length];
     if (this.el.getAttribute('data-src') !== src) { this.el.src = src; this.el.setAttribute('data-src', src); }
     var p = this.el.play(); if (p && p.catch) p.catch(function () {});
   };
