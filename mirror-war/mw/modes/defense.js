@@ -62,7 +62,7 @@
     MANA: { max: 300, start: 80, regen: 12, perKill: 6 },   // 마나: 최대, 시작, 초당 회복, 처치 보상
     MOVE_SCALE: 0.45,            // 원본 걷기 속도(px/틱)를 이 게임 속도로 줄이는 배수
     RANGE_SCALE: 0.07,           // 원본 사거리 → 화면 px (근접 700 → 49px, 원거리 3000 → 210px)
-    ENEMY_HP_MUL: 2,             // 적 체력 배수 (원본 해골전사는 체력 50이라 한 방에 쓰러진다)
+    ENEMY_HP_MUL: 1.1,             // 적 체력 배수 (원본 해골전사는 체력 50이라 한 방에 쓰러진다)
     COST_PER_GOLD: 0.45,         // 소환 마나 = 원본 생산 비용(금) × 이 값 (5 단위로 반올림)
     MAX_MAGIC: 3,                // 마법 유닛 동시 소환 한도
     /* 회수: 마법 유닛을 전장에서 거둬들여 자리를 비운다. 마나 환급 = 소환 값 × refund × 남은 체력 비율.
@@ -135,6 +135,8 @@
     this._usedUnitIds().forEach(function (id) { A.load('u' + id, self.types[id].img); });
     this.terrain = null;                                     // 그림이 다 오면 만든다
 
+    this.recallIcon = -1;                                    // 회수 팻말에 그릴 원작 리콜 아이콘 (넨 소환의 아이콘 번호)
+    data.units.forEach(function (d) { (d.acts || []).forEach(function (a) { if (a && a.sup === 'recall' && a.icon >= 0 && self.recallIcon < 0) self.recallIcon = a.icon; }); });
     this.sfx = new MWE.Sfx(opts.base + 'sfx.js', data.sfx);
     this.bgm = new MWE.Bgm(opts.base, [['bgm0.mp3', 'bgm0b.mp3', 'bgm0c.mp3'], ['bgm1.mp3', 'bgm1b.mp3', 'bgm1c.mp3'], ['bgm2.mp3', 'bgm2b.mp3', 'bgm2c.mp3']]);
     this.soundOn = true;
@@ -516,7 +518,7 @@
   };
   /* 선택한 유닛 머리 위 [회수] 버튼의 화면 상자 (그리기와 누르기가 같은 함수를 본다). 터치 타깃 64×44, 화면 가장자리·위쪽 표시·아래 패널을 피한다 */
   P._recallBtnBox = function (u) {
-    var w = 64, h = 44, sx = Math.round(u.x - this.cam.x), x = Math.max(6, Math.min(this.W - 6 - w, sx - w / 2));
+    var w = 74, h = 44, sx = Math.round(u.x - this.cam.x), x = Math.max(6, Math.min(this.W - 6 - w, sx - w / 2));
     var topY = Math.max(this.topBox.y + (this.garrison.length ? 70 : 46), this.miniBox.y + this.miniBox.h) + 4;
     var y = Math.max(topY, Math.min(this.H - this.hudH - 6 - h, Math.round(u.y - u.headY) - h - 8));
     return { x: x, y: y, w: w, h: h };
@@ -1100,14 +1102,25 @@
   P._drawSelectionOverlay = function () {
     var u = this.sel; if (!u || !this._recallable(u) || this.screen !== 'play') return;
     var sx = u.x - this.cam.x; if (sx < -30 || sx > this.W + 30) return;
-    var ctx = this.ctx, b = this._recallBtnBox(u), r = 10, tx = Math.max(b.x + 8, Math.min(b.x + b.w - 8, Math.round(sx)));
+    var ctx = this.ctx, b = this._recallBtnBox(u), c = 5, tx = Math.max(b.x + 12, Math.min(b.x + b.w - 12, Math.round(sx)));
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, this.W, this.H - this.hudH); ctx.clip();
-    ctx.beginPath(); ctx.moveTo(b.x + r, b.y); ctx.lineTo(b.x + b.w - r, b.y); ctx.quadraticCurveTo(b.x + b.w, b.y, b.x + b.w, b.y + r);
-    ctx.lineTo(b.x + b.w, b.y + b.h - r); ctx.quadraticCurveTo(b.x + b.w, b.y + b.h, b.x + b.w - r, b.y + b.h);
-    ctx.lineTo(b.x + r, b.y + b.h); ctx.quadraticCurveTo(b.x, b.y + b.h, b.x, b.y + b.h - r); ctx.lineTo(b.x, b.y + r); ctx.quadraticCurveTo(b.x, b.y, b.x + r, b.y); ctx.closePath();
-    ctx.fillStyle = '#b5521f'; ctx.fill(); ctx.strokeStyle = '#ffb36a'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(tx - 6, b.y + b.h); ctx.lineTo(tx + 6, b.y + b.h); ctx.lineTo(tx, b.y + b.h + 6); ctx.closePath(); ctx.fillStyle = '#ffb36a'; ctx.fill();   // 유닛을 가리키는 삼각형
-    ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText('회수  +' + this._refundOf(u), b.x + b.w / 2, b.y + b.h / 2 + 0.5);
+    // 팻말: 원작 HUD 의 명령 칸처럼 — 모서리를 깎은 어두운 판, 청동 테두리(위는 밝고 아래는 어둡게), 안쪽 가는 선, 네 귀의 징
+    var plate = function (x, y, w, h, k) { ctx.beginPath(); ctx.moveTo(x + k, y); ctx.lineTo(x + w - k, y); ctx.lineTo(x + w, y + k); ctx.lineTo(x + w, y + h - k); ctx.lineTo(x + w - k, y + h); ctx.lineTo(x + k, y + h); ctx.lineTo(x, y + h - k); ctx.lineTo(x, y + k); ctx.closePath(); };
+    ctx.fillStyle = 'rgba(0,0,0,.45)'; plate(b.x + 2, b.y + 3, b.w, b.h, c); ctx.fill();                       // 그림자
+    ctx.beginPath(); ctx.moveTo(tx - 7, b.y + b.h - 1); ctx.lineTo(tx + 7, b.y + b.h - 1); ctx.lineTo(tx, b.y + b.h + 7); ctx.closePath(); ctx.fillStyle = '#6b4f1e'; ctx.fill();   // 유닛을 가리키는 쐐기 (테두리 색)
+    var gb = ctx.createLinearGradient(0, b.y, 0, b.y + b.h); gb.addColorStop(0, '#e6c476'); gb.addColorStop(0.45, '#a8823a'); gb.addColorStop(1, '#5c431a');
+    ctx.fillStyle = gb; plate(b.x, b.y, b.w, b.h, c); ctx.fill();                                                 // 청동 테두리
+    var gi = ctx.createLinearGradient(0, b.y, 0, b.y + b.h); gi.addColorStop(0, '#262b3a'); gi.addColorStop(1, '#0c0e15');
+    ctx.fillStyle = gi; plate(b.x + 2, b.y + 2, b.w - 4, b.h - 4, c - 1); ctx.fill();                             // 어두운 판
+    ctx.strokeStyle = 'rgba(255,233,176,.22)'; ctx.lineWidth = 1; plate(b.x + 3.5, b.y + 3.5, b.w - 7, b.h - 7, c - 2); ctx.stroke();   // 안쪽 가는 선
+    ctx.beginPath(); ctx.moveTo(tx - 4, b.y + b.h - 2); ctx.lineTo(tx + 4, b.y + b.h - 2); ctx.lineTo(tx, b.y + b.h + 3); ctx.closePath(); ctx.fillStyle = '#0c0e15'; ctx.fill();   // 쐐기 속
+    ctx.fillStyle = '#f3dc9a'; [[b.x + 5, b.y + 5], [b.x + b.w - 7, b.y + 5], [b.x + 5, b.y + b.h - 7], [b.x + b.w - 7, b.y + b.h - 7]].forEach(function (q) { ctx.fillRect(q[0], q[1], 2, 2); });   // 징
+    // 내용: 왼쪽에 원작 리콜(넨 소환) 아이콘, 오른쪽에 "회수"와 돌려받는 마나
+    var D = this.data.fx.icon, ic = this.recallIcon, ih = b.h - 12, iw = Math.round(ih * D.w / D.h), ix = b.x + 7, cx = ix + iw + (b.x + b.w - 6 - ix - iw) / 2;
+    if (ic >= 0) { var fi = ic * 2; ctx.drawImage(this.assets.get('acticons'), (fi % D.cols) * D.w, Math.floor(fi / D.cols) * D.h, D.w, D.h, ix, b.y + 6, iw, ih); } else cx = b.x + b.w / 2;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.9)';
+    ctx.font = 'bold 12px sans-serif'; ctx.strokeText('회수', cx, b.y + 15); ctx.fillStyle = '#ffe9b0'; ctx.fillText('회수', cx, b.y + 15);
+    var rf = '+' + this._refundOf(u); ctx.font = 'bold 12px sans-serif'; ctx.strokeText(rf, cx, b.y + 30); ctx.fillStyle = '#8fc7ff'; ctx.fillText(rf, cx, b.y + 30);   // 마나 색 (소환 버튼의 마나 값과 같은 색)
     ctx.textAlign = 'left'; ctx.restore();
   };
 
