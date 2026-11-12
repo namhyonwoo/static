@@ -87,6 +87,7 @@
          act   = 쏘는 원본 행동 번호 (4 활 쏘기, 15 파이어 볼)        mod·step = 사격 틱 조건: tick % mod == 자리 번호 × step
          deploy = 무기가 전개되는 틱 수 (그동안은 못 쏜다)             loop = 가동 중 되풀이하는 그림 수
        사거리 = (4000 + 건물 사거리 보정 × 10) × RANGE_SCALE,  피해 = 원본 피해 공식 + 성 안 유닛들의 건물 공격 보너스 합 */
+    GAR_MAX: 4,                  // 성에 넣을 수 있는 수비 인원 (원본 성의 수용 인원 8보다 적게 — 사용자 요청)
     GARRISON: { tps: 12, shotSpeed: 420, classes: { 4: { act: 4, from: 4, mod: 24, step: 1, deploy: 5, loop: 16 }, 0: { act: 15, from: 12, mod: 40, step: 4, deploy: 10, loop: 10 } } },
     SUPPORT_DIST: 210,           // 기본 공격이 없는 유닛(성직자·소환사 등)이 적과 벌려 두는 거리(px)
     /* 스킬은 전체 마나를 쓴다 (소환과 같은 마나) + 짧은 재사용 대기 cool(초). 값 = 원본 행동 마나 × costMul 을 5 단위로, 종류별 [최소, 최대] 안으로 자른다 (COST)
@@ -262,6 +263,7 @@
     this.sel = null;             // 전장에서 고른 아군 마법 유닛 (머리 위에 [회수] 버튼이 뜬다). 상태이지 상자가 아니다 — 매 프레임 자리를 다시 계산
     this.btnFirst = 0;           // 소환 캐러셀(세로 모드): 맨 왼쪽에 보이는 칸 번호
     this.recallArm = null;       // (이전 두 번 누르기 회수의 흔적 — 지금은 쓰지 않는다)
+    this.selBase = false;        // 성을 골랐는가 (고르면 [퇴각] 팻말이 뜬다)
     this.garOn = false;          // [성 배치] 켜짐: 소환 버튼이 유닛을 전장 대신 성에 넣는다
     this.garrison = [];          // 성 안의 유닛 { r(소환 목록 항목), u(피해 계산용 Unit), cls, bonus } — 순서 = 자리 번호
     this.weapons = { 0: { phase: -1, c: 0 }, 4: { phase: -1, c: 0 } };   // 건물 무기 상태: phase -1 없음 / 0 전개 중 / 2 가동, c = 그림 카운터
@@ -387,7 +389,7 @@
 
   /* ───────────────────────── 3-2. 성 배치 (건물 원거리 공격) ───────────────────────── */
   /* 성의 수용 인원 (BuildingData +0x10: 성 8) */
-  P.garCap = function () { return this.bld.base ? this.bld.base.cap : 0; };
+  P.garCap = function () { return this.bld.base ? Math.min(CONFIG.GAR_MAX, this.bld.base.cap) : 0; };   // 원본 성은 8명이지만 디펜스는 GAR_MAX(4)명까지 (2026-11-13)
   /* 성 안 유닛들의 건물 공격 보너스 합 (원본 건물 +0x30 = Σ unitdata +0x2B4) */
   P.garBonus = function () { return this.garrison.reduce(function (n, m) { return n + m.bonus; }, 0); };
   /* 성의 사거리(px): 원본 4000 + BuildingData[+0x1C] × 10 (0.1px 단위) → 이 게임 배수로 */
@@ -612,17 +614,35 @@
     var y = Math.max(topY, Math.min(this.H - this.hudH - 6 - h, Math.round(u.y - u.headY) - h - 8));
     return { x: x, y: y, w: w, h: h };
   };
+  /* 성(아군 기지)의 화면 상자와, 성을 골랐을 때 그 위에 뜨는 [퇴각] 팻말의 상자 */
+  P._baseBox = function () { var B = this.bld.base; if (!B) return null; var p = this.bld.pics[B.pic], o = this._bldOrigin(B, CONFIG.BASE.x, this.laneY + 44); return { x: o[0] - p[4] - this.cam.x, y: o[1] - p[5], w: p[2], h: p[3], cx: o[0] + B.center[0] - this.cam.x }; };   // _pic 은 (o − 그림 원점)에 그린다
+  P._retreatBox = function () {
+    var bb = this._baseBox(), w = 74, h = 44; if (!bb) return null;
+    var topY = Math.max(this.topBox.y + this._topH(), this.miniBox.y + this.miniBox.h) + 4;
+    return { x: Math.max(6, Math.min(this.W - 6 - w, Math.round(bb.cx - w / 2))), y: Math.max(topY, Math.round(bb.y + bb.h * 0.25) - h), w: w, h: h, tx: bb.cx };
+  };
+  /* 퇴각: 성 안의 수비대가 모두 성 밖으로 나와 전장 유닛이 된다 (마나는 들지 않는다). 성의 무기는 접힌다 */
+  P.retreat = function () {
+    var self = this, n = this.garrison.length; if (!n) return false;
+    this.garrison.forEach(function (m) { self.spawn(m.r.id, 0); });
+    this.garrison = []; this.weapons = { 0: { phase: -1, c: 0 }, 4: { phase: -1, c: 0 } };
+    var bb = this._baseBox(); this._say(bb.cx + this.cam.x, this.laneY - 150, '수비대 퇴각 (' + n + '기)', '#ffe9b0'); this._play(CONFIG.RECALL.snd, 0.8);
+    return true;
+  };
   /* 전장을 끌지 않고 눌렀다(탭). 우선순위: ① 선택 유닛의 [회수] 버튼 → 회수  ② 아군 마법 유닛 몸통 → 선택  ③ 일반 아군 → 안내만  ④ 빈 곳 → 선택 해제 */
   P._tapField = function (x, y) {
     if (this.screen !== 'play') return;
     if (this.aim) { this._aimCast(x + this.cam.x, y); return; }   // 조준 중: 누른 지점에 마법
+    if (this.selBase && this.garrison.length && inBox(this._retreatBox(), x, y)) { this.retreat(); this.selBase = false; return; }   // 성을 고른 뒤 [퇴각] 팻말
     var sel = this.sel; if (sel && this._recallable(sel) && inBox(this._recallBtnBox(sel), x, y)) { this.recall(sel); this.sel = null; return; }
     var wx = x + this.cam.x, best = null, bd = Infinity, plain = null, L = this.units, i, u, d;
     for (i = 0; i < L.length; i++) { u = L[i]; if (u.side !== 0 || u.state === 'dead') continue;
       if (Math.abs(u.x - wx) <= 20 && y >= u.y - u.headY - 6 && y <= u.y + 8) { d = Math.hypot(u.x - wx, (u.y - y) * 1.6);
         if (this._recallable(u)) { if (d < bd) { bd = d; best = u; } } else if (!plain) plain = u; } }
-    if (best) { this._selectUnit(best); return; }
+    if (best) { this.selBase = false; this._selectUnit(best); return; }
     this.sel = null;
+    var bb = this._baseBox(); if (bb && !plain && inBox(bb, x, y)) { this.selBase = !this.selBase; if (this.selBase && !this.garrison.length) { this._say(x + this.cam.x, y - 12, '성 안에 수비대가 없습니다', '#c9d1e3'); this.selBase = false; } return; }   // 성을 누름: 고르기/풀기
+    this.selBase = false;
     if (plain) this._say(wx, y - 12, '마법 유닛만 회수할 수 있습니다', '#c9d1e3');
   };
 
@@ -664,8 +684,7 @@
     if (s.act.self) return { foe: null };                    // 자기에게만 거는 강화: 대상 조건 없음
     if (s.needsAlly()) {
       var r = s.kind === 'haste' ? S.buffRadius * 1.3 : s.act.sup === 'massheal' ? S.buffRadius * 1.5 : S.buffRadius;
-      for (i = 0; i < L.length; i++) { o = L[i]; if (o !== u && o.side === u.side && o.state !== 'dead' && Math.abs(o.x - u.x) <= r) return { foe: null }; }
-      return null;
+      return { foe: null };                                  // 걸어 줄 다른 아군이 없으면 자기에게 건다 (2026-11-13 사용자 요청) — 효과 범위에는 시전자 자신도 들어 있다
     }
     return { foe: null };
   };
@@ -1369,9 +1388,11 @@
 
   /* 고른 유닛 머리 위의 [회수 +N] 버튼. 전장 클립 안, 화면 좌표. 유닛이 화면 밖이면 그리지 않는다 */
   P._drawSelectionOverlay = function () {
-    var u = this.sel; if (!u || !this._recallable(u) || this.screen !== 'play') return;
-    var sx = u.x - this.cam.x; if (sx < -30 || sx > this.W + 30) return;
-    var ctx = this.ctx, b = this._recallBtnBox(u), c = 5, tx = Math.max(b.x + 12, Math.min(b.x + b.w - 12, Math.round(sx)));
+    if (this.screen !== 'play') return;
+    var u = this.sel, base = !u && this.selBase && this.garrison.length ? this._retreatBox() : null;   // 성을 골랐으면 같은 팻말에 "퇴각"
+    if (!base && (!u || !this._recallable(u))) return;
+    var sx = base ? base.tx : u.x - this.cam.x; if (sx < -30 || sx > this.W + 30) return;
+    var ctx = this.ctx, b = base || this._recallBtnBox(u), c = 5, tx = Math.max(b.x + 12, Math.min(b.x + b.w - 12, Math.round(sx)));
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, this.W, this.H - this.hudH); ctx.clip();
     // 팻말: 원작 HUD 의 명령 칸처럼 — 모서리를 깎은 어두운 판, 청동 테두리(위는 밝고 아래는 어둡게), 안쪽 가는 선, 네 귀의 징
     var plate = function (x, y, w, h, k) { ctx.beginPath(); ctx.moveTo(x + k, y); ctx.lineTo(x + w - k, y); ctx.lineTo(x + w, y + k); ctx.lineTo(x + w, y + h - k); ctx.lineTo(x + w - k, y + h); ctx.lineTo(x + k, y + h); ctx.lineTo(x, y + h - k); ctx.lineTo(x, y + k); ctx.closePath(); };
@@ -1388,8 +1409,9 @@
     var D = this.data.fx.icon, ic = this.recallIcon, ih = b.h - 12, iw = Math.round(ih * D.w / D.h), ix = b.x + 7, cx = ix + iw + (b.x + b.w - 6 - ix - iw) / 2;
     if (ic >= 0) { var fi = ic * 2; ctx.drawImage(this.assets.get('acticons'), (fi % D.cols) * D.w, Math.floor(fi / D.cols) * D.h, D.w, D.h, ix, b.y + 6, iw, ih); } else cx = b.x + b.w / 2;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.9)';
-    ctx.font = 'bold 12px sans-serif'; ctx.strokeText('회수', cx, b.y + 15); ctx.fillStyle = '#ffe9b0'; ctx.fillText('회수', cx, b.y + 15);
-    var rf = '+' + this._refundOf(u); ctx.font = 'bold 12px sans-serif'; ctx.strokeText(rf, cx, b.y + 30); ctx.fillStyle = '#8fc7ff'; ctx.fillText(rf, cx, b.y + 30);   // 마나 색 (소환 버튼의 마나 값과 같은 색)
+    var word = base ? '퇴각' : '회수';
+    ctx.font = 'bold 12px sans-serif'; ctx.strokeText(word, cx, b.y + 15); ctx.fillStyle = '#ffe9b0'; ctx.fillText(word, cx, b.y + 15);
+    var rf = base ? this.garrison.length + '기' : '+' + this._refundOf(u); ctx.font = 'bold 12px sans-serif'; ctx.strokeText(rf, cx, b.y + 30); ctx.fillStyle = '#8fc7ff'; ctx.fillText(rf, cx, b.y + 30);   // 마나 색 (소환 버튼의 마나 값과 같은 색)
     ctx.textAlign = 'left'; ctx.restore();
   };
 
@@ -1656,7 +1678,7 @@
     if (this.screen !== 'play') return;
     if (y < this.H - this.hudH) { this._tapField(x, y); return; }   // 전장 (키보드 등으로 들어온 경우 — 포인터는 _bind 가 직접 _tapField 로 보낸다)
     this._aimWas = this.aim ? this.aim.group : null; this.aim = null;   // 아래 패널의 다른 것을 누르면 조준 취소 (같은 스킬 칸이면 pressSlot 이 취소로 처리)
-    this.sel = null;                                         // 아래 패널의 무엇이든 누르면 전장 선택은 풀린다 (칩은 다시 고른다)
+    this.sel = null; this.selBase = false;                   // 아래 패널의 무엇이든 누르면 전장 선택은 풀린다 (칩은 다시 고른다)
     if (inBox(this.garBtn, x, y)) { this.garOn = !this.garOn; return; }
     for (i = 0; i < this.tabBoxes.length; i++) if (inBox(this.tabBoxes[i], x, y)) { this.tab = i; this.btnFirst = 0; return; }
     if (this.btnPrev && inBox(this.btnPrev, x, y)) { this._scrollBtns(-1); return; }
