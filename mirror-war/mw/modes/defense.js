@@ -837,7 +837,7 @@
     var ctx = this.ctx, W = this.W, H = this.H;
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = '#0b0d12'; ctx.fillRect(0, 0, W, H);
-    if (this.screen === 'loading') { this._center(this.assets.failed ? '그림을 불러오지 못했습니다: ' + this.assets.failed : '불러오는 중…', H / 2, 16, '#c9d1e3'); return; }
+    if (this.screen === 'loading') { MWE.drawLoading(ctx, W, H, this.assets, this.sfx); return; }   // 진행률 바 (render/assets.js)
 
     this._drawGround();
     // 전장 층: 여기서부터는 전장 좌표로 그린다 (카메라만큼 왼쪽으로 밀고, 아래 패널 영역은 잘라낸다)

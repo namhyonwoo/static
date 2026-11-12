@@ -248,8 +248,7 @@ P._spawnTest = function (w) {
   P._frame = function (ts) {
     var ctx = this.ctx, A = this.assets;
     if (A.failed) { ctx.fillStyle = '#111'; ctx.fillRect(0, 0, 800, 600); ctx.fillStyle = '#e08484'; ctx.font = '14px monospace'; ctx.fillText('에셋을 불러오지 못했습니다: ' + A.failed, 24, 40); return; }
-    if (!A.ready()) { ctx.fillStyle = '#0b0d12'; ctx.fillRect(0, 0, 800, 600); ctx.fillStyle = '#c9cfdb'; ctx.font = '14px "IBM Plex Sans KR",sans-serif';
-      ctx.fillText('원본 에셋을 불러오는 중 ' + A.got + ' / ' + A.need, 24, 40); ctx.fillStyle = '#2a2f3a'; ctx.fillRect(24, 60, 752, 6); ctx.fillStyle = '#e0a05c'; ctx.fillRect(24, 60, 752 * A.got / A.need, 6); return; }
+    if (!A.ready()) { MWE.drawLoading(ctx, 800, 600, A, this.sfx); return; }   // 진행률 바 (render/assets.js)
     if (!this.world) this.reset();
     var dt = this._last ? Math.min((ts - this._last) / 1000, 0.05) : 0; this._last = ts;
     var k = this.keys, m = this.mouse, mx = 0, my = 0;
