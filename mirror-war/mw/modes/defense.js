@@ -20,7 +20,7 @@
 
    ■ 유닛 두 종류
      - 일반 유닛: 마나만 있으면 몇 기든 소환.
-     - 마법 유닛: 마법(마나를 쓰는 원본 행동)을 가진 유닛. 전장에 동시에 MAX_MAGIC(3)기까지만.
+     - 마법 유닛: 마법(마나를 쓰는 원본 행동)을 가진 유닛. 수 제한 없음 — 같은 마법은 패널의 한 칸(묶음)으로 모인다.
        소환되면 그 유닛의 마법 전부가 오른쪽 아래 스킬 패널에 칸(SkillSlot)으로 생기고, 쓰러지면 그 칸들도 사라진다.
        칸이 3개를 넘으면 패널을 좌우로 넘겨 본다(캐러셀).
        스킬 패널 위의 유닛 칩을 두 번 누르면 그 유닛을 회수한다(recall) — 마나를 일부 돌려받고 자리가 빈다.
@@ -69,7 +69,7 @@
     RANGE_SCALE: 0.07,           // 원본 사거리 → 화면 px (근접 700 → 49px, 원거리 3000 → 210px)
     ENEMY_HP_MUL: 1.1,             // 적 체력 배수 (원본 해골전사는 체력 50이라 한 방에 쓰러진다)
     COST_PER_GOLD: 0.45,         // 소환 마나 = 원본 생산 비용(금) × 이 값 (5 단위로 반올림)
-    MAX_MAGIC: 3,                // 마법 유닛 동시 소환 한도
+    MAX_MAGIC: 0,                // 마법 유닛 동시 소환 한도
     /* 회수: 마법 유닛을 전장에서 거둬들여 자리를 비운다. 마나 환급 = 소환 값 × refund × 남은 체력 비율.
        confirmSec = 칩을 한 번 누른 뒤 "회수"로 바뀌어 있는 시간(이 안에 한 번 더 눌러야 회수), fxArm·snd = 사라질 때의 원본 이펙트 칸·소리(텔레포테이션) */
     RECALL: { refund: 0.5, confirmSec: 2, fxArm: 3, snd: 5018 },
@@ -148,7 +148,7 @@
     data.units.forEach(function (d) { (d.acts || []).forEach(function (a) { if (a && a.sup === 'recall' && a.icon >= 0 && self.recallIcon < 0) self.recallIcon = a.icon; }); });
     this.sfx = new MWE.Sfx(opts.base + 'sfx.js', data.sfx);
     this.bgm = new MWE.Bgm(opts.base, [['bgm0.mp3', 'bgm0b.mp3', 'bgm0c.mp3'], ['bgm1.mp3', 'bgm1b.mp3', 'bgm1c.mp3'], ['bgm2.mp3', 'bgm2b.mp3', 'bgm2c.mp3']]);
-    this.soundOn = true;
+    this.soundOn = false; this.sfx.on = false;   // 소리는 꺼진 채로 시작한다 (오른쪽 위 [무음]을 누르면 켜짐). 2026-11-12 사용자 요청
 
     this.screen = 'loading';     // loading(불러오는 중) → title(시작 화면) → play(진행) → win / lose
     this.time = 0; this._last = 0;
@@ -208,7 +208,7 @@
       // 칩 줄: 마법 유닛 칩(32×22, 선택·카메라 이동용) + "마법 N" + 스킬 캐러셀 ◀▶
       var hy = by + bh + 4, sy = hy + ch + 2, sw = Math.floor((W - 16 - (this.slotsVis - 1) * g) / this.slotsVis);
       this.skillPanel = { x: lx, y: hy, w: W - 16, h: ch };
-      this.chipBoxes = []; for (i = 0; i < n; i++) this.chipBoxes.push({ x: lx + i * 36, y: hy, w: 32, h: ch });
+      this.chipBoxes = [];   // 마법 유닛 칩은 없앴다 (한도 폐지 — 유닛은 전장에서 직접 눌러 고른다)
       this.slotPrev = { x: W - 8 - 70, y: hy, w: 33, h: ch }; this.slotNext = { x: W - 8 - 33, y: hy, w: 33, h: ch };
       this.slotStep = sw + g; this.slotArea = { x: lx, y: sy, w: W - 16, h: sh };
       this.slotBoxes = []; for (i = 0; i < this.slotsVis; i++) this.slotBoxes.push({ x: lx + i * (sw + g), y: sy, w: sw, h: sh });
@@ -226,8 +226,8 @@
     var C = CONFIG;
     this.units = [];             // 전장 위의 모든 유닛 (아군·적)
     this.slots = [];             // 스킬 칸(SkillSlot) — 전장의 마법 유닛이 가진 마법마다 하나 (만든 순서)
-    this.slotView = [];          // 패널에 보이는 순서: 쓸 수 있게 된 순서대로 앞에, 쿨타임 중인 칸은 곧 끝날 것부터 뒤에 (_sortSlots)
-    this.magicUnits = [];        // 전장의 마법 유닛 (최대 MAX_MAGIC기). 순서 = 머리 위 번호
+    this.slotView = [];          // (= this.groups) 패널에 보이는 칸 = 마법 종류별 묶음, 처음 생긴 순서
+    this.magicUnits = [];        // 전장의 마법 유닛 (패널에 칸이 있는 마법을 가진 아군)
     this.aim = null;             // 지점 지정 대기: { slot } — 적에게 쓰는 마법의 칸을 누른 상태. 전장을 누르면 그 지점에 쓴다
     this.aimPt = null;           // 조준 중 손가락·마우스가 가리키는 화면 좌표 (반경 원을 미리 보여 준다)
     this.sel = null;             // 전장에서 고른 아군 마법 유닛 (머리 위에 [회수] 버튼이 뜬다). 상태이지 상자가 아니다 — 매 프레임 자리를 다시 계산
@@ -237,7 +237,7 @@
     this.garrison = [];          // 성 안의 유닛 { r(소환 목록 항목), u(피해 계산용 Unit), cls, bonus } — 순서 = 자리 번호
     this.weapons = { 0: { phase: -1, c: 0 }, 4: { phase: -1, c: 0 } };   // 건물 무기 상태: phase -1 없음 / 0 전개 중 / 2 가동, c = 그림 카운터
     this.garTick = 0;            // 마지막으로 처리한 사격 틱
-    this.slotFirst = 0; this.slotPos = 0; this.slotView = [];   // 캐러셀: 맨 왼쪽에 보이는 칸 번호, 넘기는 동작용 현재 위치
+    this.slotFirst = 0; this.slotPos = 0; this.slotView = []; this.groups = [];   // 캐러셀: 맨 왼쪽에 보이는 칸 번호, 넘기는 동작용 현재 위치
     this.shots = [];             // 날아가는 발사체
     this.effects = [];           // 터지는 이펙트
     this.texts = [];             // 떠오르는 숫자·글자 (피해량 등)
@@ -293,7 +293,7 @@
     // 마법 유닛이면 가진 마법마다 스킬 칸을 만들어 서로 가리키게 한다 (유닛 하나 ↔ 칸 여러 개)
     u.spawnId = typeId;                                      // 소환 버튼의 유닛 번호 (변형해도 그대로 — 회수 환급 계산용)
     u.slots = []; u.castSkill = function (i) { return self.castUnitSkill(u, i || 0); };
-    if (side === 0) { skillsOf(t).forEach(function (a) { self._addSlot(u, a); }); if (u.slots.length) this.magicUnits.push(u); }
+    if (side === 0) { skillsOf(t).forEach(function (a) { self._addSlot(u, a); }); if (u.slots.some(function (q) { return !q.auto; })) this.magicUnits.push(u); this._regroup(); }
     else {                                                   // 적 마법 유닛: 칸은 유닛만 갖고(패널에는 안 나옴) 스스로 쓴다 (_enemyMagic). 변형은 이 게임에서 대응 형태가 없어 뺀다
       var E = C.ENEMY_SKILL; u.auto = true;
       if (E.on) skillsOf(t).forEach(function (a) { var q = new SkillSlot(u, a); if (q.kind === 'morph') return; q.cdMax = E.cool; q.cd = E.first[0] + self.rng.next() * (E.first[1] - E.first[0]); q.cost = 0; u.slots.push(q); }); }
@@ -332,7 +332,7 @@
       if (this.garrison.length >= this.garCap()) return 'full';
       return this.mana < r.cost ? 'mana' : r.wait > 0 ? 'wait' : '';
     }
-    if (r.magic && this.magicCount() >= CONFIG.MAX_MAGIC) return 'max';
+    if (CONFIG.MAX_MAGIC > 0 && r.magic && this.magicCount() >= CONFIG.MAX_MAGIC) return 'max';   // MAX_MAGIC = 0: 한도 없음 (2026-11-12 폐지)
     if (this.mana < r.cost) return 'mana';
     if (r.wait > 0) return 'wait';
     return '';
@@ -435,78 +435,97 @@
   /* 그 종류가 가진 마법 목록: 기본 공격이 아니고, 마나를 쓰고(방패 막기 같은 몸동작 제외), 효과를 구현한 행동 */
   function skillsOf(t) { return t.acts.filter(function (a) { return a.isAtk != 1 && a.mana > 0 && skillKind(a); }); }
 
-  /* 동적 UI 만들기: 마법 유닛이 소환될 때 마법마다 한 칸 */
-  P._addSlot = function (u, act) { var s = new SkillSlot(u, act); u.slots.push(s); this.slots.push(s); this._sortSlots(); return s; };
+  /* 스킬 칸의 구조 (2026-11-12 "스킬 종류별 묶음"으로 바꿈, 마법 유닛 3기 한도 폐지):
+       SkillSlot  = 유닛 한 기가 가진 마법 하나 (자기만의 재사용 대기 cd). this.slots = 전장의 모든 SkillSlot
+       묶음(group) = 같은 마법을 가진 SkillSlot 들 { act, kind, aimed, cost, slots[] }. **패널의 칸 하나 = 묶음 하나** ("라이트닝 썬더 ×3").
+                    칸을 누르면 그 마법을 가진 유닛 중 준비된 한 기가 쓴다. this.groups = 처음 생긴 순서(자리가 바뀌지 않는다)
+       자기에게만 거는 강화(a.self: 아이스 웨폰 등)는 묶음에 넣지 않는다 — 유닛이 알아서, 마나 없이 쓴다 (s.auto, _selfMagic) */
+  P._addSlot = function (u, act) { var s = new SkillSlot(u, act); if (act.self) { s.auto = true; s.cost = 0; } u.slots.push(s); this.slots.push(s); this._regroup(); return s; };
 
-  /* 동적 UI 없애기: 마법 유닛이 쓰러질 때 그 유닛의 칸을 모두 뺀다 — 뒤의 칸들이 앞으로 당겨진다 */
+  /* 유닛이 쓰러지거나 회수될 때 그 유닛의 칸을 모두 뺀다. 그 마법을 가진 유닛이 더 없으면 패널의 칸(묶음)도 사라진다 */
   P._removeSlots = function (u) {
     if (!u.slots || !u.slots.length) return;
-    this.slots = this.slots.filter(function (s) { return s.unit !== u; }); this._sortSlots();
+    this.slots = this.slots.filter(function (s) { return s.unit !== u; });
     u.slots.forEach(function (s) { s.unit = null; }); u.slots = [];
     var k = this.magicUnits.indexOf(u); if (k >= 0) this.magicUnits.splice(k, 1);
-    this.scrollSlots(0);
+    this._regroup(); this.scrollSlots(0);
   };
+
+  /* 묶음을 다시 만든다. 이미 있던 묶음 객체는 그대로 써서 패널에서의 자리와 미끄러지는 위치(vi)가 유지된다 */
+  P._regroup = function () {
+    var map = {}, out = [], old = this.groups || [], i;
+    for (i = 0; i < old.length; i++) { old[i].slots = []; map[old[i].act.id] = old[i]; }
+    for (i = 0; i < this.slots.length; i++) { var s = this.slots[i]; if (s.auto || !s.unit || s.unit.side !== 0 || s.unit.state === 'dead') continue;
+      var g = map[s.act.id]; if (!g) { g = map[s.act.id] = { act: s.act, kind: s.kind, aimed: s.aimed, cost: s.cost, slots: [], vi: null, isNew: true }; }
+      g.slots.push(s); }
+    for (i = 0; i < old.length; i++) if (old[i].slots.length) out.push(old[i]);
+    Object.keys(map).forEach(function (k) { if (map[k].isNew) { delete map[k].isNew; out.push(map[k]); } });
+    this.groups = out; this.slotView = out;
+  };
+  P._sortSlots = function () { this._regroup(); };
 
   /* 쿨타임 처리: 모든 칸의 남은 시간을 줄인다. 캐러셀이 넘어가는 동작도 여기서 진행 */
   P._updateSlots = function (dt) {
     for (var i = 0; i < this.slots.length; i++) { var s = this.slots[i]; if (s.cd > 0) { s.cd = Math.max(0, s.cd - dt); if (s.cd === 0) s.readyAt = this.time; } }
-    this._sortSlots();
-    // 칸마다 지금 순서의 자리로 미끄러져 간다 (순서가 바뀔 때 툭 튀지 않게)
-    for (i = 0; i < this.slotView.length; i++) { var v = this.slotView[i]; v.vi = v.vi == null ? i : v.vi + (i - v.vi) * Math.min(1, dt * 10); }
+    this._regroup();
+    for (i = 0; i < this.groups.length; i++) { var v = this.groups[i]; v.vi = v.vi == null ? i : v.vi + (i - v.vi) * Math.min(1, dt * 10); }   // 앞의 칸이 사라지면 뒤의 칸이 미끄러져 온다
     this.slotPos += (this.slotFirst - this.slotPos) * Math.min(1, dt * 14);
   };
 
-  /* 패널 순서를 다시 정한다 (실시간):
-       ① 쓸 수 있는 칸이 앞 — 먼저 쓸 수 있게 된 칸일수록 앞  ② 쿨타임 중인 칸은 뒤 — 곧 끝날 칸일수록 앞
-     같은 값이면 만든 순서 그대로 */
-  P._sortSlots = function () {
-    var base = this.slots;
-    this.slotView = base.slice().sort(function (a, b) {
-      var ra = a.cd <= 0, rb = b.cd <= 0;
-      if (ra !== rb) return ra ? -1 : 1;
-      var d = ra ? a.readyAt - b.readyAt : a.cd - b.cd;
-      return d || base.indexOf(a) - base.indexOf(b);
-    });
+  /* 자기 강화(아이스 웨폰·헤이스트 등)는 유닛이 스스로 쓴다: 적이 가까이 왔고 그 강화가 걸려 있지 않을 때. 마나를 쓰지 않는다 */
+  P._selfMagic = function () {
+    for (var i = 0; i < this.slots.length; i++) { var s = this.slots[i], u = s.unit; if (!s.auto || !u || u.side !== 0 || u.state === 'dead' || s.cd > 0 || u.stunUntil > this.time) continue;
+      var b = u.buffs[s.act.sup === 'masshaste' ? 'haste' : s.act.sup]; if (b && b.until > this.time) continue;
+      var f = this._nearestFoe(u); if (!f || Math.abs(f.x - u.x) > 300) continue;
+      this.castUnitSkill(u, u.slots.indexOf(s)); }
   };
 
   /* 캐러셀을 d칸 넘긴다 (음수 = 왼쪽). 범위를 벗어나지 않게 맞춘다 */
-  P.scrollSlots = function (d) { this.slotFirst = Math.max(0, Math.min(Math.max(0, this.slots.length - this.slotsVis), this.slotFirst + d)); };
+  P.scrollSlots = function (d) { this.slotFirst = Math.max(0, Math.min(Math.max(0, (this.groups || []).length - this.slotsVis), this.slotFirst + d)); };
 
-  /* i번째 칸(this.slots 기준)을 누름 → 그 칸에 묶인 유닛의 castSkill(그 유닛의 몇 번째 마법) */
-  P.pressSlot = function (i) {
-    var s = this.slots[i], was = (this.aim && this.aim.slot) || this._aimWas; this.aim = null; this._aimWas = null;
-    if (!s || this.screen !== 'play') return false;
-    if (!s.aimed) return !!s.unit.castSkill(s.unit.slots.indexOf(s));
-    if (was === s) return false;                             // 조준 중인 칸을 다시 누르면 취소
-    var why = this._whyNot(s.unit, s); if (why) { this._say(s.unit.x, s.unit.y - s.unit.headY - 10, why[0], why[1]); return false; }
-    this.aim = { slot: s }; this.sel = null; this.aimPt = null;
-    this.camGoal = { x: s.unit.x - this.W / 2 + Math.min(this.W * 0.3, this.aimReach(s) * 0.5), until: this.time + 1.2 }; this.manualUntil = 0;   // 시전자와 그 앞쪽이 보이게
-    return true;
-  };
-  /* 이 마법을 지금 못 쓰는 이유 [문구, 색]. 쓸 수 있으면 null */
-  P._whyNot = function (u, s) {
-    if (u.state === 'dead') return ['', '#c9d1e3'];
-    if (s.cd > 0) return ['쿨타임 ' + Math.ceil(s.cd), '#c9d1e3'];
-    if (u.stunUntil > this.time) return ['멈춤 중', '#c9d1e3'];
-    if (!u.auto && this.mana < s.cost) return ['마나 부족 (' + s.cost + ')', '#e0584a'];
-    if (!this.skillTarget(u, s)) return [s.needsFoe() ? '가까이에 적이 없음' : '가까이에 아군이 없음', '#c9d1e3'];
+  /* 묶음에서 지금 쓸 수 있는 칸들: 재사용 대기가 끝났고 시전자가 멈춰 있지 않다 */
+  P._readyOf = function (g) { var T = this.time; return g.slots.filter(function (s) { return s.cd <= 0 && s.unit && s.unit.state !== 'dead' && !(s.unit.stunUntil > T); }); };
+  /* 이 묶음을 지금 못 쓰는 이유 [문구, 색, 글자를 띄울 유닛]. 쓸 수 있으면 null */
+  P._whyNot = function (g) {
+    var self = this, any = g.slots[0] && g.slots[0].unit, R = this._readyOf(g);
+    if (!R.length) { var cd = Math.min.apply(null, g.slots.map(function (s) { return s.cd > 0 ? s.cd : 99; })); return [cd < 99 ? '쿨타임 ' + Math.ceil(cd) : '멈춤 중', '#c9d1e3', any]; }
+    if (this.mana < g.cost) return ['마나 부족 (' + g.cost + ')', '#e0584a', R[0].unit];
+    if (!R.some(function (s) { return self.skillTarget(s.unit, s); })) return [g.slots[0].needsFoe() ? '가까이에 적이 없음' : '가까이에 아군이 없음', '#c9d1e3', R[0].unit];
     return null;
+  };
+  /* 패널의 칸(묶음)을 누름. 적에게 쓰는 마법·리콜은 조준 상태로, 나머지(강화·회복·가속·변형)는 준비된 유닛 한 기가 바로 쓴다 */
+  P.pressGroup = function (g) {
+    var was = (this.aim && this.aim.group) || this._aimWas, self = this; this.aim = null; this._aimWas = null;
+    if (!g || this.screen !== 'play') return false;
+    if (g.aimed && was === g) return false;                  // 조준 중인 칸을 다시 누르면 취소
+    var why = this._whyNot(g); if (why) { if (why[2]) this._say(why[2].x, why[2].y - why[2].headY - 10, why[0], why[1]); return false; }
+    var R = this._readyOf(g);
+    if (!g.aimed) {                                          // 즉시 쓰는 마법: 주변에 효과를 받을 아군이 가장 많은 유닛이 쓴다
+      var best = null, bn = -1; R.forEach(function (s) { if (!self.skillTarget(s.unit, s)) return; var n = self.units.filter(function (o) { return o.side === 0 && o.state !== 'dead' && Math.abs(o.x - s.unit.x) <= CONFIG.SKILL.buffRadius && (s.kind !== 'heal' || o.hp < o.maxHp) && !(s.kind === 'buff' && o.buffs[s.act.sup] && o.buffs[s.act.sup].until > self.time); }).length; if (n > bn) { bn = n; best = s; } });
+      return !!best && this.castUnitSkill(best.unit, best.unit.slots.indexOf(best));
+    }
+    this.aim = { group: g }; this.sel = null; this.aimPt = null;
+    var cx = this.cam.x + this.W / 2, near = R.slice().sort(function (a, b) { return Math.abs(a.unit.x - cx) - Math.abs(b.unit.x - cx); })[0];   // 화면에 가까운 시전자와 그 앞쪽이 보이게
+    this.camGoal = { x: near.unit.x - this.W / 2 + Math.min(this.W * 0.3, this.aimReach(near) * 0.5), until: this.time + 1.2 }; this.manualUntil = 0;
+    return true;
   };
   /* 지점 지정 마법의 시전 거리(px): 시전자에서 이 가로 거리 안의 지점만 찍을 수 있다 */
   P.aimReach = function (s) { return s.kind === 'recall' ? CONFIG.WORLD_W : Math.min(CONFIG.SKILL.maxCast, s.act.range * CONFIG.RANGE_SCALE); };   // 리콜은 원본처럼 거리 제한 없음
   /* 지점 지정 마법의 효과 반경(px) — 그리기와 판정이 같은 값을 쓴다 */
   P.aimRadius = function (s) { var S = CONFIG.SKILL; return s.kind === 'recall' ? 120 : s.kind === 'blast' ? (s.act.aoe ? S.radius : 60) : s.kind === 'charm' ? S.radius * 0.7 : s.kind === 'assassin' ? 45 : S.radius; };
-  /* 조준 중 전장을 눌렀다: 그 지점(전장 좌표)에 마법을 쓴다. 시전 거리 밖이면 알려 주고 조준은 유지 */
+  /* 조준 중 전장을 눌렀다: 그 지점에 닿는 준비된 유닛 중 가장 가까운 한 기가 쓴다. 닿는 유닛이 없으면 알려 주고 조준은 유지 */
   P._aimCast = function (wx, wy) {
-    var s = this.aim.slot, u = s.unit; if (!u || u.state === 'dead') { this.aim = null; return false; }
-    var R = this.rows, y = Math.max(this.laneY + R[0] - 30, Math.min(this.laneY + R[R.length - 1] + 10, wy));
-    if (Math.abs(wx - u.x) > this.aimReach(s)) { this._say(wx, y - 12, '너무 멀다', '#e08a6a'); return false; }
-    var ok = this.castUnitSkill(u, u.slots.indexOf(s), { x: wx, y: y });
+    var g = this.aim.group, self = this, R = this._readyOf(g); if (!g.slots.length) { this.aim = null; return false; }
+    var Rw = this.rows, y = Math.max(this.laneY + Rw[0] - 30, Math.min(this.laneY + Rw[Rw.length - 1] + 10, wy));
+    var can = R.filter(function (s) { return Math.abs(wx - s.unit.x) <= self.aimReach(s); }).sort(function (a, b) { return Math.abs(wx - a.unit.x) - Math.abs(wx - b.unit.x); });
+    if (!can.length) { this._say(wx, y - 12, R.length ? '너무 멀다' : '쿨타임', '#e08a6a'); return false; }
+    var ok = this.castUnitSkill(can[0].unit, can[0].unit.slots.indexOf(can[0]), { x: wx, y: y });
     if (ok) { this.aim = null; this.aimPt = null; }
     return ok;
   };
-  /* 지금 보이는 칸 중 k번째(0~2)를 누름 — 단축키 A·S·D. 보이는 순서(slotView)에서 고른다 */
-  P.pressVisible = function (k) { var s = this.slotView[this.slotFirst + k]; return !!s && this.pressSlot(this.slots.indexOf(s)); };
+  /* 지금 보이는 칸 중 k번째를 누름 — 단축키 A·S·D·F */
+  P.pressVisible = function (k) { return this.pressGroup(this.groups[this.slotFirst + k]); };
+  P.pressSlot = function (i) { var s = this.slots[i]; if (!s) return false; var g = this.groups.filter(function (q) { return q.slots.indexOf(s) >= 0; })[0]; return g ? this.pressGroup(g) : false; };   // (이전 이름 — 유닛의 칸이 속한 묶음을 누른다)
 
   /* 소환 캐러셀(세로 모드)을 d칸 넘긴다. 가로 모드는 전부 보이므로 늘 0 */
   P._scrollBtns = function (d) { var n = this.roster ? this.roster[this.tab].length : 0, vis = this.btnVis || n; this.btnFirst = Math.max(0, Math.min(Math.max(0, n - vis), (this.btnFirst || 0) + d)); };
@@ -518,7 +537,7 @@
   /* 유닛을 고른다: 선택 표시 + 머리 위 [회수] 버튼, 그 유닛의 마법이 스킬 칸 맨 앞에 보이게 */
   P._selectUnit = function (u) {
     this.sel = u; if (!u) return;
-    var view = this.slotView, idx = u.slots.map(function (q) { return view.indexOf(q); }).filter(function (k) { return k >= 0; });
+    var view = this.groups, idx = u.slots.map(function (q) { for (var k = 0; k < view.length; k++) if (view[k].slots.indexOf(q) >= 0) return k; return -1; }).filter(function (k) { return k >= 0; });
     if (idx.length) { this.slotFirst = Math.min.apply(null, idx); this.scrollSlots(0); }
   };
   /* 회수 때 돌려받는 마나 — 버튼 라벨과 실제 반환량이 같은 값이 되도록 한 곳에서 */
@@ -608,7 +627,7 @@
     var s = u.slots[i]; if (!s || u.state === 'dead') return false;
     if (s.cd > 0) { this._say(u.x, u.y - u.headY - 10, '쿨타임 ' + Math.ceil(s.cd), '#c9d1e3'); return false; }   // 눌렀는데 안 되는 이유를 알려 준다
     if (u.stunUntil > this.time) { this._say(u.x, u.y - u.headY - 10, '멈춤 중', '#c9d1e3'); return false; }
-    if (!u.auto && this.mana < s.cost) { this._say(u.x, u.y - u.headY - 10, '마나 부족 (' + s.cost + ')', '#e0584a'); return false; }
+    if (!u.auto && !s.auto && this.mana < s.cost) { this._say(u.x, u.y - u.headY - 10, '마나 부족 (' + s.cost + ')', '#e0584a'); return false; }
     var a = s.act, S = CONFIG.SKILL, self = this, ok = false, tps = this.rules.tps;
     // 시전 조건: 시전자 가까이에 대상이 있어야 한다 — 적에게 쓰는 마법은 시전 거리 안의 적, 아군에게 쓰는 마법은 주변의 다른 아군 (skillTarget)
     var tg = pt ? { foe: pt } : this.skillTarget(u, s), foe = tg ? tg.foe : null;
@@ -657,7 +676,7 @@
       if (to) { var ratio = u.hp / u.maxHp; u.setType(to); u.hp = Math.max(1, Math.round(u.maxHp * ratio)); this._applyType(u); u.face(u.dir, -u.dir); ok = true; }
     }
     if (!ok) { this._say(u.x, u.y - u.headY - 10, '대상 없음', '#c9d1e3'); return false; }
-    if (!u.auto) { this.mana -= s.cost;                      // 내가 쓴 마법: 터진 곳(적에게 쓰는 마법은 그 적, 아니면 시전자)이 화면 가운데에 오도록 카메라가 미끄러져 간다
+    if (!u.auto && !s.auto) { this.mana -= s.cost;                      // 내가 쓴 마법: 터진 곳(적에게 쓰는 마법은 그 적, 아니면 시전자)이 화면 가운데에 오도록 카메라가 미끄러져 간다
       this.camGoal = { x: (foe && s.kind !== 'recall' ? foe.x : u.x) - this.W / 2, until: this.time + CONFIG.CAM.skillSec }; this.manualUntil = 0; }
     s.cd = s.cdMax; this._sortSlots();                       // 방금 쓴 칸은 바로 뒤로 간다
     this._say(u.x, u.y - u.t.h - 18, a.name, u.side === 0 ? '#ffd36e' : '#ff8a7a');   // 적이 쓴 마법은 붉은 글씨
@@ -688,7 +707,7 @@
     this.roster.forEach(function (list) { list.forEach(function (r) { r.wait = Math.max(0, r.wait - dt); }); });
     this._updateSlots(dt);
     this.flash = Math.max(0, this.flash - dt); this.baseHit = Math.max(0, this.baseHit - dt);
-    if (this.aim && (!this.aim.slot.unit || this.aim.slot.unit.state === 'dead' || this.slots.indexOf(this.aim.slot) < 0)) this.aim = null;   // 조준하던 유닛이 사라지면 조준도 풀린다
+    if (this.aim && this.groups.indexOf(this.aim.group) < 0) this.aim = null;   // 조준하던 마법을 가진 유닛이 모두 사라지면 조준도 풀린다
     if (this.sel && !this._recallable(this.sel)) this.sel = null;   // 고른 유닛이 쓰러지거나 사라지면 선택도 사라진다
     this._scrollBtns(0);                                     // 탭·유닛 수가 바뀌어도 소환 캐러셀이 범위 밖에 남지 않게
 
@@ -700,6 +719,7 @@
     this._updateShots(dt);
     this._updateGarrison();
     this._enemyMagic(dt);
+    this._selfMagic();
     this._updateCamera(dt);
 
     // 사라질 것 정리: 쓰러진 뒤 다 흐려진 유닛, 끝난 이펙트·글자
@@ -1127,23 +1147,22 @@
     if (u.state === 'dead') return;
     var top = y - u.headY - 8;
     if (u.hp < u.maxHp || u === this.sel) this._drawHpBar(u, x, y);   // 원작 체력 바 (닳았을 때와 고른 유닛)
-    // 마법 유닛: 몇 번째 마법 유닛인지 머리 위에 번호로 (스킬 칸에도 같은 번호가 붙는다). 쓸 수 있는 마법이 있으면 밝게
-    if (u.slots && u.slots.length && this.magicUnits.indexOf(u) >= 0) { var k = this.magicUnits.indexOf(u) + 1, by = top - 14;
-      ctx.fillStyle = u.slots.some(function (q) { return q.ready(); }) ? '#ffd36e' : '#59607a'; ctx.beginPath(); ctx.arc(x, by, 7, 0, 6.3); ctx.fill();
-      ctx.fillStyle = '#10131b'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(k, x, by + 0.5); ctx.textAlign = 'left'; }
   };
 
-  /* 조준 표시 (전장 클립 안, 화면 좌표): 시전자 발밑 링, 찍을 수 있는 가로 범위를 옅게, 손가락·마우스 자리에 효과 반경 원, 위쪽에 안내 한 줄 */
+  /* 조준 표시 (전장 클립 안, 화면 좌표): 준비된 시전자들의 발밑 링, 아무도 닿지 않는 곳을 옅게 어둡게, 손가락·마우스 자리에 효과 반경 원, 위쪽에 안내 한 줄 */
   P._drawAim = function () {
     var A = this.aim; if (!A || this.screen !== 'play') return;
-    var ctx = this.ctx, s = A.slot, u = s.unit, W = this.W, fh = this.H - this.hudH, reach = this.aimReach(s), r = this.aimRadius(s), ux = u.x - this.cam.x, T = this.time;
+    var ctx = this.ctx, g = A.group, W = this.W, fh = this.H - this.hudH, T = this.time, self = this, R = this._readyOf(g), s0 = g.slots[0]; if (!s0) return;
+    var r = this.aimRadius(s0), iv = R.map(function (s) { var re = self.aimReach(s), x = s.unit.x - self.cam.x; return [x - re, x + re]; }).sort(function (a, b) { return a[0] - b[0]; }), x = 0, i;
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, fh); ctx.clip();
-    ctx.fillStyle = 'rgba(5,7,12,.38)'; if (ux - reach > 0) ctx.fillRect(0, 0, ux - reach, fh); if (ux + reach < W) ctx.fillRect(ux + reach, 0, W - (ux + reach), fh);   // 닿지 않는 곳을 어둡게
-    ctx.strokeStyle = 'rgba(127,214,255,.55)'; ctx.lineWidth = 1; ctx.setLineDash([6, 5]); ctx.beginPath(); ctx.moveTo(ux - reach + 0.5, 0); ctx.lineTo(ux - reach + 0.5, fh); ctx.moveTo(ux + reach - 0.5, 0); ctx.lineTo(ux + reach - 0.5, fh); ctx.stroke(); ctx.setLineDash([]);
-    ctx.strokeStyle = '#7fd6ff'; ctx.lineWidth = 3; ctx.globalAlpha = 0.775 + 0.225 * Math.sin(T * 7.54); ctx.beginPath(); ctx.ellipse(ux, u.y + 2, 19, 9, 0, 0, 6.3); ctx.stroke(); ctx.globalAlpha = 1;
-    var p = this.aimPt; if (p && p.y < fh) { var okp = Math.abs(p.x + this.cam.x - u.x) <= reach;
+    ctx.fillStyle = 'rgba(5,7,12,.38)';                                             // 닿지 않는 곳(시전 범위들의 바깥)을 어둡게
+    for (i = 0; i < iv.length; i++) { if (iv[i][0] > x) ctx.fillRect(x, 0, Math.min(W, iv[i][0]) - x, fh); x = Math.max(x, iv[i][1]); if (x >= W) break; }
+    if (x < W) ctx.fillRect(x, 0, W - x, fh);
+    ctx.strokeStyle = '#7fd6ff'; ctx.lineWidth = 3; ctx.globalAlpha = 0.775 + 0.225 * Math.sin(T * 7.54);
+    R.forEach(function (s) { ctx.beginPath(); ctx.ellipse(s.unit.x - self.cam.x, s.unit.y + 2, 19, 9, 0, 0, 6.3); ctx.stroke(); }); ctx.globalAlpha = 1;
+    var p = this.aimPt; if (p && p.y < fh) { var okp = iv.some(function (q) { return p.x >= q[0] && p.x <= q[1]; });
       ctx.fillStyle = okp ? 'rgba(255,211,110,.16)' : 'rgba(224,88,74,.14)'; ctx.strokeStyle = okp ? '#ffd36e' : '#e0584a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.3); ctx.fill(); ctx.stroke(); }
-    var msg = s.act.name + ' — 쓸 곳을 누르세요 (칸을 다시 누르면 취소)'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    var msg = g.act.name + ' — 쓸 곳을 누르세요 (칸을 다시 누르면 취소)'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     var mw = Math.min(W - 16, ctx.measureText(msg).width + 20), my = Math.max(this.topBox.y + (this.garrison.length ? 70 : 46), this.miniBox.y + this.miniBox.h) + 8;
     ctx.fillStyle = 'rgba(8,10,16,.8)'; ctx.fillRect(W / 2 - mw / 2, my, mw, 24); ctx.fillStyle = '#7fd6ff'; ctx.fillText(this._fit(msg, mw - 10), W / 2, my + 12.5);
     ctx.textAlign = 'left'; ctx.restore();
@@ -1153,7 +1172,7 @@
      어두운 바탕 없이 글자 테두리만, 유닛이 서는 줄(전투 줄)보다 위에만 그린다. 새로 나오는 적이 있으면 그 아래 한 줄에 작은 그림과 이름.
      누르는 것을 막지 않는다(그림일 뿐). 2.2초, 새 적이 있으면 3초 */
   P._drawBanner = function () {
-    var b = this.banner; if (!b || this.screen !== 'play') return;
+    var b = this.banner; if (!b || this.screen !== 'play' || this.aim) return;   // 조준 안내와 같은 자리라 조준 중에는 그리지 않는다
     var F = b.fresh, total = F.length ? 3 : 2.2, t = this.time - b.t0; if (t < 0) return; if (t > total) { this.banner = null; return; }
     var al = Math.max(0, Math.min(1, t / 0.25, (total - t) / 0.5)), ctx = this.ctx, W = this.W, fh = this.H - this.hudH, n = CONFIG.WAVES.length, last = b.wave === n - 1;
     var top = Math.max(this.topBox.y + (this.garrison.length ? 70 : 46), this.miniBox.y + this.miniBox.h) + 20, k = 1 + 0.2 * Math.max(0, 1 - t / 0.25);
@@ -1294,7 +1313,7 @@
   /* 소환 패널: 탭 + [성 배치] 토글 + 지금 탭의 유닛 버튼. 버튼 = 원본 유닛 작은 그림(figs.png, 유닛 번호 × 36px) + 이름 + 마나 값.
      버튼 안의 그림·글자 자리는 상자 크기에서 계산한다 (가로·세로 모드, 납작한 배치에서 상자 크기가 다르다) */
   P._drawSummonPanel = function () {
-    var ctx = this.ctx, C = CONFIG, i, figs = this.assets.get('figs'), list = this.roster[this.tab], full = this.magicCount() >= C.MAX_MAGIC;
+    var ctx = this.ctx, C = CONFIG, i, figs = this.assets.get('figs'), list = this.roster[this.tab], full = C.MAX_MAGIC > 0 && this.magicCount() >= C.MAX_MAGIC;
     ctx.textBaseline = 'middle';
     for (i = 0; i < this.tabBoxes.length; i++) { var tb = this.tabBoxes[i], on = i === this.tab;
       ctx.fillStyle = on ? '#2c3550' : '#181c27'; ctx.fillRect(tb.x, tb.y, tb.w, tb.h);
@@ -1330,19 +1349,11 @@
   /* 스킬 패널 (캐러셀): 전장의 마법 유닛이 가진 마법 전부가 칸으로 늘어서고, 그중 slotsVis칸(가로 모드 3, 세로 모드 4)이 창에 보인다.
      ◀ ▶ 를 누르거나 칸을 좌우로 끌어 넘긴다. 칸 = 원본 행동 아이콘 + 쿨타임 가림막 + 유닛 번호·이름 + 마법 이름 */
   P._drawSkillPanel = function () {
-    var ctx = this.ctx, C = CONFIG, D = this.data.fx.icon, icons = this.assets.get('acticons'), p = this.skillPanel, A = this.slotArea, KEYS = ['A', 'S', 'D', 'F'];
-    var n = this.slots.length, vis = this.slotsVis, B = this.slotBoxes[0], i, ih = Math.min(D.h, B.h - 22), iw = Math.round(ih * D.w / D.h), T = this.time;
-    ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.font = 'bold 11px sans-serif';
-    // 머리줄: 마법 유닛 칩(작은 그림 + 번호) = 현황 표시. 누르면 그 유닛을 고르고 카메라가 그쪽으로 간다. 고른 유닛의 칩은 파란 테두리
-    var figs = this.assets.get('figs');
-    for (i = 0; i < this.chipBoxes.length; i++) { var cb = this.chipBoxes[i], mu = this.magicUnits[i], ccy = cb.y + cb.h / 2;
-      if (!mu) { ctx.strokeStyle = '#2f3647'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.strokeRect(cb.x + 0.5, cb.y + 0.5, cb.w - 1, cb.h - 1); ctx.setLineDash([]); continue; }
-      ctx.fillStyle = '#232a3a'; ctx.fillRect(cb.x, cb.y, cb.w, cb.h); ctx.strokeStyle = mu === this.sel ? '#7fb6ff' : '#3a4152'; ctx.lineWidth = mu === this.sel ? 2 : 1; ctx.strokeRect(cb.x + 0.5, cb.y + 0.5, cb.w - 1, cb.h - 1);
-      var ch2 = cb.h - 2; ctx.drawImage(figs, mu.t.pid * 36, 0, 36, 43, cb.x + 2, cb.y + 1, Math.round(ch2 * 36 / 43), ch2);
-      ctx.fillStyle = '#ffd36e'; ctx.beginPath(); ctx.arc(cb.x + cb.w - 7, ccy, 5, 0, 6.3); ctx.fill();
-      ctx.fillStyle = '#10131b'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(i + 1, cb.x + cb.w - 7, ccy + 0.5); }
-    var lc = this.chipBoxes[this.chipBoxes.length - 1];
-    ctx.textAlign = 'left'; ctx.font = '10px sans-serif'; ctx.fillStyle = '#7b8397'; if (n) ctx.fillText('마법 ' + n, lc.x + lc.w + 6, p.y + p.h / 2);
+    var ctx = this.ctx, C = CONFIG, D = this.data.fx.icon, icons = this.assets.get('acticons'), p = this.skillPanel, A = this.slotArea, KEYS = ['A', 'S', 'D', 'F'], self = this;
+    var G = this.groups, n = G.length, vis = this.slotsVis, B = this.slotBoxes[0], i, ih = Math.min(D.h, B.h - 22), iw = Math.round(ih * D.w / D.h), T = this.time;
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    // 머리줄: 마법 유닛 수와 마법 종류 수
+    ctx.font = '10px sans-serif'; ctx.fillStyle = '#7b8397'; if (n) ctx.fillText('마법 유닛 ' + this.magicUnits.length + '기 · 마법 ' + n + '종', p.x + 2, p.y + p.h / 2);
     // ◀ ▶ : 넘길 칸이 있는 쪽만 밝게
     var arrows = [[this.slotPrev, '◀', this.slotFirst > 0], [this.slotNext, '▶', this.slotFirst < n - vis]];
     for (i = 0; i < 2; i++) { var ab = arrows[i][0], on = arrows[i][2];
@@ -1351,29 +1362,28 @@
     // 빈 창: 점선 칸
     if (!n) { for (i = 0; i < vis; i++) { var e = this.slotBoxes[i]; ctx.strokeStyle = '#2f3647'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.strokeRect(e.x + 1.5, e.y + 1.5, e.w - 3, e.h - 3); ctx.setLineDash([]);
       ctx.textAlign = 'center'; ctx.font = '9px sans-serif'; ctx.fillStyle = '#4a5268'; ctx.fillText('빈 칸', e.x + e.w / 2, e.y + e.h / 2); } return; }
-    // 칸들: 창 밖으로 나간 부분은 잘라낸다
+    // 칸 = 마법 종류 하나 (그 마법을 가진 유닛 수 ×N). 창 밖으로 나간 부분은 잘라낸다
     ctx.save(); ctx.beginPath(); ctx.rect(A.x, A.y, A.w, A.h); ctx.clip();
     for (i = 0; i < n; i++) {
-      var s = this.slotView[i], vp = (s.vi == null ? i : s.vi) - this.slotPos; if (vp < -1.2 || vp > vis + 0.2) continue;   // 창 밖
-      var bx = Math.round(A.x + vp * this.slotStep), cx = bx + B.w / 2, a = s.act, fi = a.icon * 2, vk = i - this.slotFirst, cu = s.unit;
-      var stunned = cu.stunUntil > T, far = s.ready() && !stunned && !this.skillTarget(cu, s), poor = this.mana < s.cost, ok = s.ready() && !far && !stunned && !poor;   // far = 쿨타임은 끝났지만 가까이에 대상이 없다. 멈춘 시전자·죽은 시전자는 사용 불가
+      var g = G[i], vp = (g.vi == null ? i : g.vi) - this.slotPos; if (vp < -1.2 || vp > vis + 0.2) continue;   // 창 밖
+      var bx = Math.round(A.x + vp * this.slotStep), cx = bx + B.w / 2, a = g.act, fi = a.icon * 2, vk = i - this.slotFirst, R = this._readyOf(g), s0 = g.slots[0];
+      var cd = R.length ? 0 : Math.min.apply(null, g.slots.map(function (q) { return q.cd > 0 ? q.cd : 99; })), stunned = !R.length && cd >= 99;   // 전원 멈춤
+      var far = R.length > 0 && !R.some(function (q) { return self.skillTarget(q.unit, q); }), poor = this.mana < g.cost, ok = R.length > 0 && !far && !poor, aiming = this.aim && this.aim.group === g;
       ctx.fillStyle = ok ? '#3a2a12' : '#191d27'; ctx.fillRect(bx, B.y, B.w, B.h);
-      var aiming = this.aim && this.aim.slot === s;
       ctx.strokeStyle = aiming ? '#7fd6ff' : ok ? '#ffd36e' : '#3a4152'; ctx.lineWidth = aiming ? 3 : 2; ctx.strokeRect(bx + 1, B.y + 1, B.w - 2, B.h - 2);   // 조준 중인 칸은 하늘색 굵은 테두리
       ctx.globalAlpha = ok ? 1 : 0.4; ctx.drawImage(icons, (fi % D.cols) * D.w, Math.floor(fi / D.cols) * D.h, D.w, D.h, Math.round(cx - iw / 2), B.y + 1, iw, ih); ctx.globalAlpha = 1;
-      if (s.cd > 0) {                                        // 쿨타임: 위에서부터 걷히는 가림막 + 남은 초(흰 글자·검은 테두리) + 칸 아래 2px 진행 바(남은 비율)
-        ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(bx, B.y, B.w, B.h * s.cd / s.cdMax);
-        ctx.textAlign = 'center'; ctx.font = 'bold 15px sans-serif'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.9)'; ctx.strokeText(Math.ceil(s.cd), cx, B.y + Math.round(ih / 2) + 2); ctx.fillStyle = '#fff'; ctx.fillText(Math.ceil(s.cd), cx, B.y + Math.round(ih / 2) + 2);
-        ctx.fillStyle = '#ffd36e'; ctx.fillRect(bx + 2, B.y + B.h - 4, Math.round((B.w - 4) * s.cd / s.cdMax), 2); }
+      if (cd > 0 && cd < 99) {                               // 준비된 유닛이 없다: 가장 빨리 끝나는 유닛의 남은 시간
+        ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(bx, B.y, B.w, B.h * cd / s0.cdMax);
+        ctx.textAlign = 'center'; ctx.font = 'bold 15px sans-serif'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.9)'; ctx.strokeText(Math.ceil(cd), cx, B.y + Math.round(ih / 2) + 2); ctx.fillStyle = '#fff'; ctx.fillText(Math.ceil(cd), cx, B.y + Math.round(ih / 2) + 2);
+        ctx.fillStyle = '#ffd36e'; ctx.fillRect(bx + 2, B.y + B.h - 4, Math.round((B.w - 4) * cd / s0.cdMax), 2); }
       else if (stunned) { ctx.textAlign = 'center'; ctx.font = 'bold 11px sans-serif'; ctx.fillStyle = '#c9d1e3'; ctx.fillText('멈춤', cx, B.y + Math.round(ih / 2) + 2); }
       ctx.textAlign = 'center'; ctx.font = '9px sans-serif';
       ctx.fillStyle = '#dfe6f5'; ctx.fillText(this._fit(a.name, B.w - 6), cx, B.y + B.h - 18);
-      if (far) { ctx.fillStyle = '#e08a6a'; ctx.fillText(s.needsFoe() ? '적이 멀다' : '아군 없음', cx, B.y + B.h - 7); }
-      else { ctx.font = 'bold 11px sans-serif'; ctx.fillStyle = poor ? '#e0584a' : '#8fc7ff'; ctx.fillText(s.cost, cx, B.y + B.h - 7); ctx.font = '9px sans-serif'; }   // 마나 값: 모자라면 빨강 (소환 버튼과 같은 표기)
-      // 왼쪽 위: 단축키(보이는 칸만), 오른쪽 위: 이 마법을 가진 유닛의 번호 (유닛 머리 위 번호와 같다)
+      if (far) { ctx.fillStyle = '#e08a6a'; ctx.fillText(s0.needsFoe() ? '적이 멀다' : '아군 없음', cx, B.y + B.h - 7); }
+      else { ctx.font = 'bold 11px sans-serif'; ctx.fillStyle = poor ? '#e0584a' : '#8fc7ff'; ctx.fillText(g.cost, cx, B.y + B.h - 7); ctx.font = '9px sans-serif'; }   // 마나 값: 모자라면 빨강
+      // 왼쪽 위: 단축키(보이는 칸만), 오른쪽 위: 이 마법을 가진 유닛 수 (준비된 수 / 전체)
       if (vk >= 0 && vk < vis) { ctx.textAlign = 'left'; ctx.fillStyle = '#8a93a8'; ctx.fillText(KEYS[vk], bx + 4, B.y + 8); }
-      ctx.fillStyle = ok ? '#ffd36e' : '#59607a'; ctx.beginPath(); ctx.arc(bx + B.w - 9, B.y + 9, 6, 0, 6.3); ctx.fill();
-      ctx.fillStyle = '#10131b'; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(this.magicUnits.indexOf(s.unit) + 1, bx + B.w - 9, B.y + 9.5);
+      var cnt = '×' + g.slots.length; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'right'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.85)'; ctx.strokeText(cnt, bx + B.w - 4, B.y + 9); ctx.fillStyle = ok ? '#ffd36e' : '#8a93a8'; ctx.fillText(cnt, bx + B.w - 4, B.y + 9);
     }
     ctx.restore();
   };
@@ -1387,7 +1397,7 @@
     ctx.fillStyle = 'rgba(5,7,12,.78)'; ctx.fillRect(0, 0, W, H);
     if (sc === 'title') items = [['거울전쟁 디펜스', 28, '#ffd36e', 0], ['해골 군단을 막아 성을 지키세요', 14, '#dfe6f5', 14],
       ['탭을 골라 해방부대 유닛을 소환합니다', 12, G, 12],
-      ['마법 유닛은 3기까지 — 소환하면 그 유닛의 마법이 스킬 칸에 생깁니다 (많으면 좌우로 넘기기)', 12, G, 6],
+      ['마법 유닛을 소환하면 그 마법이 스킬 칸에 생깁니다 — 같은 마법은 한 칸(×유닛 수), 많으면 좌우로 넘기기', 12, G, 6],
       ['마법도 마나를 씁니다 — 소환과 마법 중 어디에 쓸지 고르세요. 적을 쓰러뜨리면 마나를 얻습니다', 12, G, 6],
       ['적에게 쓰는 마법은 칸을 누른 뒤 전장에서 쓸 곳을 누릅니다', 12, G, 6],
       ['전장의 마법 유닛을 누르면 [회수] 버튼 — 남은 체력만큼 마나를 돌려받습니다', 12, G, 6],
@@ -1431,7 +1441,7 @@
     if (this.screen === 'win' || this.screen === 'lose') { this.reset(); this.screen = 'play'; return; }
     if (this.screen !== 'play') return;
     if (y < this.H - this.hudH) { this._tapField(x, y); return; }   // 전장 (키보드 등으로 들어온 경우 — 포인터는 _bind 가 직접 _tapField 로 보낸다)
-    this._aimWas = this.aim ? this.aim.slot : null; this.aim = null;   // 아래 패널의 다른 것을 누르면 조준 취소 (같은 스킬 칸이면 pressSlot 이 취소로 처리)
+    this._aimWas = this.aim ? this.aim.group : null; this.aim = null;   // 아래 패널의 다른 것을 누르면 조준 취소 (같은 스킬 칸이면 pressSlot 이 취소로 처리)
     this.sel = null;                                         // 아래 패널의 무엇이든 누르면 전장 선택은 풀린다 (칩은 다시 고른다)
     if (inBox(this.garBtn, x, y)) { this.garOn = !this.garOn; return; }
     for (i = 0; i < this.tabBoxes.length; i++) if (inBox(this.tabBoxes[i], x, y)) { this.tab = i; this.btnFirst = 0; return; }

@@ -145,7 +145,7 @@ input[type=number]{width:64px;}
   <button id="spd">속도 3/5</button>
   <button id="blk" aria-pressed="false">통행 불가 칸 보기</button>
   <button id="bgm" aria-pressed="false">배경음</button>
-  <button id="sfx" aria-pressed="true">효과음</button>
+  <button id="sfx" aria-pressed="false">효과음</button>
   <button id="reset">처음으로</button>
 </div>
 <div class="score" id="score" aria-live="off" data-mode="battle"></div>
@@ -157,7 +157,7 @@ input[type=number]{width:64px;}
   <button id="tMana" aria-pressed="true">마나 무한</button>
   <button id="tSpd">속도 3/5</button>
   <button id="tBlk" aria-pressed="false">통행 불가 칸 보기</button>
-  <button id="tSfx" aria-pressed="true">효과음</button>
+  <button id="tSfx" aria-pressed="false">효과음</button>
 </div>
 <div class="tpanel" data-mode="test" hidden>
   <div class="tcol">
@@ -229,6 +229,7 @@ input[type=number]{width:64px;}
   var FAC=[{name:"해방부대",col:"#5aa0ff"},{name:"악령군",col:"#ff5a4a"},{name:"흑마술파",col:"#c07aff"}];
   var cv=document.getElementById("stage");
   var game=new MWE.RtsGame(cv, window.MW, {base:"sim/", factions:FAC, startSlots:[0,1,3]});
+  game.sfx.on=false;   // 효과음·배경음 모두 꺼진 채로 시작 (버튼으로 켠다)
   var scoreEl=document.getElementById("score");
   function $(id){ return document.getElementById(id); }
   function press(el,on){ el.setAttribute("aria-pressed", on?"true":"false"); }
@@ -255,7 +256,7 @@ input[type=number]{width:64px;}
   $("ai").addEventListener("click", function(){ game.aiOn=!game.aiOn; press(this, game.aiOn); });
   $("spd").addEventListener("click", function(){ var i=(game.speed+1)%5; game.setSpeed(i); this.textContent="속도 "+(i+1)+"/5"; });
   $("mana").addEventListener("click", function(){ game.setInfMana(!game.infMana); press(this, game.infMana); });
-  $("sfx").addEventListener("click", function(){ game.sfx.on=!game.sfx.on; if (game.sfx.on) game.sfx.unlock(); press(this, game.sfx.on); });
+  $("sfx").addEventListener("click", function(){ game.sfx.on=!game.sfx.on; if (game.sfx.on) game.sfx.unlock(); press(this, game.sfx.on); press($("tSfx"), game.sfx.on); });
   $("bgm").addEventListener("click", function(){ if (game.bgm.cur<0) game.bgm.cur=game.ctrl; press(this, game.bgm.toggle()); });
   // ---------- 대메뉴: 전장 / 아레나 ----------
   var logEl=$("tLog"), logLines=[];
@@ -314,7 +315,7 @@ input[type=number]{width:64px;}
   $("tMana").addEventListener("click", function(){ game.setInfMana(!game.infMana); press(this, game.infMana); });
   $("tSpd").addEventListener("click", function(){ var i=(game.speed+1)%5; game.setSpeed(i); this.textContent="속도 "+(i+1)+"/5"; $("spd").textContent=this.textContent; renderTest(); });
   $("tBlk").addEventListener("click", function(){ if (!game.view) return; game.view.showBlocked=!game.view.showBlocked; press(this, game.view.showBlocked); });
-  $("tSfx").addEventListener("click", function(){ game.sfx.on=!game.sfx.on; if (game.sfx.on) game.sfx.unlock(); press(this, game.sfx.on); });
+  $("tSfx").addEventListener("click", function(){ game.sfx.on=!game.sfx.on; if (game.sfx.on) game.sfx.unlock(); press(this, game.sfx.on); press($("sfx"), game.sfx.on); });
   var baseReset=game.onReset;
   game.onReset=function(){
     baseReset();
