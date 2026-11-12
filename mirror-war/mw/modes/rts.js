@@ -9,7 +9,8 @@
     this.data = data; this.factions = opts.factions; this.colors = opts.factions.map(function (f) { return f.col; });
     this.startSlots = opts.startSlots; this.VW = 800; this.VH = 448;
     this.assets = new MWE.Assets(opts.base);
-    ['tiles', 'minimap', 'objs', 'blds', 'arms', 'acticons', 'movemark', 'hpbar', 'block', 'mouse', 'hud0', 'hud1', 'hud2', 'portraits', 'figs', 'icons'].forEach(function (k) { this.assets.load(k, k + '.png'); }, this);
+    ['tiles', 'minimap', 'objs', 'blds', 'acticons', 'movemark', 'hpbar', 'block', 'mouse', 'hud0', 'hud1', 'hud2', 'portraits', 'figs', 'icons'].forEach(function (k) { this.assets.load(k, k + '.png'); }, this);
+    for (var ak = 0; ak < (data.fx.sheets || 1); ak++) this.assets.load('arms' + ak, 'arms' + ak + '.png');   // 이펙트 시트 (여러 장으로 나뉘어 있다 — fxbuild.js)
     data.units.forEach(function (u) { this.assets.load('u' + u.id, u.img); }, this);
     this.types = data.units.map(function (d) { return new MWE.UnitType(d); });
     this.maps = { battle: new MWE.GameMap(data.map), test: new MWE.GameMap(data.map2) };   // 전장(콜로세움)과 1:n 시험장(2인 맵의 평지)

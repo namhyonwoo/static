@@ -71,7 +71,7 @@
   P.addEffect = function (x, y, z, arm) { var d = this.fx && this.fx.arms[arm], fr = d && (d.hit.length ? d.hit : d.fly); if (fr && fr.length) this.effects.push({ x: x, y: y, z: z, f: fr, t0: this.time, add: !d.dir }); };
   P.addMark = function (x, y) { this.marks.push({ x: x, y: y, t0: this.time }); };
   P._sprite = function (fr, x, y, mir, add) {
-    var ctx = this.ctx, img = this.assets.get('arms');
+    var ctx = this.ctx, img = this.assets.get('arms' + (fr[6] || 0)); if (!img || !img.naturalWidth) return;   // 프레임의 7번째 값 = 이펙트 시트 번호
     if (add) ctx.globalCompositeOperation = 'lighter';   // 빛나는 이펙트는 가산 합성 (검은 바탕이 사라진다)
     if (mir) { ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(-1, 1); ctx.drawImage(img, fr[0], fr[1], fr[2], fr[3], -fr[4], -fr[5], fr[2], fr[3]); ctx.restore(); }
     else ctx.drawImage(img, fr[0], fr[1], fr[2], fr[3], Math.round(x - fr[4]), Math.round(y - fr[5]), fr[2], fr[3]);

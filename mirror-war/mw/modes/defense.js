@@ -130,9 +130,13 @@
 
     // 그림: 필요한 것만 불러온다 (배경 타일, 이펙트, 스킬 아이콘, 유닛 작은 그림, 건물, 쓰는 유닛의 스프라이트)
     var A = this.assets = new MWE.Assets(opts.base);
-    A.load('tiles', this.map.keys.tiles + '.png').load('arms', 'arms.png').load('acticons', 'acticons.png').load('figs', 'figs.png').load('defense', 'defense.png').load('hpbar', 'hpbar.png');   // 원작 체력 바 틀·숫자 (bar.spr, helpnum.mwl → tools/hpbarbuild.js)
+    A.load('tiles', this.map.keys.tiles + '.png').load('acticons', 'acticons.png').load('figs', 'figs.png').load('defense', 'defense.png').load('hpbar', 'hpbar.png');   // 원작 체력 바 틀·숫자 (bar.spr, helpnum.mwl → tools/hpbarbuild.js)
     this.bld = root.MW_DEF || {};                            // 건물 그림 위치표 { base, lair } (sim/defense.js)
     this._usedUnitIds().forEach(function (id) { A.load('u' + id, self.types[id].img); });
+    // 이펙트 시트: 여러 장 중 이 게임이 쓰는 이펙트 칸의 것만 미리 받는다 (쓰는 유닛들의 모든 행동 + 순간이동·가속·회수 이펙트). 빠진 것이 있으면 그릴 때 그 장을 받는다 (_fxFrame)
+    var armIds = { 3: 1, 21: 1, 44: 1 }; armIds[CONFIG.RECALL.fxArm] = 1;
+    this._usedUnitIds().forEach(function (id) { self.types[id].acts.forEach(function (a) { if (a && a.arm >= 0) armIds[a.arm] = 1; }); });
+    this.fxSheets = {}; Object.keys(armIds).forEach(function (k) { var d = data.fx.arms[k]; (d && d.sheets || []).forEach(function (n) { self._loadFxSheet(n); }); });
     this.terrain = null;                                     // 그림이 다 오면 만든다
 
     this.recallIcon = -1;                                    // 회수 팻말에 그릴 원작 리콜 아이콘 (넨 소환의 아이콘 번호)
@@ -663,7 +667,7 @@
       this._makeGround();
       if (this.screen === 'loading') this.screen = 'title';
     }
-    // 바닥 조각을 0.5초마다 다시 그린다: 큰 이펙트 시트(arms.png, 2,150만 픽셀)를 펼칠 때 아이폰에서 보조 캔버스가 비워져 전장 바닥만 검게 나오던 문제의 복구 (448×192 한 장이라 비용은 작다)
+    // 바닥 조각을 0.5초마다 다시 그린다: 큰 이펙트 시트(나누기 전 arms.png 는 2,150만 픽셀)를 펼칠 때 아이폰에서 보조 캔버스가 비워져 전장 바닥만 검게 나오던 문제의 복구 (448×192 한 장이라 비용은 작다)
     else if (this.ground && this.terrain && this.time - this._groundAt > 0.5) this._makeGround();
     if (this.screen === 'play' && !this.paused) this.update(dt);
     this.time += dt;
@@ -1156,11 +1160,14 @@
     this._fxFrame(e.f[k], e.x, e.y, e.add);
   };
 
-  /* 이펙트 그림 한 장 (arms.png 안의 번호). add = 빛나는 가산 합성 */
+  /* 이펙트 시트 n번(armsN.png)을 받는다 (한 번만) */
+  P._loadFxSheet = function (n) { if (this.fxSheets[n]) return; this.fxSheets[n] = 1; this.assets.load('arms' + n, 'arms' + n + '.png'); };
+  /* 이펙트 그림 한 장 (프레임 번호 → 시트 armsN.png 안의 자리). add = 빛나는 가산 합성. 그 시트를 아직 안 받았으면 받기 시작하고 이번에는 건너뛴다 */
   P._fxFrame = function (idx, x, y, add) {
     var fr = this.data.fx.frames[idx], ctx = this.ctx; if (!fr) return;
+    var n = fr[6] || 0, im = this.assets.get('arms' + n); if (!im) { this._loadFxSheet(n); return; } if (!im.naturalWidth) return;
     if (add) ctx.globalCompositeOperation = 'lighter';
-    ctx.drawImage(this.assets.get('arms'), fr[0], fr[1], fr[2], fr[3], Math.round(x - fr[4]), Math.round(y - fr[5]), fr[2], fr[3]);
+    ctx.drawImage(im, fr[0], fr[1], fr[2], fr[3], Math.round(x - fr[4]), Math.round(y - fr[5]), fr[2], fr[3]);
     if (add) ctx.globalCompositeOperation = 'source-over';
   };
 
