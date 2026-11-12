@@ -200,8 +200,8 @@ P._spawnTest = function (w) {
     });
     cv.addEventListener('pointerleave', function () { self.mouse.inside = false; });
     /* 가장자리 스크롤용: 캔버스 밖으로 조금 벗어나도 위치를 계속 따라간다 (캔버스 좌표, 밖이면 음수이거나 크기를 넘는다) */
-    window.addEventListener('pointermove', function (e) { var p = self._pos(e), OX = 160, OY = 28; self.mouse.gx = p[0]; self.mouse.gy = p[1];   // 위아래는 버튼·체크박스가 붙어 있어 여유를 작게
-      self.mouse.near = p[0] > -OX && p[0] < cv.width + OX && p[1] > -OY && p[1] < cv.height + OY; });
+    window.addEventListener('pointermove', function (e) { var p = self._pos(e); self.mouse.gx = p[0]; self.mouse.gy = p[1];
+      self.mouse.near = p[0] >= 0 && p[0] <= cv.width && p[1] >= 0 && p[1] <= cv.height; });   // 가장자리 스크롤은 마우스가 게임 화면 안에 있을 때만 — 전에는 화면 밖 160px까지 따라가서, 페이지의 다른 곳을 보는데도 맵이 움직였다
     document.documentElement.addEventListener('pointerleave', function () { self.mouse.near = false; });
     window.addEventListener('blur', function () { self.mouse.near = false; });
     cv.addEventListener('pointerup', function () {

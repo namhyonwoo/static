@@ -119,7 +119,6 @@ input[type=number]{width:64px;}
   <span class="lbl" style="margin-left:14px">화면</span>
   <button id="zoom1" aria-pressed="true">1배</button>
   <button id="zoom2" aria-pressed="false">2배</button>
-  <button id="zoom3" aria-pressed="false">3배</button>
   <span class="sp"></span>
   <button id="auto" class="go" aria-pressed="false" data-mode="battle">▶ 전투 시작</button>
 </nav>
@@ -234,9 +233,9 @@ input[type=number]{width:64px;}
   function $(id){ return document.getElementById(id); }
   function press(el,on){ el.setAttribute("aria-pressed", on?"true":"false"); }
   /* 화면 배율: CSS 변수 --stage만 바꾼다. 캔버스 내부 해상도(800x600)·입력 좌표 환산(RtsGame._pos)은 그대로. 창보다 크면 창 너비까지만(세로는 4:3 유지) */
-  function setZoom(z){ document.documentElement.style.setProperty("--stage", (800*z)+"px"); [1,2,3].forEach(function(k){ press($("zoom"+k), k===z); }); try{ localStorage.setItem("mw.zoom", String(z)); }catch(e){} }
-  [1,2,3].forEach(function(z){ $("zoom"+z).addEventListener("click", function(){ setZoom(z); }); });
-  (function(){ var z=1; try{ z=+localStorage.getItem("mw.zoom")||1; }catch(e){} if (z===2||z===3) setZoom(z); })();
+  function setZoom(z){ document.documentElement.style.setProperty("--stage", (800*z)+"px"); [1,2].forEach(function(k){ press($("zoom"+k), k===z); }); try{ localStorage.setItem("mw.zoom", String(z)); }catch(e){} }
+  [1,2].forEach(function(z){ $("zoom"+z).addEventListener("click", function(){ setZoom(z); }); });
+  (function(){ var z=1; try{ z=+localStorage.getItem("mw.zoom")||1; }catch(e){} if (z===2) setZoom(z); else if (z===3) setZoom(1); })();   // 3배는 없앰 — 예전에 3배를 골라 둔 브라우저는 1배로
   game.onReset=function(){ press($("auto"),false); $("auto").textContent = "▶ 전투 시작"; };
   setInterval(function(){
     if (!game.world) return;
