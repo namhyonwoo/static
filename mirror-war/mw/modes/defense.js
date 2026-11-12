@@ -91,7 +91,7 @@
     SUPPORT_DIST: 210,           // 기본 공격이 없는 유닛(성직자·소환사 등)이 적과 벌려 두는 거리(px)
     /* 스킬은 전체 마나를 쓴다 (소환과 같은 마나) + 짧은 재사용 대기 cool(초). 값 = 원본 행동 마나 × costMul 을 5 단위로, 종류별 [최소, 최대] 안으로 자른다 (COST)
        — 원본은 유닛마다 마나통이 따로라 값을 그대로 쓸 수 없어 비율만 가져온다. 2026-11-12: 쿨타임만 돌던 방식에서 바꿈 (공짜라 강화를 상시 돌리던 문제) */
-    SKILL: { charmMax: 3, cool: 3, costMul: 0.4, COST: { blast: [40, 70], buff: [20, 30], heal: [15, 40], haste: [60, 60], weaken: [20, 25], stun: [35, 50], recall: [40, 40], charm: [50, 60], assassin: [40, 40], morph: [20, 20] }, radius: 95, buffRadius: 170, dmgMul: 2, healRatio: 0.5, stunSec: 6, firstWait: 2, hasteMul: 1.5, maxCast: 320 },   // maxCast = 시전 거리 한도(px). 원본 사거리가 무제한(65535)인 마법도 이 안에 대상이 있어야 한다   // 스킬 공통 수치 (목업 값)
+    SKILL: { charmMax: 3, cool: 3, costMul: 0.4, COST: { blast: [40, 70], buff: [20, 30], heal: [15, 40], haste: [60, 60], weaken: [20, 25], stun: [35, 50], recall: [40, 40], charm: [50, 60], assassin: [40, 40], morph: [20, 20] }, radius: 95, buffRadius: 170, dmgMul: 2, healRatio: 0.5, stunSec: 6, firstWait: 2, hasteMul: 1.5, maxCast: 320, walkSec: 45 },   // maxCast = 시전 거리 한도(px). 원본 사거리가 무제한(65535)인 마법도 이 안에 대상이 있어야 한다   // 스킬 공통 수치 (목업 값)
     /* 소환 패널의 탭: 해방부대 전체(원본 유닛 번호 0~24)를 네 묶음으로 나눈다 */
     TABS: [
       { name: '근접', ids: [0, 1, 2, 3, 6, 7, 8] },          // 전사 기사 창기사 성기사 창검사 격투가 무도가
@@ -525,13 +525,13 @@
   P.scrollSlots = function (d) { this.slotFirst = Math.max(0, Math.min(Math.max(0, (this.groups || []).length - this.slotsVis), this.slotFirst + d)); };
 
   /* 묶음에서 지금 쓸 수 있는 칸들: 재사용 대기가 끝났고 시전자가 멈춰 있지 않다 */
-  P._readyOf = function (g) { var T = this.time; return g.slots.filter(function (s) { return s.cd <= 0 && s.unit && s.unit.state !== 'dead' && !(s.unit.stunUntil > T); }); };
+  P._readyOf = function (g) { var T = this.time; return g.slots.filter(function (s) { return s.cd <= 0 && s.unit && s.unit.state !== 'dead' && !(s.unit.stunUntil > T) && !s.unit.castOrder; }); };   // 마법을 쓰러 걸어가는 중인 유닛(castOrder)은 뺀다
   /* 이 묶음을 지금 못 쓰는 이유 [문구, 색, 글자를 띄울 유닛]. 쓸 수 있으면 null */
   P._whyNot = function (g) {
     var self = this, any = g.slots[0] && g.slots[0].unit, R = this._readyOf(g);
     if (!R.length) { var cd = Math.min.apply(null, g.slots.map(function (s) { return s.cd > 0 ? s.cd : 99; })); return [cd < 99 ? '쿨타임 ' + Math.ceil(cd) : '멈춤 중', '#c9d1e3', any]; }
     if (this.mana < g.cost) return ['마나 부족 (' + g.cost + ')', '#e0584a', R[0].unit];
-    if (!R.some(function (s) { return self.skillTarget(s.unit, s); })) return [g.slots[0].needsFoe() ? '가까이에 적이 없음' : '가까이에 아군이 없음', '#c9d1e3', R[0].unit];
+    if (!g.aimed && !R.some(function (s) { return self.skillTarget(s.unit, s); })) return [g.slots[0].needsFoe() ? '가까이에 적이 없음' : '가까이에 아군이 없음', '#c9d1e3', R[0].unit];
     return null;
   };
   /* 패널의 칸(묶음)을 누름. 적에게 쓰는 마법·리콜은 조준 상태로, 나머지(강화·회복·가속·변형)는 준비된 유닛 한 기가 바로 쓴다 */
@@ -554,15 +554,34 @@
   P.aimReach = function (s) { return s.kind === 'recall' ? CONFIG.WORLD_W : Math.min(CONFIG.SKILL.maxCast, s.act.range * CONFIG.RANGE_SCALE); };   // 리콜은 원본처럼 거리 제한 없음
   /* 지점 지정 마법의 효과 반경(px) — 그리기와 판정이 같은 값을 쓴다 */
   P.aimRadius = function (s) { var S = CONFIG.SKILL, k = 1 + (this.radiusUp || 0); return s.kind === 'recall' ? 120 : s.kind === 'blast' ? (s.act.aoe ? S.radius * k : 60) : s.kind === 'charm' ? S.radius * 0.7 : s.kind === 'assassin' ? 45 : S.radius * k; };   // radiusUp = "마법 확산" 카드
-  /* 조준 중 전장을 눌렀다: 그 지점에 닿는 준비된 유닛 중 가장 가까운 한 기가 쓴다. 닿는 유닛이 없으면 알려 주고 조준은 유지 */
+  /* 조준 중 전장을 눌렀다 (2026-11-12 "걸어가서 쓰기"로 바꿈): 찍은 곳에 가장 가까운 준비된 유닛이 쓴다.
+     시전 거리 안이면 바로, 밖이면 **닿는 곳까지 걸어가서** 쓴다(u.castOrder → _castWalk). 시전 거리 제한으로 못 찍는 곳은 없다 —
+     다만 유닛은 전장 가운데(집결선 frontX)를 넘어 적 진영으로 들어가지 못하므로, 가운데에서도 닿지 않는 곳(frontX + 시전 거리 너머)은 찍을 수 없다 */
+  P.aimLimit = function (g) { var self = this, m = 0; g.slots.forEach(function (s) { m = Math.max(m, self.aimReach(s)); }); return this.frontX + m; };
   P._aimCast = function (wx, wy) {
     var g = this.aim.group, self = this, R = this._readyOf(g); if (!g.slots.length) { this.aim = null; return false; }
     var Rw = this.rows, y = Math.max(this.laneY + Rw[0] - 30, Math.min(this.laneY + Rw[Rw.length - 1] + 10, wy));
-    var can = R.filter(function (s) { return Math.abs(wx - s.unit.x) <= self.aimReach(s); }).sort(function (a, b) { return Math.abs(wx - a.unit.x) - Math.abs(wx - b.unit.x); });
-    if (!can.length) { this._say(wx, y - 12, R.length ? '너무 멀다' : '쿨타임', '#e08a6a'); return false; }
-    var ok = this.castUnitSkill(can[0].unit, can[0].unit.slots.indexOf(can[0]), { x: wx, y: y });
-    if (ok) { this.aim = null; this.aimPt = null; }
-    return ok;
+    if (!R.length) { this._say(wx, y - 12, '쿨타임', '#e08a6a'); return false; }
+    var s = R.slice().sort(function (a, b) { return Math.abs(wx - a.unit.x) - Math.abs(wx - b.unit.x); })[0], u = s.unit;
+    if (wx > this.frontX + this.aimReach(s)) { this._say(wx, y - 12, '적 진영 안쪽 — 닿지 않음', '#e08a6a'); return false; }
+    if (Math.abs(wx - u.x) <= this.aimReach(s)) { var ok = this.castUnitSkill(u, u.slots.indexOf(s), { x: wx, y: y }); if (ok) { this.aim = null; this.aimPt = null; } return ok; }
+    var foe = null, bd = 45; if (s.kind === 'assassin') this.units.forEach(function (o) { if (o.side === u.side || o.state === 'dead') return; var d = Math.hypot(o.x - wx, o.y - y); if (d < bd) { bd = d; foe = o; } });   // 암살류는 그 적을 따라간다
+    u.castOrder = { slot: s, x: wx, y: y, foe: foe, until: this.time + CONFIG.SKILL.walkSec };
+    this._say(u.x, u.y - u.headY - 10, g.act.name + ' 쓰러 이동', '#7fd6ff');
+    this.aim = null; this.aimPt = null; return true;
+  };
+  /* 마법을 쓰러 걸어가는 유닛 한 걸음. 닿으면 쓰고 명령을 지운다. 못 쓰게 됐으면(쿨타임·시간 초과·대상 사라짐) 그만둔다. true = 이번 프레임은 이 행동만 */
+  P._castWalk = function (u, dt) {
+    var o = u.castOrder, s = o.slot, k = u.slots.indexOf(s);
+    if (k < 0 || s.cd > 0 || this.time > o.until || (o.foe && o.foe.state === 'dead')) { u.castOrder = null; return false; }
+    if (o.foe) { o.x = Math.min(o.foe.x, this.frontX + this.aimReach(s)); o.y = o.foe.y; }
+    var reach = this.aimReach(s), dx = o.x - u.x;
+    if (Math.abs(dx) <= reach) { u.castOrder = null; this.castUnitSkill(u, k, { x: o.x, y: o.y }); return true; }
+    var dest = Math.min(this.frontX, o.x - (dx > 0 ? 1 : -1) * (reach - 6)), mv = dest - u.x, step = Math.min(Math.abs(mv), this._speed(u) * dt);
+    if (step < 0.01) { u.castOrder = null; return false; }
+    u.x += (mv > 0 ? 1 : -1) * step; u.state = 'move'; u.walkT += dt; this._faceVec(u, mv, 0);
+    u.slotOf = null; u.slotA = null; u.passY = null;
+    return true;
   };
   /* 지금 보이는 칸 중 k번째를 누름 — 단축키 A·S·D·F */
   P.pressVisible = function (k) { return this.pressGroup(this.groups[this.slotFirst + k]); };
@@ -861,6 +880,7 @@
     if (u.state === 'dead') { u.deadT += dt; if (u.deadT > 1.2) u.fade = Math.min(1, u.fade + dt * 1.5); return; }
     if (u.stunUntil > this.time) { u.state = 'idle'; return; }   // 멈춤 스킬에 걸림
     u.cd = Math.max(0, u.cd - dt);
+    if (u.castOrder && u.state !== 'attack' && this._castWalk(u, dt)) return;   // 마법을 쓰러 걸어가는 중 (치던 동작은 마저 끝내고)
 
     if (u.state === 'attack') {
       // 공격 동작: 원본 애니메이션을 틱 속도(초당 12장)로 넘기다가, 중간 프레임에서 실제 타격
@@ -1105,6 +1125,7 @@
 
   P._damage = function (u, dmg) {
     if (u.state === 'dead') return;
+    dmg = dmg > 0 ? Math.max(1, Math.round(dmg)) : 0;        // 정수로: "마법 증폭"(×1.3) 뒤 124.80000000000001 같은 긴 소수가 그대로 뜨던 버그 (2026-11-12)
     this._say(u.x, u.y - u.headY - 6, dmg > 0 ? String(dmg) : 'miss', u.side === 1 ? '#ffe9a8' : '#ff9a8a');
     if (dmg <= 0) return;
     u.hp -= dmg;
@@ -1257,9 +1278,11 @@
 
   /* 조준 표시 (전장 클립 안, 화면 좌표): 준비된 시전자들의 발밑 링, 아무도 닿지 않는 곳을 옅게 어둡게, 손가락·마우스 자리에 효과 반경 원, 위쪽에 안내 한 줄 */
   P._drawAim = function () {
+    if (this.screen === 'play') { var cx0 = this.ctx, cam = this.cam.x, TT = this.time;   // 마법을 쓰러 걸어가는 유닛: 찍어 둔 곳에 작은 점선 원
+      this.units.forEach(function (q) { var o = q.castOrder; if (!o || q.state === 'dead') return; cx0.save(); cx0.setLineDash([4, 4]); cx0.lineDashOffset = -TT * 20; cx0.strokeStyle = 'rgba(127,214,255,.8)'; cx0.lineWidth = 1.5; cx0.beginPath(); cx0.ellipse(o.x - cam, o.y, 22, 11, 0, 0, 6.3); cx0.stroke(); cx0.restore(); }); }
     var A = this.aim; if (!A || this.screen !== 'play') return;
     var ctx = this.ctx, g = A.group, W = this.W, fh = this.H - this.hudH, T = this.time, self = this, R = this._readyOf(g), s0 = g.slots[0]; if (!s0) return;
-    var r = this.aimRadius(s0), iv = R.map(function (s) { var re = self.aimReach(s), x = s.unit.x - self.cam.x; return [x - re, x + re]; }).sort(function (a, b) { return a[0] - b[0]; }), x = 0, i;
+    var r = this.aimRadius(s0), iv = [[-1e9, this.aimLimit(g) - this.cam.x]], x = 0, i;   // 찍을 수 있는 곳: 전장 가운데에서 시전 거리까지 (그 너머 적 진영 안쪽만 어둡게)
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, fh); ctx.clip();
     ctx.fillStyle = 'rgba(5,7,12,.38)';                                             // 닿지 않는 곳(시전 범위들의 바깥)을 어둡게
     for (i = 0; i < iv.length; i++) { if (iv[i][0] > x) ctx.fillRect(x, 0, Math.min(W, iv[i][0]) - x, fh); x = Math.max(x, iv[i][1]); if (x >= W) break; }
