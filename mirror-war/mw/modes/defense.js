@@ -45,12 +45,12 @@
          (2026-11-12 사용자 요청: 가로 배치는 전장이 낮아 답답해서 없앰) */
     SCREEN: { portZoom: 1, portMinW: 340, portMaxW: 520, portMinH: 560, portMaxH: 1000, refW: 390, refH: 844 },
     WORLD_W: 2000,               // 전장 전체 가로 길이(px). 화면보다 길어서 카메라가 좌우로 움직인다
-    LANE_ROWS: [-56, -28, 0, 28, 56],   // 유닛이 서는 세로 줄 5개 (전투 줄 중심에서의 거리)
+    LANE_ROWS: [-136, -102, -68, -34, 0, 34, 68, 102, 136],   // 유닛이 서는 세로 줄 9개 (전투 줄 중심에서의 거리). 세로 전용 화면의 남는 높이를 써서 접촉면을 넓힌다 — 전에는 5줄 ±56
     UNIT_GAP: 30,                // 줄 서기: 같은 편 앞사람과 벌려 두는 간격(px)
     ROW_NEAR: 18,                // 세로로 이만큼 안이면 "같은 줄"로 본다
     /* 에워싸기(근접 유닛): 적이 engage(px) 안에 들어오면 줄을 풀고 그 적에게 바로 다가가 사방에서 친다.
        yScale = 세로 거리를 가로보다 얼마나 멀게 칠지(비스듬한 화면이라 세로가 눌려 보인다), personal = 같은 편끼리 벌리는 거리 */
-    SURROUND: { engage: 150, yScale: 1.3, personal: 26, slots: 8, skipSec: 4, detour: 52, holdDist: 85 },   // holdDist = 나를 둘러싸러 오는 적이 이 거리 안에 왔을 때부터 제자리를 지킨다   // slots = 적 하나를 둘러싸는 자리 수, 자리가 다 차면 skipSec 동안 그 적을 두고 detour(px)만큼 비켜 돌아간다
+    SURROUND: { engage: 220, yScale: 1.3, personal: 26, slots: 8, skipSec: 4, detour: 52, holdDist: 85 },   // holdDist = 나를 둘러싸러 오는 적이 이 거리 안에 왔을 때부터 제자리를 지킨다   // slots = 적 하나를 둘러싸는 자리 수, 자리가 다 차면 skipSec 동안 그 적을 두고 detour(px)만큼 비켜 돌아간다
     PASS_WAIT: 0.5,              // 앞사람에게 이만큼(초) 막혀 있으면 빈 옆줄로 추월을 시도한다
     ALT_MAX: 16,                 // 공중 유닛이 땅에서 떠 보이는 높이의 한도(px). 원본 그림은 엔젤 나이트가 100px 넘게 떠 있어 위쪽 표시를 가린다
     RANGE_SPREAD: 0.2,           // 원거리 유닛마다 서는 거리를 사거리의 (1 − 이 값)~1배 사이에서 다르게 (한 줄로 뭉치지 않게)
@@ -73,7 +73,9 @@
        사거리 = (4000 + 건물 사거리 보정 × 10) × RANGE_SCALE,  피해 = 원본 피해 공식 + 성 안 유닛들의 건물 공격 보너스 합 */
     GARRISON: { tps: 12, shotSpeed: 420, classes: { 4: { act: 4, from: 4, mod: 24, step: 1, deploy: 5, loop: 16 }, 0: { act: 15, from: 12, mod: 40, step: 4, deploy: 10, loop: 10 } } },
     SUPPORT_DIST: 210,           // 기본 공격이 없는 유닛(성직자·소환사 등)이 적과 벌려 두는 거리(px)
-    SKILL: { radius: 150, buffRadius: 170, dmgMul: 2, healRatio: 0.5, stunSec: 6, firstWait: 2, hasteMul: 1.5, maxCast: 320 },   // maxCast = 시전 거리 한도(px). 원본 사거리가 무제한(65535)인 마법도 이 안에 대상이 있어야 한다   // 스킬 공통 수치 (목업 값)
+    /* 스킬은 전체 마나를 쓴다 (소환과 같은 마나) + 짧은 재사용 대기 cool(초). 값 = 원본 행동 마나 × costMul 을 5 단위로, 종류별 [최소, 최대] 안으로 자른다 (COST)
+       — 원본은 유닛마다 마나통이 따로라 값을 그대로 쓸 수 없어 비율만 가져온다. 2026-11-12: 쿨타임만 돌던 방식에서 바꿈 (공짜라 강화를 상시 돌리던 문제) */
+    SKILL: { cool: 3, costMul: 0.4, COST: { blast: [40, 70], buff: [20, 30], heal: [15, 40], haste: [30, 30], weaken: [20, 25], stun: [35, 50], charm: [50, 60], assassin: [40, 40], morph: [20, 20] }, radius: 150, buffRadius: 170, dmgMul: 2, healRatio: 0.5, stunSec: 6, firstWait: 2, hasteMul: 1.5, maxCast: 320 },   // maxCast = 시전 거리 한도(px). 원본 사거리가 무제한(65535)인 마법도 이 안에 대상이 있어야 한다   // 스킬 공통 수치 (목업 값)
     /* 소환 패널의 탭: 해방부대 전체(원본 유닛 번호 0~24)를 네 묶음으로 나눈다 */
     TABS: [
       { name: '근접', ids: [0, 1, 2, 3, 6, 7, 8] },          // 전사 기사 창기사 성기사 창검사 격투가 무도가
@@ -155,9 +157,10 @@
     this.cv.width = this.W; this.cv.height = this.H;
     this.ctx.imageSmoothingEnabled = false;                  // 도트 그림이 뭉개지지 않게 (크기를 바꾸면 다시 켜지므로 매번 끈다)
     this._layout();                                          // 아래 패널 높이(hudH)가 여기서 정해진다
-    var fieldH = this.H - this.hudH, tight = fieldH < 260;   // 전장 세로가 좁으면 줄 간격을 줄인다
-    this.rows = C.LANE_ROWS.map(function (v) { return Math.round(v * (tight ? 0.7 : 1)); });   // 유닛이 서는 세로 줄 (전투 줄 중심에서의 거리)
-    this.laneY = Math.round(fieldH * (tight ? 0.66 : 0.70)); // 전투 줄의 세로 중심 (위쪽 표시와 겹치지 않게 조금 아래)
+    var fieldH = this.H - this.hudH, half = C.LANE_ROWS[C.LANE_ROWS.length - 1];
+    this.laneY = Math.round(fieldH * 0.66);                  // 전투 줄의 세로 중심 (위쪽 표시와 겹치지 않게 조금 아래)
+    var rk = Math.max(0.4, Math.min(1, (this.laneY - 130) / half, (fieldH - this.laneY - 14) / half));   // 화면이 낮으면 줄 간격을 줄인다: 맨 윗줄 유닛 머리가 위쪽 표시 밑에, 맨 아랫줄이 패널 위에 남도록
+    this.rows = C.LANE_ROWS.map(function (v) { return Math.round(v * rk); });   // 유닛이 서는 세로 줄 (전투 줄 중심에서의 거리)
     this.spawnX = C.WORLD_W - C.LAIR.mouth;                  // 적이 나오는 곳 (마굴 입구) — 전장 좌표
     this.frontX = C.WORLD_W - C.LAIR.mouth - 40;             // 아군이 나아가는 한계 (마굴 앞)
     this.cam = this.cam || { x: 0 };                         // 카메라: 화면 왼쪽 끝이 전장의 어디인가
@@ -362,11 +365,13 @@
      this.slots의 순서가 패널에서의 순서다(소환한 순서대로, 한 유닛의 마법은 붙어서). 칸마다 쿨타임이 따로 돈다. */
   function SkillSlot(unit, act) {
     this.unit = unit; this.act = act;
-    this.cdMax = Math.max(6, Math.min(30, act.mana / 8));    // 쿨타임(초): 원본 마나 소모가 클수록 길게 (목업 환산)
+    this.cdMax = CONFIG.SKILL.cool;                          // 재사용 대기(초): 짧게 — 몰아 쓰기만 막는다. 실제 제한은 마나 값(cost)
     this.cd = CONFIG.SKILL.firstWait;                        // 소환 직후 잠깐은 못 쓴다
     this.readyAt = 0;                                        // 쿨타임이 끝난 시각 (패널에서 앞에 설 순서를 정한다)
     this.vi = null;                                          // 패널에서 지금 그려지는 자리 (순서가 바뀌면 그 자리로 미끄러져 간다)
     this.kind = skillKind(act);
+    var lim = CONFIG.SKILL.COST[this.kind] || [20, 60];
+    this.cost = Math.max(lim[0], Math.min(lim[1], Math.round(act.mana * CONFIG.SKILL.costMul / 5) * 5));   // 쓸 때 드는 마나
   }
   SkillSlot.prototype.ready = function () { return this.cd <= 0 && this.unit.state !== 'dead'; };
   /* 적이 있어야 쓰는 마법인가 (범위 공격·약화·멈춤·매혹·암살). 아니면 아군에게 쓰는 마법(회복·강화·가속)이거나 자기에게 쓰는 것(변형) */
@@ -519,17 +524,18 @@
     var s = u.slots[i]; if (!s || u.state === 'dead') return false;
     if (s.cd > 0) { this._say(u.x, u.y - u.headY - 10, '쿨타임 ' + Math.ceil(s.cd), '#c9d1e3'); return false; }   // 눌렀는데 안 되는 이유를 알려 준다
     if (u.stunUntil > this.time) { this._say(u.x, u.y - u.headY - 10, '멈춤 중', '#c9d1e3'); return false; }
+    if (this.mana < s.cost) { this._say(u.x, u.y - u.headY - 10, '마나 부족 (' + s.cost + ')', '#e0584a'); return false; }
     var a = s.act, S = CONFIG.SKILL, self = this, ok = false, tps = this.rules.tps;
     // 시전 조건: 시전자 가까이에 대상이 있어야 한다 — 적에게 쓰는 마법은 시전 거리 안의 적, 아군에게 쓰는 마법은 주변의 다른 아군 (skillTarget)
     var tg = this.skillTarget(u, s), foe = tg ? tg.foe : null;
     if (!tg) { this._say(u.x, u.y - u.headY - 10, s.needsFoe() ? '가까이에 적이 없음' : '가까이에 아군이 없음', '#c9d1e3'); return false; }
     var allies = function (r) { return self.units.filter(function (o) { return o.side === u.side && o.state !== 'dead' && Math.abs(o.x - u.x) <= r; }); };
-    var foesAt = function (x, r) { return self.units.filter(function (o) { return o.side !== u.side && o.state !== 'dead' && Math.abs(o.x - x) <= r; }); };
+    var foesAt = function (c, r) { return self.units.filter(function (o) { return o.side !== u.side && o.state !== 'dead' && Math.hypot(o.x - c.x, o.y - c.y) <= r; }); };   // 원형 범위: 대상 적을 중심으로 반경 r 안 (전에는 가로 거리만 봐서 세로 줄 전체가 맞았다)
 
     if (s.kind === 'blast' && foe) {                         // 가장 가까운 적을 중심으로 범위 피해 (원본 피해 공식 × dmgMul)
       var keep = u.act; u.act = a;
-      foesAt(foe.x, a.aoe ? S.radius : 60).forEach(function (o) { self._damage(o, self.rules.damage(u, o, self.rng) * S.dmgMul); });
-      u.act = keep; this._addEffect(foe.x, this.laneY, a.arm, 0); this.flash = 0.2; ok = true;
+      foesAt(foe, a.aoe ? S.radius : 60).forEach(function (o) { self._damage(o, self.rules.damage(u, o, self.rng) * S.dmgMul); });
+      u.act = keep; this._addEffect(foe.x, foe.y, a.arm, 0); this.flash = 0.2; ok = true;
     } else if (s.kind === 'heal') {                          // 주변 아군 회복. 말다 소환(massheal)은 더 넓게, 전부 회복
       var mass = a.sup === 'massheal';
       allies(mass ? S.buffRadius * 1.5 : S.buffRadius).forEach(function (o) { var h = mass ? o.maxHp : Math.round(o.maxHp * S.healRatio), got = Math.min(o.maxHp - o.hp, h);
@@ -543,14 +549,14 @@
       allies(S.buffRadius * 1.3).forEach(function (o) { o.buffs.haste = { arm: a.arm, until: self.time + (a.dur || 600) / tps }; });
       this._addEffect(u.x, this.laneY, a.arm, 0); ok = true;
     } else if (s.kind === 'weaken' && foe) {                 // 범위 안 적의 공격(멜팅 웨폰)·방어(멜팅 아머)를 무너뜨린다 — 수치는 원본 규칙이 buffs를 보고 적용
-      foesAt(foe.x, S.radius).forEach(function (o) { o.buffs[a.sup] = { arm: a.arm, until: self.time + (a.dur || 600) / tps }; self._say(o.x, o.y - o.headY - 6, '약화', '#c7a0ff'); });
-      this._addEffect(foe.x, this.laneY, a.arm, 0); ok = true;
+      foesAt(foe, S.radius).forEach(function (o) { o.buffs[a.sup] = { arm: a.arm, until: self.time + (a.dur || 600) / tps }; self._say(o.x, o.y - o.headY - 6, '약화', '#c7a0ff'); });
+      this._addEffect(foe.x, foe.y, a.arm, 0); ok = true;
     } else if (s.kind === 'stun' && foe) {                   // 범위 안의 적을 잠시 멈춘다
-      foesAt(foe.x, S.radius).forEach(function (o) { o.stunUntil = self.time + S.stunSec; o.state = 'idle'; });
-      this._addEffect(foe.x, this.laneY, a.arm, 0); ok = true;
+      foesAt(foe, S.radius).forEach(function (o) { o.stunUntil = self.time + S.stunSec; o.state = 'idle'; });
+      this._addEffect(foe.x, foe.y, a.arm, 0); ok = true;
     } else if (s.kind === 'charm' && foe) {                  // 범위 안의 적이 우리 편이 되어 싸운다
-      foesAt(foe.x, S.radius * 0.7).forEach(function (o) { self._setSide(o, u.side); o.state = 'idle'; self._say(o.x, o.y - o.t.h - 6, '매혹', '#ff9ad5'); });
-      this._addEffect(foe.x, this.laneY - 20, a.arm, 0); ok = true;
+      foesAt(foe, S.radius * 0.7).forEach(function (o) { self._setSide(o, u.side); o.state = 'idle'; self._say(o.x, o.y - o.t.h - 6, '매혹', '#ff9ad5'); });
+      this._addEffect(foe.x, foe.y - 20, a.arm, 0); ok = true;
     } else if (s.kind === 'assassin' && foe) {               // 가장 가까운 적 하나를 쓰러뜨린다
       this._damage(foe, foe.hp); ok = true;
     } else if (s.kind === 'morph') {                         // 다른 형태로 (엔트 ↔ 지상 엔트). 체력 비율은 유지
@@ -558,7 +564,7 @@
       if (to) { var ratio = u.hp / u.maxHp; u.setType(to); u.hp = Math.max(1, Math.round(u.maxHp * ratio)); this._applyType(u); u.face(u.dir, -u.dir); ok = true; }
     }
     if (!ok) { this._say(u.x, u.y - u.headY - 10, '대상 없음', '#c9d1e3'); return false; }
-    s.cd = s.cdMax; this._sortSlots();                       // 방금 쓴 칸은 바로 뒤로 간다
+    this.mana -= s.cost; s.cd = s.cdMax; this._sortSlots();                       // 방금 쓴 칸은 바로 뒤로 간다
     this._say(u.x, u.y - u.t.h - 18, a.name, '#ffd36e');
     this._play(a.snd, 1);
     return true;
@@ -1148,7 +1154,7 @@
     for (i = 0; i < n; i++) {
       var s = this.slotView[i], vp = (s.vi == null ? i : s.vi) - this.slotPos; if (vp < -1.2 || vp > vis + 0.2) continue;   // 창 밖
       var bx = Math.round(A.x + vp * this.slotStep), cx = bx + B.w / 2, a = s.act, fi = a.icon * 2, vk = i - this.slotFirst, cu = s.unit;
-      var stunned = cu.stunUntil > T, far = s.ready() && !stunned && !this.skillTarget(cu, s), ok = s.ready() && !far && !stunned;   // far = 쿨타임은 끝났지만 가까이에 대상이 없다. 멈춘 시전자·죽은 시전자는 사용 불가
+      var stunned = cu.stunUntil > T, far = s.ready() && !stunned && !this.skillTarget(cu, s), poor = this.mana < s.cost, ok = s.ready() && !far && !stunned && !poor;   // far = 쿨타임은 끝났지만 가까이에 대상이 없다. 멈춘 시전자·죽은 시전자는 사용 불가
       ctx.fillStyle = ok ? '#3a2a12' : '#191d27'; ctx.fillRect(bx, B.y, B.w, B.h);
       ctx.strokeStyle = ok ? '#ffd36e' : '#3a4152'; ctx.lineWidth = 2; ctx.strokeRect(bx + 1, B.y + 1, B.w - 2, B.h - 2);
       ctx.globalAlpha = ok ? 1 : 0.4; ctx.drawImage(icons, (fi % D.cols) * D.w, Math.floor(fi / D.cols) * D.h, D.w, D.h, Math.round(cx - iw / 2), B.y + 1, iw, ih); ctx.globalAlpha = 1;
@@ -1160,7 +1166,7 @@
       ctx.textAlign = 'center'; ctx.font = '9px sans-serif';
       ctx.fillStyle = '#dfe6f5'; ctx.fillText(this._fit(a.name, B.w - 6), cx, B.y + B.h - 18);
       if (far) { ctx.fillStyle = '#e08a6a'; ctx.fillText(s.needsFoe() ? '적이 멀다' : '아군 없음', cx, B.y + B.h - 7); }
-      else { ctx.fillStyle = ok ? '#ffd36e' : '#7b8397'; ctx.fillText(this._fit(s.unit.t.name, B.w - 6), cx, B.y + B.h - 7); }
+      else { ctx.font = 'bold 11px sans-serif'; ctx.fillStyle = poor ? '#e0584a' : '#8fc7ff'; ctx.fillText(s.cost, cx, B.y + B.h - 7); ctx.font = '9px sans-serif'; }   // 마나 값: 모자라면 빨강 (소환 버튼과 같은 표기)
       // 왼쪽 위: 단축키(보이는 칸만), 오른쪽 위: 이 마법을 가진 유닛의 번호 (유닛 머리 위 번호와 같다)
       if (vk >= 0 && vk < vis) { ctx.textAlign = 'left'; ctx.fillStyle = '#8a93a8'; ctx.fillText(KEYS[vk], bx + 4, B.y + 8); }
       ctx.fillStyle = ok ? '#ffd36e' : '#59607a'; ctx.beginPath(); ctx.arc(bx + B.w - 9, B.y + 9, 6, 0, 6.3); ctx.fill();
@@ -1179,6 +1185,7 @@
     if (sc === 'title') items = [['거울전쟁 디펜스', 28, '#ffd36e', 0], ['해골 군단을 막아 성을 지키세요', 14, '#dfe6f5', 14],
       ['탭을 골라 해방부대 유닛을 소환합니다', 12, G, 12],
       ['마법 유닛은 3기까지 — 소환하면 그 유닛의 마법이 스킬 칸에 생깁니다 (많으면 좌우로 넘기기)', 12, G, 6],
+      ['마법도 마나를 씁니다 — 소환과 마법 중 어디에 쓸지 고르세요. 적을 쓰러뜨리면 마나를 얻습니다', 12, G, 6],
       ['전장의 마법 유닛을 누르면 [회수] 버튼 — 남은 체력만큼 마나를 돌려받습니다', 12, G, 6],
       ['[성 배치]를 켜고 궁수·명궁·창검사·마법사·장로를 소환하면 성에서 적을 쏩니다', 12, G, 6],
       ['전장은 좌우로 깁니다 — 화면을 끌거나 위쪽 막대를 눌러 둘러보세요', 12, G, 6], ['화면을 눌러 시작', 16, '#fff', 18]];
