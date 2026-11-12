@@ -89,7 +89,7 @@
       var threat = manual; for (j = 0; !threat && j < L.length; j++) { o = L[j]; if (o.fac !== u.fac && o.alive() && u.distTo(o) < 10) threat = true; }
       if (!threat) return false;
       if (a.foe) { for (j = 0; j < L.length; j++) { o = L[j]; if (o.fac === u.fac || !o.alive() || o.t.immune || R.buff(o, a.sup) || (a.sup === "assassin" && o.t.fly === 2)) continue; var df = u.distTo(o); if (df <= rng && df < best) { best = df; tgt = o; } } }
-      else if (a.sup === "berserk" || (a.sup === "shield" && a.arm < 0)) { if (!R.buff(u, a.sup)) tgt = u; }
+      else if (a.sup === "berserk" || (a.sup === "shield" && a.arm < 0) || a.self) { if (!R.buff(u, a.sup)) tgt = u; }   // a.self = 자기 전용 강화 (원본 행동 +0x3C == 0xFFFF, 분석 8-37)
       else { for (j = 0; j < L.length; j++) { o = L[j]; if (o.fac !== u.fac || !o.alive() || R.buff(o, a.sup) || (a.sup === "weapon" && !o.act)) continue; var dd = u.distTo(o); if (dd <= rng && dd < best) { best = dd; tgt = o; } } }
     }
     if (!tgt) return false;

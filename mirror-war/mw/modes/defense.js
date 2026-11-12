@@ -523,6 +523,7 @@
       for (i = 0; i < L.length; i++) { o = L[i]; if (o.side === u.side || o.state === 'dead') continue; var d = Math.abs(o.x - u.x); if (d < bd) { bd = d; best = o; } }
       return best && bd <= reach ? { foe: best } : null;
     }
+    if (s.act.self) return { foe: null };                    // 자기에게만 거는 강화: 대상 조건 없음
     if (s.needsAlly()) {
       var r = s.kind === 'haste' ? S.buffRadius * 1.3 : s.act.sup === 'massheal' ? S.buffRadius * 1.5 : S.buffRadius;
       for (i = 0; i < L.length; i++) { o = L[i]; if (o !== u && o.side === u.side && o.state !== 'dead' && Math.abs(o.x - u.x) <= r) return { foe: null }; }
@@ -555,7 +556,7 @@
       if (mass) this._addEffect(u.x, this.laneY, a.arm, 0);
       ok = true;
     } else if (s.kind === 'buff') {                          // 주변 아군에게 강화. 배수는 원본 규칙(OriginalRules)이 buffs를 보고 적용한다
-      allies(S.buffRadius).forEach(function (o) { o.buffs[a.sup] = { k1: a.k1, k2: a.k2, arm: a.arm, until: self.time + (a.dur || 600) / tps }; });
+      (a.self ? [u] : allies(S.buffRadius)).forEach(function (o) { o.buffs[a.sup] = { k1: a.k1, k2: a.k2, arm: a.arm, until: self.time + (a.dur || 600) / tps }; });   // 자기 전용 강화(아이스 웨폰 등, 원본 +0x3C == 0xFFFF)는 시전자에게만
       ok = true;
     } else if (s.kind === 'haste') {                         // 주변 아군이 빨리 걷는다 (케멘 소환). 걸린 유닛 머리 위에 원본 가속 이펙트(칸 44)
       allies(S.buffRadius * 1.3).forEach(function (o) { o.buffs.haste = { arm: a.arm, until: self.time + (a.dur || 600) / tps }; });
