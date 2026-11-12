@@ -50,7 +50,7 @@
     /* 아군 집결선: 아군은 적 기지까지 가지 않고 전장 가운데(x = WORLD_W × at)까지만 나아가 대열을 갖춘다 (디펜스라 적 건물을 칠 일이 없다, 2026-11-12).
        대열 = 세로 줄(rows) × 가로 열. 열 간격 col(px), 맨 앞 열이 집결선. 근접은 앞 열부터, 원거리는 ranged번째 열부터, 지원(공격 없는 유닛)은 support번째 열부터 빈자리를 맡는다.
        집결선에서 zone(px) 안에 들어오면 줄 서기 대신 자기 자리로 곧장 간다 */
-    HOLD: { at: 0.5, col: 38, ranged: 2, support: 4, zone: 330, leash: 260 },   // leash = 근접 유닛이 집결선 너머로 적을 쫓아가는 한도(px). 적 원거리 유닛의 사거리(최대 224px)보다 길어야 한다 — 짧으면 사거리 밖에서 맞기만 한다
+    HOLD: { at: 0.5, col: 38, ranged: 1, support: 2, zone: 330, leash: 260 },   // leash = 근접 유닛이 집결선 너머로 적을 쫓아가는 한도(px). 적 원거리 유닛의 사거리(최대 224px)보다 길어야 한다 — 짧으면 사거리 밖에서 맞기만 한다
     UNIT_GAP: 30,                // 줄 서기: 같은 편 앞사람과 벌려 두는 간격(px)
     ROW_NEAR: 18,                // 세로로 이만큼 안이면 "같은 줄"로 본다
     /* 에워싸기(근접 유닛): 적이 engage(px) 안에 들어오면 줄을 풀고 그 적에게 바로 다가가 사방에서 친다.
@@ -60,7 +60,7 @@
     PASS_WAIT: 0.5,              // 앞사람에게 이만큼(초) 막혀 있으면 빈 옆줄로 추월을 시도한다
     ALT_MAX: 16,                 // 공중 유닛이 땅에서 떠 보이는 높이의 한도(px). 원본 그림은 엔젤 나이트가 100px 넘게 떠 있어 위쪽 표시를 가린다
     RANGE_SPREAD: 0.2,           // 원거리 유닛마다 서는 거리를 사거리의 (1 − 이 값)~1배 사이에서 다르게 (한 줄로 뭉치지 않게)
-    CAM: { follow: 2.5, manualSec: 5, skillSec: 2.5, skillSpeed: 7 },   // skillSec = 내 마법을 쓴 뒤 그 지점을 비추는 시간(초), skillSpeed = 그리로 미끄러져 가는 빠르기   // 카메라: 전선을 따라가는 빠르기, 손으로 움직인 뒤 자동으로 돌아오기까지(초)
+    CAM: { holdMs: 450, follow: 2.5, manualSec: 5, skillSec: 2.5, skillSpeed: 7 },   // skillSec = 내 마법을 쓴 뒤 그 지점을 비추는 시간(초), skillSpeed = 그리로 미끄러져 가는 빠르기   // 카메라: 전선을 따라가는 빠르기, 손으로 움직인 뒤 자동으로 돌아오기까지(초)
     BASE: { hp: 600, x: 78, front: 196 },   // 아군 기지(성): 체력, 그림 기준점의 가로 위치, 성 앞 선(아군이 나오고 적이 멈춰 때리는 곳)
     LAIR: { back: 74, mouth: 150 },         // 적 출구(마굴): 그림 기준점이 화면 오른쪽 끝에서 떨어진 거리, 적이 나오는 입구까지의 거리
     MANA: { max: 300, start: 80, regen: 11 },   // 마나: 최대, 시작, 초당 회복. 처치 보상은 없앴다(2026-11-12) — 적을 잡으면 마나 대신 경험치를 얻는다. 그만큼 회복을 9 → 11
@@ -762,6 +762,7 @@
     this._updateGarrison();
     this._enemyMagic(dt);
     this._selfMagic();
+    this._holdSlot();
     this._updateCamera(dt);
 
     // 사라질 것 정리: 쓰러진 뒤 다 흐려진 유닛, 끝난 이펙트·글자
@@ -1251,7 +1252,7 @@
     var hb = u.buffs.haste; if (hb && hb.until > T && u.state !== 'dead') this._loopFx(44, x, y - u.headY);   // 가속: 머리 위 (원본 FUN_004f7490과 같은 자리)
     if (u.state === 'dead') return;
     var top = y - u.headY - 8;
-    if (u.hp < u.maxHp || u === this.sel || u.hero) this._drawHpBar(u, x, y);   // 영웅은 늘 바와 별을 단다   // 원작 체력 바 (닳았을 때와 고른 유닛)
+    if (u.hero) this._drawHeroPlate(u, x, y); else if (u.hp < u.maxHp || u === this.sel) this._drawHpBar(u, x, y);   // 영웅은 늘 바와 별을 단다   // 원작 체력 바 (닳았을 때와 고른 유닛)
   };
 
   /* 조준 표시 (전장 클립 안, 화면 좌표): 준비된 시전자들의 발밑 링, 아무도 닿지 않는 곳을 옅게 어둡게, 손가락·마우스 자리에 효과 반경 원, 위쪽에 안내 한 줄 */
@@ -1377,6 +1378,18 @@
     ctx.drawImage(him, hf[0], hf[1], hf[2], hf[3], x - hf[4], hy - 11 - hf[5], hf[2], hf[3]);
     for (var ls = String(u.level), li = 0, lx = x0 + bw + 3; li < ls.length; li++, lx += 5) { var lg = HB.digits[ls.charCodeAt(li) - 48]; if (lg) ctx.drawImage(him, lg[0], lg[1], lg[2], lg[3], lx - lg[4], hy - 3 - lg[5], lg[2], lg[3]); }
     if (u.hero) { var st = HB.frames[7]; ctx.drawImage(him, st[0], st[1], st[2], st[3], x0 - st[4] - 2, hy - 18 - st[5], st[2], st[3]); }   // 원작의 영웅 별 (bar.spr 7번 — 원작 데이터에는 켜진 유닛이 없다)
+  };
+
+  /* 영웅 이름표: 원작(온라인판) 유닛 머리 위의 둥근 이름표 — 영웅은 체력 막대 대신 이름표 바탕이 체력만큼 채워진다 (2026-11-12 사용자 요청·참고 화면).
+     어두운 반투명 알약 모양 위에 초록(체력 1/3 이하는 붉은) 채움, 흰 이름 + 레벨 */
+  P._drawHeroPlate = function (u, x, y) {
+    var ctx = this.ctx, s = u.t.name + '(' + u.level + ')'; ctx.save(); ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    var w = Math.ceil(ctx.measureText(s).width) + 12, h = 13, x0 = Math.round(x - w / 2), y0 = Math.round(y - u.headY - 6 - h), r = h / 2, k = Math.max(0, Math.min(1, u.hp / u.maxHp));
+    var pill = function () { ctx.beginPath(); ctx.moveTo(x0 + r, y0); ctx.lineTo(x0 + w - r, y0); ctx.arc(x0 + w - r, y0 + r, r, -Math.PI / 2, Math.PI / 2); ctx.lineTo(x0 + r, y0 + h); ctx.arc(x0 + r, y0 + r, r, Math.PI / 2, Math.PI * 1.5); ctx.closePath(); };
+    pill(); ctx.fillStyle = 'rgba(14,18,24,.72)'; ctx.fill();
+    ctx.save(); pill(); ctx.clip(); ctx.fillStyle = k <= 1 / 3 ? 'rgba(200,62,48,.85)' : 'rgba(58,150,84,.85)'; ctx.fillRect(x0, y0, Math.round(w * k), h); ctx.restore();
+    pill(); ctx.strokeStyle = 'rgba(210,225,215,.55)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.fillText(s, x, y0 + r + 0.5); ctx.restore();
   };
 
   /* 계속 도는 이펙트 한 장 (유닛에 붙은 강화 표시) */
@@ -1510,7 +1523,7 @@
     var G = this.groups, n = G.length, vis = this.slotsVis, B = this.slotBoxes[0], i, ih = Math.min(D.h, B.h - 22), iw = Math.round(ih * D.w / D.h), T = this.time;
     ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
     // 머리줄: 마법 유닛 수와 마법 종류 수
-    ctx.font = '10px sans-serif'; ctx.fillStyle = '#7b8397'; if (n) ctx.fillText('마법 유닛 ' + this.magicUnits.length + '기 · 마법 ' + n + '종', p.x + 2, p.y + p.h / 2);
+    ctx.font = '10px sans-serif'; ctx.fillStyle = '#7b8397'; ctx.fillText('아군 ' + this._alive(0).length + '기' + (n ? ' · 마법 유닛 ' + this.magicUnits.length + '기 · 마법 ' + n + '종' : ''), p.x + 2, p.y + p.h / 2);   // 지금 전장에 있는 아군 수 (2026-11-12)
     // ◀ ▶ : 넘길 칸이 있는 쪽만 밝게
     var arrows = [[this.slotPrev, '◀', this.slotFirst > 0], [this.slotNext, '▶', this.slotFirst < n - vis]];
     for (i = 0; i < 2; i++) { var ab = arrows[i][0], on = arrows[i][2];
@@ -1613,6 +1626,21 @@
     for (i = 0; i < this.slotBoxes.length; i++) if (inBox(this.slotBoxes[i], x, y)) { this.pressVisible(i); return; }
   };
 
+  /* 스킬 칸을 길게 누르면(CONFIG.CAM.holdMs) 마법을 쓰지 않고, 그 마법을 쓸 수 있는 유닛에게 카메라가 간다 (2026-11-12 사용자 요청).
+     준비된 유닛이 있으면 그중 맨 앞, 없으면 재사용 대기가 가장 짧은 유닛. 유닛 머리 위에 마법 이름을 잠깐 띄워 누구인지 알려 준다. 손을 떼도 마법은 나가지 않는다 */
+  P._holdSlot = function () {
+    var d = this.drag; if (!d || !d.slots || d.moved || d.held || this.screen !== 'play' || this.cards || Date.now() - d.t0 < CONFIG.CAM.holdMs) return;
+    d.held = true;
+    for (var i = 0; i < this.slotBoxes.length; i++) if (inBox(this.slotBoxes[i], d.x, d.y)) {
+      var g = this.groups[this.slotFirst + i]; if (!g) return;
+      var rd = this._readyOf(g), L = (rd.length ? rd : g.slots.filter(function (q) { return q.unit && q.unit.state !== 'dead'; })).slice();
+      if (!L.length) return;
+      L.sort(rd.length ? function (a, b) { return b.unit.x - a.unit.x; } : function (a, b) { return a.cd - b.cd; });
+      var u = L[0].unit; this.camGoal = { x: u.x - this.W / 2, until: this.time + CONFIG.CAM.skillSec }; this.manualUntil = 0;
+      this._say(u.x, u.y - u.headY - 14, g.act.name + (rd.length ? '' : ' (대기 ' + Math.ceil(L[0].cd) + ')'), '#ffd36e');
+      return; }
+  };
+
   /* 진행 막대를 누르거나 그 위에서 끌면: 그 지점이 화면 가운데에 오도록 카메라를 옮긴다 */
   P._miniPan = function (x) { var m = this.miniBox; this.panTo((x - m.x) / m.w * CONFIG.WORLD_W - this.W / 2); };
 
@@ -1638,7 +1666,7 @@
       // 전장: 손을 뗄 때까지 지켜본다 — 6px 넘게 끌면 카메라 이동(그때부터 따라온다), 끌지 않고 떼면 탭(유닛 선택·회수 버튼)
       if (self.screen === 'play' && y < self.H - self.hudH && !inBox(self.soundBtn, x, y)) { self.sfx.unlock(); self.drag = { field: true, x: x, y: y, cam: self.cam.x, moved: false, id: e.pointerId }; try { cv.setPointerCapture(e.pointerId); } catch (err) {} return; }
       // 스킬 칸·소환 줄 위: 바로 누르지 않고, 손을 뗄 때까지 지켜본다 — 그대로 떼면 "누르기", 옆으로 끌면 "캐러셀 넘기기" (HUD 안이라 카메라 이동과 겹치지 않는다)
-      if (self.screen === 'play' && inBox(self.slotArea, x, y)) { self.sfx.unlock(); self.drag = { slots: true, x: x, y: y, first: self.slotFirst, moved: false, id: e.pointerId }; try { cv.setPointerCapture(e.pointerId); } catch (err) {} return; }
+      if (self.screen === 'play' && inBox(self.slotArea, x, y)) { self.sfx.unlock(); self.drag = { slots: true, x: x, y: y, first: self.slotFirst, moved: false, id: e.pointerId, t0: Date.now() }; try { cv.setPointerCapture(e.pointerId); } catch (err) {} return; }
       if (self.screen === 'play' && self.btnArea && y >= self.btnArea.y && y <= self.btnArea.y + self.btnArea.h) { self.sfx.unlock(); self.drag = { btn: true, x: x, y: y, first: self.btnFirst, moved: false, id: e.pointerId }; try { cv.setPointerCapture(e.pointerId); } catch (err) {} return; }
       self._tap(x, y);
     });
@@ -1651,7 +1679,7 @@
       else if (d.field) { if (!d.moved && Math.hypot(p[0] - d.x, p[1] - d.y) > 6) d.moved = true; if (d.moved) self.panTo(d.cam - (p[0] - d.x)); }   // 끌기로 판정된 뒤에만 전장이 손가락을 따라온다 (손가락 떨림에 화면이 밀려 탭이 어긋나지 않게)
     });
     var endDrag = function (e) { var d = self.drag; if (!d || d.id !== e.pointerId) return; self.drag = null;
-      if ((d.slots || d.btn) && !d.moved && e.type === 'pointerup') self._tap(d.x, d.y);   // 끌지 않고 뗐다 = 그 칸을 눌렀다
+      if ((d.slots || d.btn) && !d.moved && !d.held && e.type === 'pointerup') self._tap(d.x, d.y);   // 끌지 않고 뗐다 = 그 칸을 눌렀다
       if (d.field && !d.moved && e.type === 'pointerup') self._tapField(d.x, d.y); };   // 전장을 끌지 않고 뗐다 = 탭
     cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
     cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
