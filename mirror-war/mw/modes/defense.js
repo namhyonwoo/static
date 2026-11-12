@@ -77,7 +77,7 @@
     SUPPORT_DIST: 210,           // 기본 공격이 없는 유닛(성직자·소환사 등)이 적과 벌려 두는 거리(px)
     /* 스킬은 전체 마나를 쓴다 (소환과 같은 마나) + 짧은 재사용 대기 cool(초). 값 = 원본 행동 마나 × costMul 을 5 단위로, 종류별 [최소, 최대] 안으로 자른다 (COST)
        — 원본은 유닛마다 마나통이 따로라 값을 그대로 쓸 수 없어 비율만 가져온다. 2026-11-12: 쿨타임만 돌던 방식에서 바꿈 (공짜라 강화를 상시 돌리던 문제) */
-    SKILL: { cool: 3, costMul: 0.4, COST: { blast: [40, 70], buff: [20, 30], heal: [15, 40], haste: [30, 30], weaken: [20, 25], stun: [35, 50], charm: [50, 60], assassin: [40, 40], morph: [20, 20] }, radius: 150, buffRadius: 170, dmgMul: 2, healRatio: 0.5, stunSec: 6, firstWait: 2, hasteMul: 1.5, maxCast: 320 },   // maxCast = 시전 거리 한도(px). 원본 사거리가 무제한(65535)인 마법도 이 안에 대상이 있어야 한다   // 스킬 공통 수치 (목업 값)
+    SKILL: { cool: 3, costMul: 0.4, COST: { blast: [40, 70], buff: [20, 30], heal: [15, 40], haste: [30, 30], weaken: [20, 25], stun: [35, 50], charm: [50, 60], assassin: [40, 40], morph: [20, 20] }, radius: 95, buffRadius: 170, dmgMul: 2, healRatio: 0.5, stunSec: 6, firstWait: 2, hasteMul: 1.5, maxCast: 320 },   // maxCast = 시전 거리 한도(px). 원본 사거리가 무제한(65535)인 마법도 이 안에 대상이 있어야 한다   // 스킬 공통 수치 (목업 값)
     /* 소환 패널의 탭: 해방부대 전체(원본 유닛 번호 0~24)를 네 묶음으로 나눈다 */
     TABS: [
       { name: '근접', ids: [0, 1, 2, 3, 6, 7, 8] },          // 전사 기사 창기사 성기사 창검사 격투가 무도가
@@ -565,7 +565,8 @@
       foesAt(foe, S.radius).forEach(function (o) { o.buffs[a.sup] = { arm: a.arm, until: self.time + (a.dur || 600) / tps }; self._say(o.x, o.y - o.headY - 6, '약화', '#c7a0ff'); });
       this._addEffect(foe.x, foe.y, a.arm, 0); ok = true;
     } else if (s.kind === 'stun' && foe) {                   // 범위 안의 적을 잠시 멈춘다
-      foesAt(foe, S.radius).forEach(function (o) { o.stunUntil = self.time + S.stunSec; o.state = 'idle'; });
+      foesAt(foe, S.radius).forEach(function (o) { if (a.races && a.races.indexOf(o.t.race) < 0) return;   // 걸리는 종족만 (턴 언데드 = 언데드, 디스트로이 언홀리 = 언데드 + 흡혈귀·늑대인간류, 분석 8-36)
+        o.stunUntil = self.time + S.stunSec; o.state = 'idle'; delete o.buffs.weapon; delete o.buffs.shield; delete o.buffs.haste; });
       this._addEffect(foe.x, foe.y, a.arm, 0); ok = true;
     } else if (s.kind === 'charm' && foe) {                  // 범위 안의 적이 우리 편이 되어 싸운다
       foesAt(foe, S.radius * 0.7).forEach(function (o) { self._setSide(o, u.side); o.state = 'idle'; self._say(o.x, o.y - o.t.h - 6, '매혹', '#ff9ad5'); });

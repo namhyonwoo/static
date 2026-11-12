@@ -12,6 +12,7 @@
     this.h = d.h || 48;                  // 그림 높이(픽셀) — unitdata +0x26. 부착 이펙트(베리어·실드)를 띄우는 기준 (FUN_004f7490, 분석 8-32)
     this.rad = Math.max(0.3, this.size[0] / 33);   // 목업 충돌 반지름(칸): 전사(14) 0.42 → 전사끼리 0.85칸, 엔트(30) 0.91 (목업 환산)
     this.sight = d.sight || 7;          // 시야(타일) — unitdata +0x34 (던전 지형에서 5로 제한되는 값)
+    this.race = d.race || 0;            // unitdata +0x1C: 종족 (5 언데드, 6 흡혈귀·늑대인간·도펠갱거·메두사 … 분석 8-36)
     this.immune = !!d.immune;           // unitdata +0x54: 특수 효과(중독·마비·흡혈 등)를 받지 않음
     this.moveClass = d.mc;            // 원본 +64: 4 = 지상, 5 = 물 위도 통과
     this.fly = d.fly; this.alt = d.fly ? d.alt : 0;

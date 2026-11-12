@@ -129,8 +129,9 @@ P._blast = function (u, a, x, y) {
     for (var i = 0; i < L.length; i++) { var o = L[i];
       if (o === u || !o.alive() || Math.hypot(o.x - x, o.y - y) > r || (!a.ff && o.fac === u.fac) || (a.groundOnly && o.t.fly === 2)) continue;
       if (a.dmg) this._hurt(u, o);
-      else if (a.sup && !o.t.immune && !(a.undead && !(o.t.id >= 28 && o.t.id <= 34))) {           // 범위 약화 (언데드 전용: 해골·좀비·유령·리치·다크로드 계열)
-        o.buffs[a.sup] = { k1: a.k1, k2: a.k2, arm: a.arm, until: this.time + R.supDuration(a), orig: o.fac }; if (a.drain) o.mp = 0; }
+      else if (a.sup && !o.t.immune && !(a.races && a.races.indexOf(o.t.race) < 0)) {           // 범위 약화. a.races = 걸리는 종족(유닛 종류 +0x1C): 턴 언데드 [5], 디스트로이 언홀리 [5, 6] (분석 8-36)
+        o.buffs[a.sup] = { k1: a.k1, k2: a.k2, arm: a.arm, until: this.time + R.supDuration(a), orig: o.fac }; if (a.drain) o.mp = 0;
+        if (a.sup === 'stone' && a.races) { delete o.buffs.weapon; delete o.buffs.shield; delete o.buffs.haste; delete o.buffs.berserk; o.order = null; o.tgt = null; o.path = null; } }   // 원본은 석화와 함께 강화(+0x34·+0x2C·+0x40 …)를 전부 지우고 작업을 멈춘다
     }
     u.act = keep; this.events.emit('cast', u, { x: x, y: y, t: { alt: 0 } }, a);
     if (a.suicide && u.alive()) this._slay(null, u); return true;

@@ -204,6 +204,7 @@
       if (u.state === 'dead') ctx.globalAlpha = Math.max(0, Math.min(1, (7 - u.deadT) / 2));
       else if (u.tp) ctx.globalAlpha = Math.max(0, Math.min(32, u.tp.f <= 16 ? (16 - u.tp.f) * 2 : (u.tp.f - 16) / 2)) / 32;   // 순간이동: 16틱 사라짐 → 64틱 나타남 (FUN_004f5370, 32단계)
       ctx.translate(Math.round(p[0]), Math.round(p[1] - alt)); if (u.mir) ctx.scale(-1, 1);
+      if (u.state !== 'dead' && u.buffs.stone && u.buffs.stone.until > world.time) ctx.filter = 'grayscale(1) brightness(1.2)';   // 석화: 원본은 회색 팔레트(변형 20번)로 그린다 (FUN_004f5370, 분석 8-36). 필터를 지원하지 않는 브라우저에서는 그대로 보인다
       ctx.drawImage(A.get(f[6] || ('u' + u.t.id)), f[0], f[1], f[2], f[3], -f[4], -f[5], f[2], f[3]);
       ctx.restore();
       /* 순간이동 이펙트 (FUN_004f5370): 상태 틱 0~15 동안 출발 지점 바닥에 이펙트(유닛 +0xF6 = 칸 3 또는 21)를 틱 번호로 고른 그림으로 */
