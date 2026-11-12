@@ -727,7 +727,7 @@
         o.stunUntil = self.time + S.stunSec; o.state = 'idle'; delete o.buffs.weapon; delete o.buffs.shield; delete o.buffs.haste; });
       this._addEffect(foe.x, foe.y, a.arm, 0); ok = true;
     } else if (s.kind === 'charm' && foe) {                  // 범위 안의 적이 우리 편이 되어 싸운다   // 한 번에 charmMax(3)기까지 — 찍은 곳에 가까운 순서
-      foesAt(foe, S.radius * 0.7).sort(function (p, q) { return Math.hypot(p.x - foe.x, p.y - foe.y) - Math.hypot(q.x - foe.x, q.y - foe.y); }).slice(0, S.charmMax).forEach(function (o) { self._setSide(o, u.side); o.state = 'idle'; self._say(o.x, o.y - o.t.h - 6, '매혹', '#ff9ad5'); });
+      foesAt(foe, S.radius * 0.7).sort(function (p, q) { return Math.hypot(p.x - foe.x, p.y - foe.y) - Math.hypot(q.x - foe.x, q.y - foe.y); }).slice(0, S.charmMax).forEach(function (o) { self._setSide(o, u.side); o.charmed = !o.charmed; o.state = 'idle'; self._say(o.x, o.y - o.t.h - 6, '매혹', '#ff9ad5'); });   // charmed: 원래 편이 아닌 동안 하트 표시 (되매혹하면 풀린다)
       this._addEffect(foe.x, foe.y - 20, a.arm, 0); ok = true;
     } else if (s.kind === 'assassin' && foe) {               // 가장 가까운 적 하나를 쓰러뜨린다
       this._damage(foe, foe.hp); ok = true;
@@ -1273,7 +1273,9 @@
     var hb = u.buffs.haste; if (hb && hb.until > T && u.state !== 'dead') this._loopFx(44, x, y - u.headY);   // 가속: 머리 위 (원본 FUN_004f7490과 같은 자리)
     if (u.state === 'dead') return;
     var top = y - u.headY - 8;
-    if (u.hero) this._drawHeroPlate(u, x, y); else if (u.hp < u.maxHp || u === this.sel) this._drawHpBar(u, x, y);   // 영웅은 늘 바와 별을 단다   // 원작 체력 바 (닳았을 때와 고른 유닛)
+    var st = this._statusOf(u);
+    if (u.hero) this._drawHeroPlate(u, x, y); else if (u.hp < u.maxHp || u === this.sel || st.length) this._drawHpBar(u, x, y);   // 상태 이상이 걸리면 체력이 가득해도 바를 보인다
+    if (st.length) this._drawStatus(st, x, y - u.headY - (u.hero ? 22 : 9));   // 영웅은 늘 바와 별을 단다   // 원작 체력 바 (닳았을 때와 고른 유닛)
   };
 
   /* 조준 표시 (전장 클립 안, 화면 좌표): 준비된 시전자들의 발밑 링, 아무도 닿지 않는 곳을 옅게 어둡게, 손가락·마우스 자리에 효과 반경 원, 위쪽에 안내 한 줄 */
@@ -1401,6 +1403,23 @@
     ctx.drawImage(him, hf[0], hf[1], hf[2], hf[3], x - hf[4], hy - 11 - hf[5], hf[2], hf[3]);
     for (var ls = String(u.level), li = 0, lx = x0 + bw + 3; li < ls.length; li++, lx += 5) { var lg = HB.digits[ls.charCodeAt(li) - 48]; if (lg) ctx.drawImage(him, lg[0], lg[1], lg[2], lg[3], lx - lg[4], hy - 3 - lg[5], lg[2], lg[3]); }
     if (u.hero) { var st = HB.frames[7]; ctx.drawImage(him, st[0], st[1], st[2], st[3], x0 - st[4] - 2, hy - 18 - st[5], st[2], st[3]); }   // 원작의 영웅 별 (bar.spr 7번 — 원작 데이터에는 켜진 유닛이 없다)
+  };
+
+  /* 상태 이상 표시 (2026-11-12 사용자 요청): 체력 바 바로 위에 원작 상태 아이콘(unitState.spr, 18×18)을 한 줄로. 여러 개가 겹치면 옆으로 나란히, 가운데 정렬.
+     STATUS_ICON = 상태 → unitState.spr 프레임. 그림 뜻으로 맞춘 것(원본 코드의 대응표는 아직 해독하지 않음): 12 부러진 칼 = 멜팅 웨폰, 13 깨진 갑옷 = 멜팅 아머, 14 하트 = 매혹, 5 붙잡는 손 = 멈춤(석화) */
+  var STATUS_ICON = { meltw: 12, melta: 13, charm: 14, stun: 5 };
+  P._statusOf = function (u) {
+    var T = this.time, b = u.buffs, L = [];
+    if (u.stunUntil > T) L.push(STATUS_ICON.stun);
+    if (b.meltw && b.meltw.until > T) L.push(STATUS_ICON.meltw);
+    if (b.melta && b.melta.until > T) L.push(STATUS_ICON.melta);
+    if (u.charmed) L.push(STATUS_ICON.charm);
+    return L;
+  };
+  P._drawStatus = function (L, x, bottom) {
+    var HB = root.MW && root.MW.hpbar, him = this.assets.get('hpbar'), ctx = this.ctx; if (!HB || !HB.states || !him) return;
+    var gap = 1, w = 18, x0 = Math.round(x - (L.length * w + (L.length - 1) * gap) / 2);
+    for (var i = 0; i < L.length; i++) { var f = HB.states[L[i]]; if (f) ctx.drawImage(him, f[0], f[1], f[2], f[3], x0 + i * (w + gap), Math.round(bottom) - f[3], f[2], f[3]); }
   };
 
   /* 영웅 이름표: 원작(온라인판) 유닛 머리 위의 둥근 이름표 — 영웅은 체력 막대 대신 이름표 바탕이 체력만큼 채워진다 (2026-11-12 사용자 요청·참고 화면).
