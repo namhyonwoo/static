@@ -47,6 +47,10 @@
     WORLD_W: 2000,               // 전장 전체 가로 길이(px). 화면보다 길어서 카메라가 좌우로 움직인다
     LANE_ROWS: [-136, -102, -68, -34, 0, 34, 68, 102, 136],   // 유닛이 서는 세로 줄 9개 (전투 줄 중심에서의 거리). 세로 전용 화면의 남는 높이를 써서 접촉면을 넓힌다 — 전에는 5줄 ±56
     PACK: { bands: 3, min: 3, max: 5 },   // 적은 3~5기씩 무리를 지어 위·가운데·아래 중 한 띠로 나온다 (무리마다 띠가 바뀐다) — 범위 마법을 어느 무리에 쓸지 고르게
+    /* 아군 집결선: 아군은 적 기지까지 가지 않고 전장 가운데(x = WORLD_W × at)까지만 나아가 대열을 갖춘다 (디펜스라 적 건물을 칠 일이 없다, 2026-11-12).
+       대열 = 세로 줄(rows) × 가로 열. 열 간격 col(px), 맨 앞 열이 집결선. 근접은 앞 열부터, 원거리는 ranged번째 열부터, 지원(공격 없는 유닛)은 support번째 열부터 빈자리를 맡는다.
+       집결선에서 zone(px) 안에 들어오면 줄 서기 대신 자기 자리로 곧장 간다 */
+    HOLD: { at: 0.5, col: 38, ranged: 2, support: 4, zone: 330, leash: 70 },   // leash = 근접 유닛이 집결선 너머로 적을 쫓아가는 한도(px). 그보다 먼 적은 올 때까지 기다린다
     UNIT_GAP: 30,                // 줄 서기: 같은 편 앞사람과 벌려 두는 간격(px)
     ROW_NEAR: 18,                // 세로로 이만큼 안이면 "같은 줄"로 본다
     /* 에워싸기(근접 유닛): 적이 engage(px) 안에 들어오면 줄을 풀고 그 적에게 바로 다가가 사방에서 친다.
@@ -178,7 +182,7 @@
     var rk = Math.max(0.4, Math.min(1, (this.laneY - 130) / half, (fieldH - this.laneY - 14) / half));   // 화면이 낮으면 줄 간격을 줄인다: 맨 윗줄 유닛 머리가 위쪽 표시 밑에, 맨 아랫줄이 패널 위에 남도록
     this.rows = C.LANE_ROWS.map(function (v) { return Math.round(v * rk); });   // 유닛이 서는 세로 줄 (전투 줄 중심에서의 거리)
     this.spawnX = C.WORLD_W - C.LAIR.mouth;                  // 적이 나오는 곳 (마굴 입구) — 전장 좌표
-    this.frontX = C.WORLD_W - C.LAIR.mouth - 40;             // 아군이 나아가는 한계 (마굴 앞)
+    this.frontX = Math.round(C.WORLD_W * C.HOLD.at);         // 아군이 나아가는 한계 = 집결선 (전장 가운데)
     this.cam = this.cam || { x: 0 };                         // 카메라: 화면 왼쪽 끝이 전장의 어디인가
     this._clampCam();
   };
@@ -299,7 +303,7 @@
 
   /* 편(진영)과 걷는 방향을 정한다. 매혹으로 편이 바뀔 때도 쓴다.
      스프라이트 방향: 원본은 마름모 좌표라 "화면 오른쪽"이 (1,-1), "화면 왼쪽"이 (-1,1)이다 */
-  P._setSide = function (u, side) { u.side = side; u.fac = side; u.dir = side === 0 ? 1 : -1; u.lookDir = u.dir; u.face(u.dir, -u.dir); u.tgt = null; };
+  P._setSide = function (u, side) { u.hold = null; u.side = side; u.fac = side; u.dir = side === 0 ? 1 : -1; u.lookDir = u.dir; u.face(u.dir, -u.dir); u.tgt = null; };
 
   /* 종류에서 나오는 값(기본 공격·사거리·속도)을 유닛에 다시 적는다. 처음 소환할 때와 변형할 때 */
   P._applyType = function (u) {
@@ -762,14 +766,14 @@
         return;
       }
       // 근접 유닛: 적이 가까이 있으면 줄을 풀고 그 적에게 바로 다가간다 → 한 적을 여럿이 둘러싸서 친다 (_approach)
-      if (tgt && melee && adx <= u.rangePx + C.SURROUND.engage) {
+      if (tgt && melee && adx <= u.rangePx + C.SURROUND.engage && !(u.side === 0 && tgt.x > this.frontX + C.HOLD.leash)) {   // 아군은 집결선 너머 멀리까지 쫓아가지 않는다
         if (held) this._stepToward(u, tgt, dt); else this._approach(u, tgt, dt);   // 둘러싸이는 쪽은 자리를 잡으러 돌지 않고, 닿을 때까지만 곧장 다가간다
         return;
       }
       // 원거리 유닛: 가로로는 닿는데 못 쏘는 경우는 없다 (거리를 가로로만 잰다)
     } else if (adx <= C.SUPPORT_DIST) { u.state = 'idle'; return; }   // 기본 공격이 없는 유닛은 적과 거리를 두고 선다
-    // 전진 한계: 아군은 마굴 앞, 적은 성 앞 (매혹된 적은 아군 규칙)
-    if (u.side === 0 && u.x >= this.frontX) { u.state = 'idle'; return; }
+    // 전진 한계: 아군은 집결선(전장 가운데), 적은 성 앞 (매혹된 적은 아군 규칙)
+    if (u.side === 0 && u.x >= this.frontX - C.HOLD.zone) { this._holdStep(u, dt); return; }   // 집결선 근처: 대열의 자기 자리로 가서 선다
     if (u.side === 1 && u.x <= C.BASE.front) { u.state = 'idle'; return; }
     // 줄 서기: 같은 줄 바로 앞에 같은 편이 있으면 멈춰 기다린다. 기다리는 동안 적이 있는 줄 쪽으로 조금씩 비켜 서서 빈자리를 찾는다
     // 줄 서기와 추월: 같은 줄 바로 앞에 같은 편이 있으면 멈춰 기다린다.
@@ -784,6 +788,28 @@
     if (u.lookDir !== u.dir) this._look(u, u.dir);           // 싸우느라 돌아봤으면 다시 가던 쪽을 본다
     u.slotOf = null; u.slotA = null;                         // 다시 전진한다 = 둘러싸려던 적을 놓았다 (남겨 두면 그 적이 "나를 노리는 중"으로 잘못 알고 서 있는다)
     u.state = 'move'; u.walkT += dt; u.x += u.dir * this._speed(u) * dt;
+  };
+
+  /* 집결 대열: 유닛이 맡은 자리(u.hold = { c 열, r 줄 })로 걸어가 선다. 자리는 서로 다르므로 겹치지 않는다.
+     싸우러 나갔다 돌아와도 같은 자리로 온다(그 사이 자리는 비워 둔다). 쓰러지면 자리가 풀린다 */
+  P._holdStep = function (u, dt) {
+    var H = CONFIG.HOLD, R = this.rows;
+    if (!u.hold || u.hold.r >= R.length) u.hold = this._pickHold(u);
+    var tx = this.frontX - u.hold.c * H.col, ty = this.laneY + R[u.hold.r], dx = tx - u.x, dy = ty - u.y, d = Math.hypot(dx, dy);
+    u.slotOf = null; u.slotA = null; u.passY = null; u.blockT = 0;
+    if (d < 1.5) { u.x = tx; u.y = ty; u.state = 'idle'; if (u.lookDir !== u.dir) this._look(u, u.dir); return; }
+    var step = Math.min(d, this._speed(u) * dt); u.x += dx / d * step; u.y += dy / d * step;
+    if (Math.abs(dx) > 6) this._look(u, dx > 0 ? 1 : -1);
+    u.state = 'move'; u.walkT += dt;
+  };
+  /* 빈 대열 자리 고르기: 역할에 맞는 가장 앞 열에서, 지금 서 있는 줄에 가까운 줄부터 */
+  P._pickHold = function (u) {
+    var H = CONFIG.HOLD, R = this.rows, L = this.units, taken = {}, i;
+    for (i = 0; i < L.length; i++) { var o = L[i]; if (o !== u && o.side === 0 && o.state !== 'dead' && o.hold) taken[o.hold.c + ',' + o.hold.r] = 1; }
+    var c0 = !u.act ? H.support : u.rangePx >= 80 ? H.ranged : 0, order = R.map(function (v, k) { return k; }), ly = this.laneY;
+    order.sort(function (a, b) { return Math.abs(ly + R[a] - u.y) - Math.abs(ly + R[b] - u.y); });
+    for (var c = c0; c < c0 + 40; c++) for (i = 0; i < order.length; i++) if (!taken[c + ',' + order[i]]) return { c: c, r: order[i] };
+    return { c: c0, r: order[0] };
   };
 
   /* 지금 걷는 속도(px/초): 가속이 걸려 있으면 hasteMul배 */
