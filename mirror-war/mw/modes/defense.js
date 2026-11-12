@@ -70,12 +70,13 @@
     /*   heroes = 영웅 카드로 나올 수 있는 원작 영웅(이름으로 data.heroes 에서 찾는다 — 미션 파일에서 뽑은 것, tools/herobuild.js, 분석 8-40).
            영웅 = 기본 유닛의 그림·행동 + 원작 영웅 기록의 이름·초상화·체력·공격·방어. 체력은 최소 기본 유닛의 heroHp배, 한도 heroCap (네메시스는 원작이 체력 10000·공격 1000이라 자른다).
            영웅의 마법은 패널에 올라오지 않고 영웅이 스스로 쓴다 — 마나 없이 heroCool(초)마다 */
-    GROW: { base: 4, grow: 1.6, lvStep: 2, heroes: ['파인트 롤', '레디쉬 앤', '벨리프 쇼링', '다인 바운터', '가웬 포라튼', '스카이 러너', '크리스 리디아', '폴로운', '네메시스 인트루더'],
+    GROW: { xpFall: 0.08, xpMin: 0.3,   /* 웨이브가 진행될수록 같은 적을 잡아도 경험치를 덜 준다: 배수 = max(xpMin, 1 - xpFall × 지난 웨이브 수) → 1웨이브 100%, 5웨이브 68%, 10웨이브 30% (2026-11-12 사용자 요청) */ base: 4, grow: 1.6, lvStep: 2, heroes: ['파인트 롤', '레디쉬 앤', '벨리프 쇼링', '다인 바운터', '가웬 포라튼', '스카이 러너', '크리스 리디아', '폴로운', '네메시스 인트루더'],
             heroLv: 5, heroHp: 2, heroCap: { hp: 2500, atk: 80, def: 30 }, heroCool: 10, manaRegen: 2, manaMax: 40, dmg: 0.3, radius: 0.2, repair: 0.4 },
     ALLY_MOVE_MUL: 0.85,         // 아군만 걷는 속도를 한 단계 느리게 (적 기지에 너무 빨리 닿아서, 2026-11-12). 적은 그대로
     MOVE_SCALE: 0.45,            // 원본 걷기 속도(px/틱)를 이 게임 속도로 줄이는 배수
     RANGE_SCALE: 0.07,           // 원본 사거리 → 화면 px (근접 700 → 49px, 원거리 3000 → 210px)
     ENEMY_HP_MUL: 1.1,             // 적 체력 배수 (원본 해골전사는 체력 50이라 한 방에 쓰러진다)
+    COST_PER_UP: 0.25,           // 전직 유닛의 추가 마나 = 그 유닛까지의 전직 비용(원본 upGold) 합 × 이 값. 원본에서 사제는 성령사(70금)를 뽑아 160금을 더 내고 전직한다 — 생산비만 보면 성령사 30 / 사제 35로 격차가 5뿐이었다 (2026-11-12 사용자 지적)
     COST_PER_GOLD: 0.45,         // 소환 마나 = 원본 생산 비용(금) × 이 값 (5 단위로 반올림)
     MAX_MAGIC: 0,                // 마법 유닛 동시 소환 한도
     /* 회수: 마법 유닛을 전장에서 거둬들여 자리를 비운다. 마나 환급 = 소환 값 × refund × 남은 체력 비율.
@@ -105,19 +106,30 @@
        28 해골전사, 29 해골기사 */
     /* 적 마법: 적 마법 유닛(리치·다크로드·사탄·메두사·서큐버스·술사류)도 자기 마법을 스스로 쓴다 — 마나 없이 재사용 대기만.
        cool = 한 번 쓴 뒤 다시 쓰기까지(초), first = 나온 뒤 처음 쓰기까지 [최소, 최대](초). 난이도 조절용: 지금은 길게 둔다 */
-    ENEMY_SKILL: { on: false, cool: 30, first: [8, 16] },   // on = 적이 마법을 쓰는가. 2026-11-12: 아군이 불리해 끔(사용자 요청). 켜면 cool·first 로 빈도 조절
+    /* 기술(마법이 아닌 몸동작): 스킬 칸에 올리지 않고 유닛이 알아서 쓴다 — 마나 없이, 자기만의 재사용 대기(cool 초)로. 쓸 때 유닛 위에 이름이 떴다 사라진다.
+       이름 = 원본 행동 이름. first = 나온 뒤 처음 쓰기까지(초). 2026-11-12 사용자 요청(암살). 후보: 창 돌리기·방패 막기·숨기·엔트 변형 (README 88) */
+    /* 적 레벨: 웨이브가 진행될수록 적이 높은 레벨로 나온다 — 레벨 = start + perWave × (웨이브 − 1). 원본 성장 규칙 그대로 체력(+hpGrow)·공격(k1 × 레벨)·방어(defGrow × 레벨)가 함께 오른다.
+       체력 배수만 올리는 것보다 낫다: 초반은 그대로 두고 후반만 어려워지며, "전군 단련"으로 오르는 아군 레벨과 짝이 맞는다 (2026-11-12 사용자 제안) */
+    ENEMY_LV: { start: 1, perWave: 1 },
+    SKILL_OFF: { '넨 소환': 1 },   // 디펜스에서 뺀 마법 (원본 행동 이름). 넨 소환 = 아군 텔레포트(리콜): 2026-11-12 사용자 요청으로 제외 — 코드(recall)는 남겨 둔다
+    TECH: { '암살': { cool: 20, first: 4 } },
+    ENEMY_SKILL: { on: false, fromWave: 8, cool: 30, first: [8, 16] },   // fromWave = 이 웨이브(1부터)부터는 on 이 꺼져 있어도 적이 마법을 쓴다 (2026-11-12 사용자 요청: 8·9·10)
+      // on = 적이 마법을 쓰는가. 2026-11-12: 아군이 불리해 끔(사용자 요청). 켜면 cool·first 로 빈도 조절
     /* 웨이브: 악령군 전체가 섞여 나온다. [유닛 번호, 수]. 한 웨이브 안에서는 순서를 섞는다(_waveQueue).
        28 해골전사 29 해골기사 30 듀라한 32 유령 33 리치 34 다크로드 35 흡혈귀 36 늑대인간 38 메두사 39 데몬 40 데빌 41 사탄 42 서큐버스
        43 늑대 44 켈베로스 45 펜릴 46 박쥐(공중) 47 드래곤(공중) 48 디아블로 25 악령술사 26 강신술사 27 사술사
        (좀비 31·도펠갱거 37은 기본 공격이 없어 서 있기만 해서 뺐다) */
-    WAVES: [
-      { list: [[28, 4]], gap: 1.8, rest: 6 },
-      { list: [[28, 5], [43, 2]], gap: 1.4, rest: 6 },
-      { list: [[28, 6], [43, 2], [32, 2], [25, 1]], gap: 1.2, rest: 7 },
-      { list: [[28, 6], [29, 2], [46, 3], [35, 1], [39, 2], [33, 1]], gap: 1.0, rest: 7 },
-      { list: [[28, 6], [29, 3], [36, 2], [40, 2], [26, 1], [38, 1], [44, 1], [48, 2]], gap: 0.8, rest: 8 },
-      { list: [[28, 8], [29, 3], [30, 2], [45, 2], [34, 1], [42, 1], [46, 3], [33, 2], [36, 2]], gap: 0.7, rest: 8 },
-      { list: [[28, 8], [29, 5], [30, 2], [44, 2], [34, 2], [41, 1], [27, 1], [47, 1], [48, 3], [38, 1], [40, 3]], gap: 0.6, rest: 0 }
+    WAVES: [   // 2026-11-12: 성장 시스템으로 너무 쉬워져 웨이브당 적 수를 늘리고(108 → 378기) 10단계로. 8·9·10 웨이브는 적도 마법을 쓴다 (ENEMY_SKILL.fromWave)
+      { list: [[28, 6]], gap: 1.6, rest: 6 },
+      { list: [[28, 7], [43, 3]], gap: 1.3, rest: 6 },
+      { list: [[28, 8], [43, 3], [32, 3], [25, 1]], gap: 1.1, rest: 7 },
+      { list: [[28, 11], [29, 4], [46, 6], [35, 2], [39, 4], [33, 1]], gap: 0.9, rest: 7 },
+      { list: [[28, 11], [29, 6], [36, 4], [40, 4], [26, 1], [38, 1], [44, 2], [48, 2]], gap: 0.8, rest: 8 },
+      { list: [[28, 14], [29, 6], [30, 4], [45, 4], [34, 1], [42, 1], [46, 6], [33, 2], [36, 4]], gap: 0.7, rest: 8 },
+      { list: [[28, 14], [29, 8], [30, 4], [44, 4], [34, 2], [41, 1], [27, 1], [47, 1], [48, 4], [38, 1], [40, 6]], gap: 0.6, rest: 8 },
+      { list: [[28, 14], [29, 8], [30, 6], [45, 4], [33, 4], [25, 2], [35, 4], [39, 6], [46, 6], [42, 2]], gap: 0.6, rest: 9 },
+      { list: [[28, 17], [29, 10], [30, 6], [44, 4], [45, 4], [34, 4], [26, 2], [27, 2], [47, 2], [48, 6], [40, 6], [38, 2]], gap: 0.55, rest: 9 },
+      { list: [[28, 17], [29, 11], [30, 8], [36, 6], [34, 4], [41, 2], [27, 2], [33, 4], [47, 4], [48, 7], [45, 6], [42, 2], [39, 6]], gap: 0.5, rest: 0 }
     ]
   };
 
@@ -134,10 +146,12 @@
     this.rng = new MWE.Rng(Date.now() & 0xffff);
     this.map = new MWE.GameMap(data.map2);                   // 배경으로 쓸 원본 맵 (평지가 있는 2인용 맵)
 
+    var parentOf = {}; data.units.forEach(function (d) { (d.up || []).forEach(function (x) { if (parentOf[x] == null) parentOf[x] = d.id; }); });   // 전직 대상 → 원래 유닛
     // 소환 목록: 탭마다 { 유닛 종류, 마나 값, 다시 소환까지(초), 마법 유닛인가 }
     this.roster = CONFIG.TABS.map(function (tab) { return tab.ids.map(function (id) {
-      var t = self.types[id], cost = Math.max(15, Math.round(t.cost[3] * CONFIG.COST_PER_GOLD / 5) * 5);
-      return { id: id, t: t, cost: cost, cd: Math.max(1, Math.min(8, cost / 20)), magic: skillsOf(t).length > 0, wait: 0, gar: garInfo(id) };
+      var t = self.types[id], root = id, upSum = 0, guard = 0; while (parentOf[root] != null && guard++ < 6) { upSum += self.types[root].upGold || 0; root = parentOf[root]; }   // 전직 사슬을 거슬러 올라간다 (사제 ← 성령사)
+      var cost = Math.max(15, Math.round(t.cost[3] * CONFIG.COST_PER_GOLD / 5) * 5, Math.round((self.types[root].cost[3] * CONFIG.COST_PER_GOLD + upSum * CONFIG.COST_PER_UP) / 5) * 5);
+      return { id: id, t: t, cost: cost, cd: Math.max(1, Math.min(8, cost / 20)), magic: skillsOf(t).some(function (a) { return !CONFIG.TECH[a.name]; }), tech: skillsOf(t).some(function (a) { return !!CONFIG.TECH[a.name]; }), wait: 0, gar: garInfo(id) };
     }); });
     this.tab = 0;
 
@@ -301,7 +315,7 @@
     u.side = side;
     u.x = side === 0 ? C.BASE.front - 8 : this.spawnX;
     u.y = this.laneY + this.rows[side === 1 ? this._packRow() : Math.floor(this.rng.next() * this.rows.length)];
-    if (side === 1) { u.maxHp = Math.round(u.maxHp * C.ENEMY_HP_MUL); u.hp = u.maxHp; }
+    if (side === 1) { this._setLevel(u, Math.max(1, Math.round(C.ENEMY_LV.start + C.ENEMY_LV.perWave * Math.min(this.wave, C.WAVES.length - 1)))); u.maxHp = Math.round(u.maxHp * C.ENEMY_HP_MUL); u.hp = u.maxHp; }
     u.state = 'move'; u.cd = 0; u.fade = 0; u.stunUntil = 0; u.blockT = 0; u.passY = null;
     u.rangeK = 1 - C.RANGE_SPREAD * this.rng.next();         // 이 유닛이 서는 거리 배수 (원거리만 쓴다)
     u.lookDir = 0; u.slotOf = null; u.slotA = null; u.slotAt = null; u.slotT = 0; u.apT = -9; u.skipUid = null; u.skipUntil = 0; this._setSide(u, side);
@@ -313,7 +327,7 @@
     if (side === 0) { skillsOf(t).forEach(function (a) { self._addSlot(u, a); }); if (u.slots.some(function (q) { return !q.auto; })) this.magicUnits.push(u); this._regroup(); }
     else {                                                   // 적 마법 유닛: 칸은 유닛만 갖고(패널에는 안 나옴) 스스로 쓴다 (_enemyMagic). 변형은 이 게임에서 대응 형태가 없어 뺀다
       var E = C.ENEMY_SKILL; u.auto = true;
-      if (E.on) skillsOf(t).forEach(function (a) { var q = new SkillSlot(u, a); if (q.kind === 'morph') return; q.cdMax = E.cool; q.cd = E.first[0] + self.rng.next() * (E.first[1] - E.first[0]); q.cost = 0; u.slots.push(q); }); }
+      if (E.on || this.wave + 1 >= E.fromWave) skillsOf(t).forEach(function (a) { var q = new SkillSlot(u, a); if (q.kind === 'morph') return; q.cdMax = E.cool; q.cd = E.first[0] + self.rng.next() * (E.first[1] - E.first[0]); q.cost = 0; u.slots.push(q); }); }
     this.units.push(u);
     return u;
   };
@@ -450,14 +464,16 @@
   var KIND_NAME = { blast: '범위 공격', heal: '회복', buff: '강화', haste: '가속', weaken: '약화', stun: '적 멈춤', charm: '매혹', assassin: '암살', morph: '변형', recall: '리콜' };
 
   /* 그 종류가 가진 마법 목록: 기본 공격이 아니고, 마나를 쓰고(방패 막기 같은 몸동작 제외), 효과를 구현한 행동 */
-  function skillsOf(t) { return t.acts.filter(function (a) { return a.isAtk != 1 && a.mana > 0 && skillKind(a); }); }
+  function skillsOf(t) { return t.acts.filter(function (a) { return a.isAtk != 1 && a.mana > 0 && skillKind(a) && !CONFIG.SKILL_OFF[a.name]; }); }
 
   /* 스킬 칸의 구조 (2026-11-12 "스킬 종류별 묶음"으로 바꿈, 마법 유닛 3기 한도 폐지):
        SkillSlot  = 유닛 한 기가 가진 마법 하나 (자기만의 재사용 대기 cd). this.slots = 전장의 모든 SkillSlot
        묶음(group) = 같은 마법을 가진 SkillSlot 들 { act, kind, aimed, cost, slots[] }. **패널의 칸 하나 = 묶음 하나** ("라이트닝 썬더 ×3").
                     칸을 누르면 그 마법을 가진 유닛 중 준비된 한 기가 쓴다. this.groups = 처음 생긴 순서(자리가 바뀌지 않는다)
        자기에게만 거는 강화(a.self: 아이스 웨폰 등)는 묶음에 넣지 않는다 — 유닛이 알아서, 마나 없이 쓴다 (s.auto, _selfMagic) */
-  P._addSlot = function (u, act) { var s = new SkillSlot(u, act); if (act.self) { s.auto = true; s.cost = 0; } u.slots.push(s); this.slots.push(s); this._regroup(); return s; };
+  P._addSlot = function (u, act) { var s = new SkillSlot(u, act), tech = CONFIG.TECH[act.name]; if (act.self) { s.auto = true; s.cost = 0; }
+    if (tech) { s.auto = true; s.tech = true; s.cost = 0; s.cdMax = tech.cool; s.cd = tech.first; }   // 기술: 알아서, 마나 없이, 자기 쿨타임으로 (_selfMagic)
+    u.slots.push(s); this.slots.push(s); this._regroup(); return s; };
 
   /* 유닛이 쓰러지거나 회수될 때 그 유닛의 칸을 모두 뺀다. 그 마법을 가진 유닛이 더 없으면 패널의 칸(묶음)도 사라진다 */
   P._removeSlots = function (u) {
@@ -1095,7 +1111,7 @@
       u.hp = 0; u.state = 'dead'; u.deadT = 0; u.fade = 0; u.buffs = {};
       this._removeSlots(u);                                  // 마법 유닛이면 그 유닛의 스킬 칸도 함께 없앤다 → 소환 버튼이 다시 켜진다
       this._play(u.t.snd.die, 0.7);
-      if (u.side === 1) { this.kills++; this._gainXp(u.t.lv && u.t.lv.exp || 1); }   // 처치 = 경험치 (원작 유닛의 경험치 값)
+      if (u.side === 1) { this.kills++; this._gainXp((u.t.lv && u.t.lv.exp || 1) * Math.max(CONFIG.GROW.xpMin, 1 - CONFIG.GROW.xpFall * Math.min(this.wave, CONFIG.WAVES.length - 1))); }   // 처치 = 경험치 (원작 유닛의 경험치 값)
     }
   };
 
@@ -1271,7 +1287,7 @@
     var title = (last ? '마지막 웨이브' : '웨이브 ' + (b.wave + 1)); ctx.font = 'bold 24px sans-serif'; ctx.lineWidth = 4;
     ctx.strokeText(title, 0, 0); ctx.fillStyle = last ? '#ff8a7a' : '#ffd36e'; ctx.fillText(title, 0, 0); ctx.restore();
     if (F.length) { var figs = this.assets.get('figs'), cw = Math.min(64, Math.floor((W - 16) / F.length)), y = top + 20, i;
-      for (i = 0; i < F.length; i++) { var x = W / 2 + (i - (F.length - 1) / 2) * cw, ty = F[i], magic = CONFIG.ENEMY_SKILL.on && skillsOf(ty).some(function (a) { return skillKind(a) !== 'morph'; });
+      for (i = 0; i < F.length; i++) { var x = W / 2 + (i - (F.length - 1) / 2) * cw, ty = F[i], magic = (CONFIG.ENEMY_SKILL.on || b.wave + 1 >= CONFIG.ENEMY_SKILL.fromWave) && skillsOf(ty).some(function (a) { return skillKind(a) !== 'morph'; });
         ctx.drawImage(figs, ty.pid * 36, 0, 36, 43, Math.round(x - 11), y, 22, 26);
         ctx.font = '9px sans-serif'; ctx.lineWidth = 3; var nm = this._fit(ty.name, cw - 2); ctx.strokeText(nm, x, y + 33); ctx.fillStyle = magic ? '#ff8a7a' : '#dfe6f5'; ctx.fillText(nm, x, y + 33); } }   // 마법을 쓰는 적은 이름이 붉다
     ctx.textAlign = 'left'; ctx.restore();
@@ -1480,7 +1496,7 @@
       ctx.font = 'bold 11px sans-serif'; ctx.fillStyle = this.mana >= r.cost ? '#8fc7ff' : '#e0584a'; ctx.fillText(r.cost, cx, b.y + b.h - 7);
       ctx.font = '9px sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = '#8a93a8'; ctx.fillText(i + 1, b.x + 4, b.y + 8);
       if (this.garOn) { if (r.gar) { ctx.textAlign = 'right'; ctx.fillStyle = '#ffb36a'; ctx.fillText(r.gar.cls >= 0 ? '사격' : '+' + r.gar.bonus, b.x + b.w - 4, b.y + 8); } }
-      else if (r.magic) { ctx.textAlign = 'right'; ctx.fillStyle = '#7fb6ff'; ctx.fillText('마법', b.x + b.w - 4, b.y + 8); }
+      else if (r.magic || r.tech) { ctx.textAlign = 'right'; ctx.fillStyle = r.magic ? '#7fb6ff' : '#ffd36e'; ctx.fillText(r.magic ? '마법' : '기술', b.x + b.w - 4, b.y + 8); }   // 기술 = 알아서 쓰는 몸동작(암살)
       // 마법 유닛 한도에 닿음: 버튼을 어둡게 덮고 "최대" 표시 (눌러도 소환되지 않는다)
       if (r.magic && full && !this.garOn) { ctx.fillStyle = 'rgba(8,10,16,.55)'; ctx.fillRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4);
         ctx.textAlign = 'center'; ctx.font = 'bold 11px sans-serif'; ctx.fillStyle = '#ffb36a'; ctx.fillText('최대', cx, b.y + Math.round(fh * 0.4)); ctx.font = '9px sans-serif'; ctx.fillText(C.MAX_MAGIC + ' / ' + C.MAX_MAGIC, cx, b.y + Math.round(fh * 0.4) + 13); }
