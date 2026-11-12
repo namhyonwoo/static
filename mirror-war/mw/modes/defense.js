@@ -303,7 +303,7 @@
 
   /* 편(진영)과 걷는 방향을 정한다. 매혹으로 편이 바뀔 때도 쓴다.
      스프라이트 방향: 원본은 마름모 좌표라 "화면 오른쪽"이 (1,-1), "화면 왼쪽"이 (-1,1)이다 */
-  P._setSide = function (u, side) { u.hold = null; u.side = side; u.fac = side; u.dir = side === 0 ? 1 : -1; u.lookDir = u.dir; u.face(u.dir, -u.dir); u.tgt = null; };
+  P._setSide = function (u, side) { u.hold = null; u.side = side; u.fac = side; u.dir = side === 0 ? 1 : -1; u.oct = null; this._look(u, u.dir); u.tgt = null; };
 
   /* 종류에서 나오는 값(기본 공격·사거리·속도)을 유닛에 다시 적는다. 처음 소환할 때와 변형할 때 */
   P._applyType = function (u) {
@@ -693,7 +693,9 @@
     this._scrollBtns(0);                                     // 탭·유닛 수가 바뀌어도 소환 캐러셀이 범위 밖에 남지 않게
 
     this._updateWave(dt);
-    for (i = 0; i < this.units.length; i++) this._updateUnit(this.units[i], dt);
+    // 유닛 행동. 걷는 유닛은 **실제로 움직인 방향**을 본다 (8방향) — 줄을 바꾸거나 대열 자리로 대각선·세로로 갈 때 몸은 옆을 본 채 미끄러지던 것을 고침
+    for (i = 0; i < this.units.length; i++) { var mu = this.units[i], px = mu.x, py = mu.y; this._updateUnit(mu, dt);
+      if (mu.state === 'move') { var mdx = mu.x - px, mdy = mu.y - py; if (mdx * mdx + mdy * mdy > 0.01) this._faceVec(mu, mdx, mdy); } }
     this._separate(dt);
     this._updateShots(dt);
     this._updateGarrison();
@@ -760,7 +762,7 @@
       if (held) { u.slotOf = null; u.slotA = null; }                   // 지키는 쪽은 자기가 맡았던 자리를 내려놓는다 — 서로 "네가 와라" 하며 멈춰 서는 것을 막는다
       if (canHitUnit && melee && !held && u.slotAt !== tgt.uid) { this._approach(u, tgt, dt); return; }
       if (canHitUnit || canHitBase) {
-        if (canHitUnit) this._look(u, tgt.x >= u.x ? 1 : -1);          // 때릴 적을 바라본다 (에워싸면 뒤돌아 칠 수도 있다)
+        if (canHitUnit) this._faceVec(u, tgt.x - u.x, tgt.y - u.y, true);   // 때릴 적을 바라본다 (8방향 — 위아래에 있는 적도 그쪽을 보고 친다)
         if (u.cd <= 0) { u.state = 'attack'; u.at = 0; u.hitDone = false; u.tgt = canHitUnit ? tgt : 'base'; this._play(u.act.snd, 0.5); }
         else u.state = 'idle';
         return;
@@ -785,7 +787,6 @@
     if (u.blockT >= C.PASS_WAIT && u.passY == null) { u.passY = this._freeRow(u); u.passT = 0; if (u.passY == null) u.blockT = 0; }
     if (u.passY != null) { u.passT += dt; this._shiftRow(u, u.passY, Math.max(45, this._speed(u) * 0.9) * dt); if (Math.abs(u.passY - u.y) < 1 || u.passT > 2) { u.passY = null; u.blockT = 0; } }
     if (blocked) { if (u.passY != null) { u.state = 'move'; u.walkT += dt; } else u.state = 'idle'; return; }
-    if (u.lookDir !== u.dir) this._look(u, u.dir);           // 싸우느라 돌아봤으면 다시 가던 쪽을 본다
     u.slotOf = null; u.slotA = null;                         // 다시 전진한다 = 둘러싸려던 적을 놓았다 (남겨 두면 그 적이 "나를 노리는 중"으로 잘못 알고 서 있는다)
     u.state = 'move'; u.walkT += dt; u.x += u.dir * this._speed(u) * dt;
   };
@@ -797,9 +798,8 @@
     if (!u.hold || u.hold.r >= R.length) u.hold = this._pickHold(u);
     var tx = this.frontX - u.hold.c * H.col, ty = this.laneY + R[u.hold.r], dx = tx - u.x, dy = ty - u.y, d = Math.hypot(dx, dy);
     u.slotOf = null; u.slotA = null; u.passY = null; u.blockT = 0;
-    if (d < 1.5) { u.x = tx; u.y = ty; u.state = 'idle'; if (u.lookDir !== u.dir) this._look(u, u.dir); return; }
+    if (d < 1.5) { u.x = tx; u.y = ty; u.state = 'idle'; this._look(u, u.dir); return; }   // 자리에 서면 적이 오는 쪽을 본다
     var step = Math.min(d, this._speed(u) * dt); u.x += dx / d * step; u.y += dy / d * step;
-    if (Math.abs(dx) > 6) this._look(u, dx > 0 ? 1 : -1);
     u.state = 'move'; u.walkT += dt;
   };
   /* 빈 대열 자리 고르기: 역할에 맞는 가장 앞 열에서, 지금 서 있는 줄에 가까운 줄부터 */
@@ -816,7 +816,17 @@
   P._speed = function (u) { var h = u.buffs.haste; return u.speedPx * (h && h.until > this.time ? CONFIG.SKILL.hasteMul : 1); };
 
   /* 바라보는 쪽을 바꾼다 (d: 1 오른쪽, -1 왼쪽). 걷는 방향(u.dir)은 그대로 */
-  P._look = function (u, d) { if (u.lookDir === d) return; u.lookDir = d; u.face(d, -d); };
+  P._look = function (u, d) { this._faceVec(u, d, 0, true); };
+  /* 화면에서의 방향 (sx, sy) 쪽을 바라본다: 8방향 중 가장 가까운 그림 (원작 스프라이트는 5방향 + 좌우 반전).
+     u.oct = 0 오른쪽, 2 아래, 4 왼쪽, 6 위. 방향이 떨리지 않게 — 지금 방향에서 30° 넘게 벗어났고, 마지막으로 바꾼 지 0.15초가 지났을 때만 바꾼다 (force 면 바로) */
+  P._faceVec = function (u, sx, sy, force) {
+    if (!sx && !sy) return;
+    var a = Math.atan2(sy, sx), o = Math.round(a / (Math.PI / 4)) & 7; if (o === u.oct) return;
+    if (!force && u.oct != null) { var diff = Math.abs(a - u.oct * Math.PI / 4); if (diff > Math.PI) diff = 2 * Math.PI - diff; if (diff < Math.PI / 6 || this.time - (u.octT || -9) < 0.15) return; }
+    u.oct = o; u.octT = this.time; if (o !== 2 && o !== 6) u.lookDir = o < 2 || o > 6 ? 1 : -1;
+    var ux = Math.cos(o * Math.PI / 4), uy = Math.sin(o * Math.PI / 4);
+    u.face(ux / 64 + uy / 32, -ux / 64 + uy / 32);           // 화면 방향 → 타일 좌표 방향 (Unit.face 의 역변환: 화면 x = (dx − dy) × 32, 화면 y = (dx + dy) × 16)
+  };
 
   /* 에워싸기와 우회: 근접 유닛 u가 적 tgt에게 다가간다.
      적 둘레를 slots개의 자리(각도)로 나누고, 지금 내 위치에서 가장 가까운 빈자리를 하나 맡는다(u.slotA). 앞자리가 차 있으면
@@ -827,7 +837,6 @@
     u.apT = this.time;                                       // 지금 이 적에게 다가가는 중이라는 표시 (_besieged가 본다)
     if (u.slotOf !== tgt.uid || u.slotA == null) { u.slotOf = tgt.uid; u.slotA = this._pickSlot(u, tgt, r, lo, hi); u.slotAt = null; u.slotT = 0; }
     if (this._dist(u, tgt) <= u.rangePx) u.slotT += dt;      // 이미 닿는 거리인데도 자리를 못 찾고 도는 시간만 잰다
-    this._look(u, tgt.x >= u.x ? 1 : -1);
     if (u.slotA == null) {                                   // 둘레가 꽉 찼다 → 이 적은 건너뛰고 돌아서 간다
       u.skipUid = tgt.uid; u.skipUntil = this.time + S.skipSec; u.slotOf = null;
       var side = u.y >= tgt.y ? 1 : -1, py = tgt.y + side * S.detour; if (py < lo || py > hi) py = tgt.y - side * S.detour;
@@ -849,7 +858,6 @@
      서서 기다리기만 하면 사거리가 짧은 유닛(무도가·격투가 42px)이 사거리가 긴 적(49px)에게 맞기만 하고 못 때리는 일이 생긴다 */
   P._stepToward = function (u, tgt, dt) {
     var R = this.rows, lo = this.laneY + R[0] - 14, hi = this.laneY + R[R.length - 1] + 14, dx = tgt.x - u.x, dy = tgt.y - u.y, d = Math.hypot(dx, dy) || 1;
-    this._look(u, dx >= 0 ? 1 : -1);
     var step = Math.min(this._speed(u) * dt, Math.max(0, this._dist(u, tgt) - u.rangePx + 1));
     if (step <= 0) { u.state = 'idle'; return; }
     u.x += dx / d * step; u.y = Math.max(lo, Math.min(hi, u.y + dy / d * step));
