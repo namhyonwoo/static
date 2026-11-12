@@ -243,7 +243,8 @@
     this.flash = 0;
     this.cam.x = 0; this.manualUntil = 0; this.drag = null; this.camGoal = null;
     this.pack = null;            // 지금 나오는 적 무리 { band(0 위·1 가운데·2 아래), left(남은 수) }
-    this.wave = 0; this.queue = this._waveQueue(0); this.spawnT = 2; this.restT = 0; this.kills = 0;
+    this.seenFoes = {}; this.banner = null;   // 웨이브 알림: 지금까지 나온 적 종류, 화면 가운데에 잠깐 뜨는 알림 { wave, t0, fresh:[유닛 종류] }
+    this.wave = 0; this.queue = this._waveQueue(0); this._announce(0); this.spawnT = 2; this.restT = 0; this.kills = 0;
   };
 
   /* 웨이브 한 개를 "나올 순서대로의 유닛 번호 목록"으로 편다. [[28,2],[29,1]] → [28,28,29] */
@@ -706,6 +707,13 @@
     else if (this.wave >= C.WAVES.length && !this._alive(1).length) this.screen = 'win';
   };
 
+  /* 웨이브 알림을 띄운다: "웨이브 N" + 이 웨이브에 처음 나오는 적 종류 (작은 그림과 이름) */
+  P._announce = function (i) {
+    var w = CONFIG.WAVES[i], self = this; if (!w) return;
+    var fresh = []; w.list.forEach(function (e) { if (!self.seenFoes[e[0]]) { self.seenFoes[e[0]] = 1; if (self.types[e[0]]) fresh.push(self.types[e[0]]); } });
+    this.banner = { wave: i, t0: this.time, fresh: i === 0 ? [] : fresh };   // 첫 웨이브는 "새로운 적"을 따로 알리지 않는다
+  };
+
   /* 웨이브 진행: 대기열에서 한 기씩 꺼내 내보내고, 다 나오면 쉬었다가 다음 웨이브 */
   P._updateWave = function (dt) {
     var C = CONFIG, w = C.WAVES[this.wave]; if (!w) return;
@@ -715,7 +723,7 @@
     } else {
       // 이 웨이브가 다 나왔다 → 쉬는 시간이 지나거나 적이 전멸하면 다음 웨이브
       this.restT -= dt;
-      if (this.restT <= 0 || !this._alive(1).length) { this.wave++; this.queue = this._waveQueue(this.wave); this.spawnT = 1.5; }
+      if (this.restT <= 0 || !this._alive(1).length) { this.wave++; this.queue = this._waveQueue(this.wave); this.spawnT = 1.5; this._announce(this.wave); }
     }
   };
 
@@ -996,6 +1004,7 @@
     ctx.restore();
     this._drawAim();                                         // 조준 중: 시전 거리 띠 + 반경 원
     this._drawSelectionOverlay();                            // 선택 링 위의 [회수] 버튼 — 유닛 정렬 루프 밖(위에 그려지는 유닛에 가리지 않게), 화면 좌표
+    this._drawBanner();
     if (this.flash > 0) { ctx.fillStyle = 'rgba(255,240,200,' + (this.flash * 0.9) + ')'; ctx.fillRect(0, 0, W, H - this.hudH); }
     this._drawHud();
     if (this.screen !== 'play') this._drawOverlay();
@@ -1103,6 +1112,26 @@
     var msg = s.act.name + ' — 쓸 곳을 누르세요 (칸을 다시 누르면 취소)'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     var mw = Math.min(W - 16, ctx.measureText(msg).width + 20), my = Math.max(this.topBox.y + (this.garrison.length ? 70 : 46), this.miniBox.y + this.miniBox.h) + 8;
     ctx.fillStyle = 'rgba(8,10,16,.8)'; ctx.fillRect(W / 2 - mw / 2, my, mw, 24); ctx.fillStyle = '#7fd6ff'; ctx.fillText(this._fit(msg, mw - 10), W / 2, my + 12.5);
+    ctx.textAlign = 'left'; ctx.restore();
+  };
+
+  /* 웨이브 알림: 위쪽 표시 바로 아래에 "웨이브 N"이 잠깐 떴다가 사라진다. 전투를 가리지 않게 작고 짧게 —
+     어두운 바탕 없이 글자 테두리만, 유닛이 서는 줄(전투 줄)보다 위에만 그린다. 새로 나오는 적이 있으면 그 아래 한 줄에 작은 그림과 이름.
+     누르는 것을 막지 않는다(그림일 뿐). 2.2초, 새 적이 있으면 3초 */
+  P._drawBanner = function () {
+    var b = this.banner; if (!b || this.screen !== 'play') return;
+    var F = b.fresh, total = F.length ? 3 : 2.2, t = this.time - b.t0; if (t < 0) return; if (t > total) { this.banner = null; return; }
+    var al = Math.max(0, Math.min(1, t / 0.25, (total - t) / 0.5)), ctx = this.ctx, W = this.W, fh = this.H - this.hudH, n = CONFIG.WAVES.length, last = b.wave === n - 1;
+    var top = Math.max(this.topBox.y + (this.garrison.length ? 70 : 46), this.miniBox.y + this.miniBox.h) + 20, k = 1 + 0.2 * Math.max(0, 1 - t / 0.25);
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, fh); ctx.clip(); ctx.globalAlpha = al * 0.95;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(0,0,0,.85)';
+    ctx.save(); ctx.translate(W / 2, top); ctx.scale(k, k);
+    var title = (last ? '마지막 웨이브' : '웨이브 ' + (b.wave + 1)); ctx.font = 'bold 24px sans-serif'; ctx.lineWidth = 4;
+    ctx.strokeText(title, 0, 0); ctx.fillStyle = last ? '#ff8a7a' : '#ffd36e'; ctx.fillText(title, 0, 0); ctx.restore();
+    if (F.length) { var figs = this.assets.get('figs'), cw = Math.min(64, Math.floor((W - 16) / F.length)), y = top + 20, i;
+      for (i = 0; i < F.length; i++) { var x = W / 2 + (i - (F.length - 1) / 2) * cw, ty = F[i], magic = skillsOf(ty).some(function (a) { return skillKind(a) !== 'morph'; });
+        ctx.drawImage(figs, ty.pid * 36, 0, 36, 43, Math.round(x - 11), y, 22, 26);
+        ctx.font = '9px sans-serif'; ctx.lineWidth = 3; var nm = this._fit(ty.name, cw - 2); ctx.strokeText(nm, x, y + 33); ctx.fillStyle = magic ? '#ff8a7a' : '#dfe6f5'; ctx.fillText(nm, x, y + 33); } }   // 마법을 쓰는 적은 이름이 붉다
     ctx.textAlign = 'left'; ctx.restore();
   };
 
