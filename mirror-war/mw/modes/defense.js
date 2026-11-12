@@ -77,7 +77,7 @@
     SUPPORT_DIST: 210,           // 기본 공격이 없는 유닛(성직자·소환사 등)이 적과 벌려 두는 거리(px)
     /* 스킬은 전체 마나를 쓴다 (소환과 같은 마나) + 짧은 재사용 대기 cool(초). 값 = 원본 행동 마나 × costMul 을 5 단위로, 종류별 [최소, 최대] 안으로 자른다 (COST)
        — 원본은 유닛마다 마나통이 따로라 값을 그대로 쓸 수 없어 비율만 가져온다. 2026-11-12: 쿨타임만 돌던 방식에서 바꿈 (공짜라 강화를 상시 돌리던 문제) */
-    SKILL: { cool: 3, costMul: 0.4, COST: { blast: [40, 70], buff: [20, 30], heal: [15, 40], haste: [60, 60], weaken: [20, 25], stun: [35, 50], charm: [50, 60], assassin: [40, 40], morph: [20, 20] }, radius: 95, buffRadius: 170, dmgMul: 2, healRatio: 0.5, stunSec: 6, firstWait: 2, hasteMul: 1.5, maxCast: 320 },   // maxCast = 시전 거리 한도(px). 원본 사거리가 무제한(65535)인 마법도 이 안에 대상이 있어야 한다   // 스킬 공통 수치 (목업 값)
+    SKILL: { cool: 3, costMul: 0.4, COST: { blast: [40, 70], buff: [20, 30], heal: [15, 40], haste: [60, 60], weaken: [20, 25], stun: [35, 50], recall: [40, 40], charm: [50, 60], assassin: [40, 40], morph: [20, 20] }, radius: 95, buffRadius: 170, dmgMul: 2, healRatio: 0.5, stunSec: 6, firstWait: 2, hasteMul: 1.5, maxCast: 320 },   // maxCast = 시전 거리 한도(px). 원본 사거리가 무제한(65535)인 마법도 이 안에 대상이 있어야 한다   // 스킬 공통 수치 (목업 값)
     /* 소환 패널의 탭: 해방부대 전체(원본 유닛 번호 0~24)를 네 묶음으로 나눈다 */
     TABS: [
       { name: '근접', ids: [0, 1, 2, 3, 6, 7, 8] },          // 전사 기사 창기사 성기사 창검사 격투가 무도가
@@ -395,7 +395,7 @@
     this.readyAt = 0;                                        // 쿨타임이 끝난 시각 (패널에서 앞에 설 순서를 정한다)
     this.vi = null;                                          // 패널에서 지금 그려지는 자리 (순서가 바뀌면 그 자리로 미끄러져 간다)
     this.kind = skillKind(act);
-    this.aimed = this.needsFoe();                            // 적에게 쓰는 마법은 누르면 바로 나가지 않고 전장에서 지점을 찍는다 (아군·자기에게 쓰는 마법은 즉시)
+    this.aimed = this.needsFoe() || this.kind === 'recall';   // 리콜도 불러올 곳을 찍는다                            // 적에게 쓰는 마법은 누르면 바로 나가지 않고 전장에서 지점을 찍는다 (아군·자기에게 쓰는 마법은 즉시)
     var lim = CONFIG.SKILL.COST[this.kind] || [20, 60];
     this.cost = Math.max(lim[0], Math.min(lim[1], Math.round(act.mana * CONFIG.SKILL.costMul / 5) * 5));   // 쓸 때 드는 마나
   }
@@ -415,9 +415,10 @@
     if (a.sup === 'charm') return 'charm';                             // 적을 우리 편으로
     if (a.sup === 'assassin') return 'assassin';                       // 적 하나 즉사
     if (a.sup === 'morph') return 'morph';                             // 변형
+    if (a.sup === 'recall') return 'recall';                           // 리콜: 찍은 곳 주변의 아군을 시전자 곁으로 (넨 소환)
     return null;
   }
-  var KIND_NAME = { blast: '범위 공격', heal: '회복', buff: '강화', haste: '가속', weaken: '약화', stun: '적 멈춤', charm: '매혹', assassin: '암살', morph: '변형' };
+  var KIND_NAME = { blast: '범위 공격', heal: '회복', buff: '강화', haste: '가속', weaken: '약화', stun: '적 멈춤', charm: '매혹', assassin: '암살', morph: '변형', recall: '리콜' };
 
   /* 그 종류가 가진 마법 목록: 기본 공격이 아니고, 마나를 쓰고(방패 막기 같은 몸동작 제외), 효과를 구현한 행동 */
   function skillsOf(t) { return t.acts.filter(function (a) { return a.isAtk != 1 && a.mana > 0 && skillKind(a); }); }
@@ -480,9 +481,9 @@
     return null;
   };
   /* 지점 지정 마법의 시전 거리(px): 시전자에서 이 가로 거리 안의 지점만 찍을 수 있다 */
-  P.aimReach = function (s) { return Math.min(CONFIG.SKILL.maxCast, s.act.range * CONFIG.RANGE_SCALE); };
+  P.aimReach = function (s) { return s.kind === 'recall' ? CONFIG.WORLD_W : Math.min(CONFIG.SKILL.maxCast, s.act.range * CONFIG.RANGE_SCALE); };   // 리콜은 원본처럼 거리 제한 없음
   /* 지점 지정 마법의 효과 반경(px) — 그리기와 판정이 같은 값을 쓴다 */
-  P.aimRadius = function (s) { var S = CONFIG.SKILL; return s.kind === 'blast' ? (s.act.aoe ? S.radius : 60) : s.kind === 'charm' ? S.radius * 0.7 : s.kind === 'assassin' ? 45 : S.radius; };
+  P.aimRadius = function (s) { var S = CONFIG.SKILL; return s.kind === 'recall' ? 120 : s.kind === 'blast' ? (s.act.aoe ? S.radius : 60) : s.kind === 'charm' ? S.radius * 0.7 : s.kind === 'assassin' ? 45 : S.radius; };
   /* 조준 중 전장을 눌렀다: 그 지점(전장 좌표)에 마법을 쓴다. 시전 거리 밖이면 알려 주고 조준은 유지 */
   P._aimCast = function (wx, wy) {
     var s = this.aim.slot, u = s.unit; if (!u || u.state === 'dead') { this.aim = null; return false; }
@@ -605,7 +606,13 @@
     var allies = function (r) { return self.units.filter(function (o) { return o.side === u.side && o.state !== 'dead' && Math.abs(o.x - u.x) <= r; }); };
     var foesAt = function (c, r) { return self.units.filter(function (o) { return o.side !== u.side && o.state !== 'dead' && Math.hypot(o.x - c.x, o.y - c.y) <= r; }); };   // 원형 범위: 대상 적을 중심으로 반경 r 안 (전에는 가로 거리만 봐서 세로 줄 전체가 맞았다)
 
-    if (s.kind === 'blast' && foe) {                         // 가장 가까운 적을 중심으로 범위 피해 (원본 피해 공식 × dmgMul)
+    if (s.kind === 'recall' && pt) {                         // 리콜 (원본 FUN_004b9590 case 0x34 / 0x3A): 찍은 곳 주변의 아군이 대형 그대로 시전자 곁으로 순간이동. 피해 없음
+      var RR = this.aimRadius(s), R0 = this.rows, lo0 = this.laneY + R0[0], hi0 = this.laneY + R0[R0.length - 1], moved = 0;
+      this.units.forEach(function (o) { if (o === u || o.side !== u.side || o.state === 'dead' || Math.hypot(o.x - pt.x, o.y - pt.y) > RR) return;
+        self._addEffect(o.x, o.y, 3, 0); o.x = Math.max(CONFIG.BASE.front - 8, u.x + (o.x - pt.x)); o.y = Math.max(lo0, Math.min(hi0, u.y + (o.y - pt.y)));
+        o.tgt = null; o.slotOf = null; o.slotA = null; o.slotAt = null; o.passY = null; o.blockT = 0; if (o.state !== 'attack') o.state = 'move'; self._addEffect(o.x, o.y, 3, 0.25); moved++; });
+      if (moved) ok = true; else { this._say(pt.x, pt.y - 12, '불러올 아군이 없음', '#c9d1e3'); return false; }
+    } else if (s.kind === 'blast' && foe) {                         // 가장 가까운 적을 중심으로 범위 피해 (원본 피해 공식 × dmgMul)
       var keep = u.act; u.act = a;
       foesAt(foe, a.aoe ? S.radius : 60).forEach(function (o) { self._damage(o, self.rules.damage(u, o, self.rng) * S.dmgMul); });
       u.act = keep; this._addEffect(foe.x, foe.y, a.arm, 0); this.flash = 0.2; ok = true;
@@ -639,7 +646,7 @@
     }
     if (!ok) { this._say(u.x, u.y - u.headY - 10, '대상 없음', '#c9d1e3'); return false; }
     if (!u.auto) { this.mana -= s.cost;                      // 내가 쓴 마법: 터진 곳(적에게 쓰는 마법은 그 적, 아니면 시전자)이 화면 가운데에 오도록 카메라가 미끄러져 간다
-      this.camGoal = { x: (foe ? foe.x : u.x) - this.W / 2, until: this.time + CONFIG.CAM.skillSec }; this.manualUntil = 0; }
+      this.camGoal = { x: (foe && s.kind !== 'recall' ? foe.x : u.x) - this.W / 2, until: this.time + CONFIG.CAM.skillSec }; this.manualUntil = 0; }
     s.cd = s.cdMax; this._sortSlots();                       // 방금 쓴 칸은 바로 뒤로 간다
     this._say(u.x, u.y - u.t.h - 18, a.name, u.side === 0 ? '#ffd36e' : '#ff8a7a');   // 적이 쓴 마법은 붉은 글씨
     this._play(a.snd, 1);
