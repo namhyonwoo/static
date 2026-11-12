@@ -40,10 +40,10 @@
   /* ───────────────────────── 1. CONFIG ───────────────────────── */
   var CONFIG = {
     /* 화면 크기 정하기 (_resize). "게임 안 크기" = 실제 화면 크기 ÷ 확대 배수. 게임 안 크기가 작을수록 유닛·버튼이 크게 보인다.
-         가로 모드: 세로 = 화면 세로 ÷ landZoom 을 landMinH~landMaxH 로 자른 값. 휴대폰(세로 340쯤)은 300이 되어 약 1.1배로 확대되고,
-                   PC(세로 700 이상)는 450이 되어 예전과 같다. 세로가 400 미만이면 아래 패널을 납작하게(compact) 짠다.
-         세로 모드: 가로 = 화면 가로 ÷ portZoom (아이폰 12 → 390, 1배). 위쪽 전장 + 아래쪽 큰 조작 패널(버튼 2줄, 스킬 4칸). */
-    SCREEN: { landZoom: 1.15, landMinH: 300, landMaxH: 450, landMinW: 520, landMaxW: 1100, portZoom: 1, portMinW: 340, portMaxW: 520, portMinH: 560, portMaxH: 1000 },
+         이 게임은 **세로 전용**이다(아이폰의 세로 고정 앱처럼). 세로 화면: 가로 = 화면 가로 ÷ portZoom (아이폰 12 → 390, 1배), 세로는 화면 비율대로.
+         가로 화면·PC: 배치를 바꾸지 않고 기준 크기(refW × refH = 아이폰 12 세로)를 그대로 쓴다 — CSS object-fit: contain 이 가운데에 세워 놓고 좌우는 검은 여백.
+         (2026-11-12 사용자 요청: 가로 배치는 전장이 낮아 답답해서 없앰) */
+    SCREEN: { portZoom: 1, portMinW: 340, portMaxW: 520, portMinH: 560, portMaxH: 1000, refW: 390, refH: 844 },
     WORLD_W: 2000,               // 전장 전체 가로 길이(px). 화면보다 길어서 카메라가 좌우로 움직인다
     LANE_ROWS: [-56, -28, 0, 28, 56],   // 유닛이 서는 세로 줄 5개 (전투 줄 중심에서의 거리)
     UNIT_GAP: 30,                // 줄 서기: 같은 편 앞사람과 벌려 두는 간격(px)
@@ -149,9 +149,9 @@
   P._resize = function () {
     var r = this.cv.getBoundingClientRect(), vw = r.width || root.innerWidth || 800, vh = r.height || root.innerHeight || 450, C = CONFIG, S = C.SCREEN;
     var clamp = function (v, a, b) { return Math.max(a, Math.min(b, Math.round(v))); };
-    this.port = vh > vw * 1.05;                              // 세로 모드인가
-    if (this.port) { this.W = clamp(vw / S.portZoom, S.portMinW, S.portMaxW); this.H = clamp(this.W * vh / vw, S.portMinH, S.portMaxH); }
-    else { this.H = clamp(vh / S.landZoom, S.landMinH, S.landMaxH); this.W = clamp(this.H * vw / vh, S.landMinW, S.landMaxW); }
+    this.port = true;                                        // 늘 세로 배치 (가로 화면이어도 바뀌지 않는다)
+    if (vh > vw * 1.05) { this.W = clamp(vw / S.portZoom, S.portMinW, S.portMaxW); this.H = clamp(this.W * vh / vw, S.portMinH, S.portMaxH); }   // 세로 화면: 화면 비율대로
+    else { this.W = S.refW; this.H = S.refH; }                // 가로 화면·PC: 기준 크기 고정, CSS가 가운데에 세워 놓는다
     this.cv.width = this.W; this.cv.height = this.H;
     this.ctx.imageSmoothingEnabled = false;                  // 도트 그림이 뭉개지지 않게 (크기를 바꾸면 다시 켜지므로 매번 끈다)
     this._layout();                                          // 아래 패널 높이(hudH)가 여기서 정해진다
@@ -165,13 +165,12 @@
   };
 
   /* 버튼 배치. 모든 버튼은 { x, y, w, h } 상자이고, 그리기·누르기 코드는 상자만 본다 — 배치를 바꾸려면 이 함수만 고치면 된다.
-       가로 모드: 아래 한 띠 = 왼쪽 [탭 + 소환 버튼 한 줄] / 오른쪽 [스킬 칸 3개]. 화면이 낮으면(compact) 띠를 납작하게.
-       세로 모드: 아래 패널 = [탭 5칸] → [소환 버튼 한 줄 캐러셀 ◀ 4칸 ▶] → [마법 유닛 칩 + ◀▶] → [스킬 칸 4개] → 하단 여유. 전장을 넓게 남기면서 터치 타깃은 44px 이상.
-     위쪽 표시(기지·마나·수비 / 웨이브 / 진행 막대 / 소리)는 가로가 좁으면(narrow) 웨이브·막대를 오른쪽으로 붙인다 */
+       세로 전용: 아래 패널 = [탭 5칸] → [소환 버튼 한 줄 캐러셀 ◀ 4칸 ▶] → [마법 유닛 칩 + ◀▶] → [스킬 칸 4개] → 하단 여유. 전장을 넓게 남기면서 터치 타깃은 44px 이상.
+     위쪽 표시(기지·마나·수비 / 웨이브 / 진행 막대 / 소리)는 왼쪽 상자 오른쪽에 웨이브와 진행 막대를 붙인다 (가로가 좁으므로) */
   var SAFE = { top: 20, bottom: 24 };   // 게임 안쪽 여유(px): 위쪽 표시가 상태 표시줄 밑에 바싹 붙지 않게, 아래 마지막 줄이 iOS 홈 막대 스와이프 영역과 겹치지 않게 (safe-area 자체는 CSS가 뺀다)
   P._layout = function () {
     var C = CONFIG, W = this.W, H = this.H, n = C.MAX_MAGIC, most = Math.max.apply(null, C.TABS.map(function (t) { return t.ids.length; })), i, y0, lx = 8;
-    if (this.port) {
+    {
       // 세로: [탭 5칸 26] → [소환 버튼 한 줄 64: ◀ 4칸 ▶ 캐러셀] → [마법 유닛 칩 + 마법 N + ◀▶ 22] → [스킬 칸 4개 62] → 하단 여유 24  = 214 (390×844 에서 전장 630)
       var per = 4, g = 6, aw2 = 24, bh = 64, tabH = 26, ch = 22, sh = 62;
       this.slotsVis = 4; this.btnVis = per; this.hudH = 6 + tabH + 4 + bh + 4 + ch + 2 + sh + SAFE.bottom; y0 = H - this.hudH;
@@ -190,30 +189,12 @@
       this.slotPrev = { x: W - 8 - 70, y: hy, w: 33, h: ch }; this.slotNext = { x: W - 8 - 33, y: hy, w: 33, h: ch };
       this.slotStep = sw + g; this.slotArea = { x: lx, y: sy, w: W - 16, h: sh };
       this.slotBoxes = []; for (i = 0; i < this.slotsVis; i++) this.slotBoxes.push({ x: lx + i * (sw + g), y: sy, w: sw, h: sh });
-    } else {
-      var compact = H < 400, sw2 = compact ? 58 : 64, sg = compact ? 5 : 6, th = compact ? 20 : 22, bh2 = compact ? 54 : 68;
-      this.slotsVis = 3; this.btnVis = most; this.btnArea = null; this.btnPrev = this.btnNext = null;   // 가로: 소환 버튼 7칸이 다 보이므로 캐러셀 없음
-      this.hudH = 6 + th + 4 + bh2 + (compact ? 4 : 8); y0 = H - this.hudH;
-      var rx = W - 10 - n * sw2 - (n - 1) * sg, ry = y0 + 6 + th + 4;   // 오른쪽 스킬 패널
-      this.slotBoxes = []; for (i = 0; i < n; i++) this.slotBoxes.push({ x: rx + i * (sw2 + sg), y: ry, w: sw2, h: bh2 });
-      this.skillPanel = { x: rx, y: y0 + 6, w: W - 10 - rx, h: th };
-      this.chipBoxes = []; for (i = 0; i < n; i++) this.chipBoxes.push({ x: rx + i * 34, y: y0 + 6, w: 30, h: th });   // 마법 유닛 칩 (선택·카메라 이동)
-      this.slotStep = sw2 + sg;                              // 칸 하나의 가로 간격 (캐러셀이 한 칸 넘어가는 거리)
-      this.slotArea = { x: rx, y: ry, w: W - 10 - rx, h: bh2 };   // 칸들이 보이는 창
-      this.slotPrev = { x: W - 10 - 54, y: y0 + 6, w: 25, h: th }; this.slotNext = { x: W - 10 - 25, y: y0 + 6, w: 25, h: th };   // ◀ ▶
-      // 왼쪽 소환 패널: 버튼 폭은 "가장 긴 탭(7개)"이 왼쪽 영역에 들어가도록
-      var lw = rx - 16 - lx, gap = 5, bw2 = Math.min(62, Math.floor(lw / most) - gap);
-      this.btnBoxes = []; for (i = 0; i < most; i++) this.btnBoxes.push({ x: lx + i * (bw2 + gap), y: ry, w: bw2, h: bh2 });
-      var tw2 = Math.min(92, Math.floor((lw - 60) / C.TABS.length) - 4);
-      this.tabBoxes = C.TABS.map(function (t, k) { return { x: lx + k * (tw2 + 4), y: y0 + 6, w: tw2, h: th }; });
-      var gx = lx + C.TABS.length * (tw2 + 4) + 4; this.garBtn = { x: gx, y: y0 + 6, w: Math.max(40, Math.min(74, rx - 16 - gx)), h: th };   // [성 배치] 토글
     }
     // 위쪽 표시 (y = SAFE.top)
-    var narrow = W < 600, ty = SAFE.top; this.narrow = narrow;
-    this.topBox = { x: 8, y: ty, w: narrow ? 168 : 200 };
+    var ty = SAFE.top; this.narrow = true;
+    this.topBox = { x: 8, y: ty, w: 168 };
     this.soundBtn = { x: W - 44, y: ty, w: 36, h: 26 };
-    if (narrow) { var wx = this.topBox.x + this.topBox.w + 6; this.waveBox = { x: wx, y: ty, w: W - 44 - 4 - wx, h: 26 }; this.miniBox = { x: wx + 4, y: ty + 32, w: W - 12 - (wx + 4), h: 14 }; }
-    else { this.waveBox = { x: Math.round(W / 2 - 80), y: ty, w: 160, h: 26 }; this.miniBox = { x: Math.round(W / 2 - 120), y: ty + 30, w: 240, h: 14 }; }   // 진행 막대: 전장 전체를 한 줄로
+    var wx = this.topBox.x + this.topBox.w + 6; this.waveBox = { x: wx, y: ty, w: W - 44 - 4 - wx, h: 26 }; this.miniBox = { x: wx + 4, y: ty + 32, w: W - 12 - (wx + 4), h: 14 };   // 진행 막대: 전장 전체를 한 줄로
     this._scrollBtns(0);                                     // 화면이 바뀌면 소환 캐러셀 위치를 범위 안으로
   };
 
@@ -1254,9 +1235,10 @@
   P.start = function () {
     this.reset(); this.screen = 'play';
     if (this.soundOn && !this.bgm.on) { this.bgm.set(0); this.bgm.toggle(); }
-    // 휴대폰: 전체 화면을 시도한다 (지원하지 않는 브라우저에서는 조용히 넘어간다). 가로·세로 어느 쪽으로 들어도 된다
+    // 휴대폰: 전체 화면을 시도한다 (지원하지 않는 브라우저에서는 조용히 넘어간다). 세로 전용
     try { var el = document.documentElement, p = root.matchMedia && root.matchMedia('(pointer: coarse)').matches && el.requestFullscreen ? el.requestFullscreen() : null;
-      if (p && p.catch) p.catch(function () {}); } catch (err) {}
+      var lock = function () { try { var o = root.screen && root.screen.orientation; if (o && o.lock) { var q = o.lock('portrait'); if (q && q.catch) q.catch(function () {}); } } catch (e2) {} };   // 세로 고정 (안드로이드 Chrome 전체 화면에서만 됨, iOS Safari 는 무시)
+      if (p && p.then) p.then(lock, function () {}); else lock(); } catch (err) {}
   };
 
   P.toggleSound = function () { this.soundOn = !this.soundOn; this.sfx.on = this.soundOn; if (this.bgm.on !== this.soundOn && this.screen !== 'title') this.bgm.toggle(); };
