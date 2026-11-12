@@ -50,7 +50,7 @@
     /* 아군 집결선: 아군은 적 기지까지 가지 않고 전장 가운데(x = WORLD_W × at)까지만 나아가 대열을 갖춘다 (디펜스라 적 건물을 칠 일이 없다, 2026-11-12).
        대열 = 세로 줄(rows) × 가로 열. 열 간격 col(px), 맨 앞 열이 집결선. 근접은 앞 열부터, 원거리는 ranged번째 열부터, 지원(공격 없는 유닛)은 support번째 열부터 빈자리를 맡는다.
        집결선에서 zone(px) 안에 들어오면 줄 서기 대신 자기 자리로 곧장 간다 */
-    HOLD: { at: 0.5, col: 38, ranged: 2, support: 4, zone: 330, leash: 70 },   // leash = 근접 유닛이 집결선 너머로 적을 쫓아가는 한도(px). 그보다 먼 적은 올 때까지 기다린다
+    HOLD: { at: 0.5, col: 38, ranged: 2, support: 4, zone: 330, leash: 260 },   // leash = 근접 유닛이 집결선 너머로 적을 쫓아가는 한도(px). 적 원거리 유닛의 사거리(최대 224px)보다 길어야 한다 — 짧으면 사거리 밖에서 맞기만 한다
     UNIT_GAP: 30,                // 줄 서기: 같은 편 앞사람과 벌려 두는 간격(px)
     ROW_NEAR: 18,                // 세로로 이만큼 안이면 "같은 줄"로 본다
     /* 에워싸기(근접 유닛): 적이 engage(px) 안에 들어오면 줄을 풀고 그 적에게 바로 다가가 사방에서 친다.
@@ -97,7 +97,7 @@
        28 해골전사, 29 해골기사 */
     /* 적 마법: 적 마법 유닛(리치·다크로드·사탄·메두사·서큐버스·술사류)도 자기 마법을 스스로 쓴다 — 마나 없이 재사용 대기만.
        cool = 한 번 쓴 뒤 다시 쓰기까지(초), first = 나온 뒤 처음 쓰기까지 [최소, 최대](초). 난이도 조절용: 지금은 길게 둔다 */
-    ENEMY_SKILL: { cool: 30, first: [8, 16] },
+    ENEMY_SKILL: { on: false, cool: 30, first: [8, 16] },   // on = 적이 마법을 쓰는가. 2026-11-12: 아군이 불리해 끔(사용자 요청). 켜면 cool·first 로 빈도 조절
     /* 웨이브: 악령군 전체가 섞여 나온다. [유닛 번호, 수]. 한 웨이브 안에서는 순서를 섞는다(_waveQueue).
        28 해골전사 29 해골기사 30 듀라한 32 유령 33 리치 34 다크로드 35 흡혈귀 36 늑대인간 38 메두사 39 데몬 40 데빌 41 사탄 42 서큐버스
        43 늑대 44 켈베로스 45 펜릴 46 박쥐(공중) 47 드래곤(공중) 48 디아블로 25 악령술사 26 강신술사 27 사술사
@@ -296,7 +296,7 @@
     if (side === 0) { skillsOf(t).forEach(function (a) { self._addSlot(u, a); }); if (u.slots.length) this.magicUnits.push(u); }
     else {                                                   // 적 마법 유닛: 칸은 유닛만 갖고(패널에는 안 나옴) 스스로 쓴다 (_enemyMagic). 변형은 이 게임에서 대응 형태가 없어 뺀다
       var E = C.ENEMY_SKILL; u.auto = true;
-      skillsOf(t).forEach(function (a) { var q = new SkillSlot(u, a); if (q.kind === 'morph') return; q.cdMax = E.cool; q.cd = E.first[0] + self.rng.next() * (E.first[1] - E.first[0]); q.cost = 0; u.slots.push(q); }); }
+      if (E.on) skillsOf(t).forEach(function (a) { var q = new SkillSlot(u, a); if (q.kind === 'morph') return; q.cdMax = E.cool; q.cd = E.first[0] + self.rng.next() * (E.first[1] - E.first[0]); q.cost = 0; u.slots.push(q); }); }
     this.units.push(u);
     return u;
   };
@@ -771,7 +771,7 @@
         return;
       }
       // 원거리 유닛: 가로로는 닿는데 못 쏘는 경우는 없다 (거리를 가로로만 잰다)
-    } else if (adx <= C.SUPPORT_DIST) { u.state = 'idle'; return; }   // 기본 공격이 없는 유닛은 적과 거리를 두고 선다
+    } else if (adx <= C.SUPPORT_DIST && !(u.side === 1 && !u.slots.length)) { u.state = 'idle'; return; }   // 기본 공격이 없는 유닛은 적과 거리를 두고 선다. 단 쓸 마법도 없는 적(적 마법이 꺼져 있을 때의 메두사·사탄·서큐버스)은 서 있어 봐야 판만 길어지므로 계속 걸어온다
     // 전진 한계: 아군은 집결선(전장 가운데), 적은 성 앞 (매혹된 적은 아군 규칙)
     if (u.side === 0 && u.x >= this.frontX - C.HOLD.zone) { this._holdStep(u, dt); return; }   // 집결선 근처: 대열의 자기 자리로 가서 선다
     if (u.side === 1 && u.x <= C.BASE.front) { u.state = 'idle'; return; }
@@ -1155,7 +1155,7 @@
     var title = (last ? '마지막 웨이브' : '웨이브 ' + (b.wave + 1)); ctx.font = 'bold 24px sans-serif'; ctx.lineWidth = 4;
     ctx.strokeText(title, 0, 0); ctx.fillStyle = last ? '#ff8a7a' : '#ffd36e'; ctx.fillText(title, 0, 0); ctx.restore();
     if (F.length) { var figs = this.assets.get('figs'), cw = Math.min(64, Math.floor((W - 16) / F.length)), y = top + 20, i;
-      for (i = 0; i < F.length; i++) { var x = W / 2 + (i - (F.length - 1) / 2) * cw, ty = F[i], magic = skillsOf(ty).some(function (a) { return skillKind(a) !== 'morph'; });
+      for (i = 0; i < F.length; i++) { var x = W / 2 + (i - (F.length - 1) / 2) * cw, ty = F[i], magic = CONFIG.ENEMY_SKILL.on && skillsOf(ty).some(function (a) { return skillKind(a) !== 'morph'; });
         ctx.drawImage(figs, ty.pid * 36, 0, 36, 43, Math.round(x - 11), y, 22, 26);
         ctx.font = '9px sans-serif'; ctx.lineWidth = 3; var nm = this._fit(ty.name, cw - 2); ctx.strokeText(nm, x, y + 33); ctx.fillStyle = magic ? '#ff8a7a' : '#dfe6f5'; ctx.fillText(nm, x, y + 33); } }   // 마법을 쓰는 적은 이름이 붉다
     ctx.textAlign = 'left'; ctx.restore();
