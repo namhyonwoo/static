@@ -103,6 +103,10 @@
     /* 자폭 (좀비, 원본 행동 39 — 자기 둘레 범위 피해를 주고 자신은 죽는다): 맞은편 유닛이 radius 안에 min 기 이상 붙었거나, 체력이 hp 비율 아래로 떨어졌는데 하나라도 붙어 있으면 터진다.
        멈춤(석화) 중에는 못 터진다 → 턴 언데드로 먼저 잡으면 막을 수 있다. 피해 = 원본 공식(k1 32·k2 26) × dmgMul. 2026-11-13 */
     BOOM: { radius: 62, min: 2, hp: 0.45, dmgMul: 1 },
+    /* 아군 AI (2026-11-13 사용자 요청):
+       ① 물러서기: 전장 가운데 집결선(frontX)을 pullOver px 넘게 넘어간 아군이 적 pullMin(2)기 이상에게 맞고 있으면 pullSec 초 동안 집결선 뒤로 돌아온다 — 전선을 뒤로 당긴다.
+       ② 교대: 난전 중 체력이 coverHp(50%) 이하로 떨어진 근접 아군은 가까이(coverDist px 안) 있는 멀쩡한 근접 아군의 뒤(coverBack px)로 물러난다. 거기서도 적이 닿으면 싸운다. 회복해서 체력이 coverHp 를 넘으면 다시 앞으로 */
+    AI: { pullOver: 10, pullMin: 2, pullSec: 1.5, coverHp: 0.5, coverDist: 150, coverBack: 34, engage: 130 },
     FLEE_SEC: 2.2, FLEE_SPEED: 1.3,   // 공격 없는 아군이 맞았을 때 물러나는 시간(초)과 걸음 배수 (2026-11-13 사용자 요청)
     SUPPORT_DIST: 210,           // 기본 공격이 없는 유닛(성직자·소환사 등)이 적과 벌려 두는 거리(px)
     /* friendlyFire: 범위 안의 아군(시전자 포함)도 같은 피해를 입는 마법 (2026-11-13 사용자 요청 — 가장 센 범위 마법이라 쓸 자리를 가려야 한다) */
@@ -1000,6 +1004,17 @@
     }
 
     var tgt = this._nearestFoe(u), dist = tgt ? this._dist(u, tgt) : Infinity, adx = tgt ? Math.abs(tgt.x - u.x) : Infinity;
+    if (u.side === 0 && u.act && !u.castOrder) {              // 아군 AI: 물러서기와 교대 (CONFIG.AI)
+      var AI = C.AI, T0 = this.time;
+      if (u.x > this.frontX + AI.pullOver && this._attackers(u) >= AI.pullMin) u.pullUntil = T0 + AI.pullSec;          // ① 집결선 너머에서 둘 이상에게 맞는다 → 물러선다
+      if (u.pullUntil > T0) { if (u.x > this.frontX - 6) { u.x -= Math.min(u.x - (this.frontX - 6), this._speed(u) * dt); u.state = 'move'; u.walkT += dt; this._faceVec(u, -1, 0); u.hold = null; u.slotOf = null; u.slotA = null; u.passY = null; return; } u.pullUntil = 0; }
+      if (u.rangePx < 80 && !u.hero && u.hp <= u.maxHp * AI.coverHp && adx <= AI.engage) {                             // ② 다친 근접 유닛 → 멀쩡한 근접 아군 뒤로
+        var cv = this._coverFor(u);
+        if (cv) { var cx2 = cv.x - AI.coverBack, cy2 = cv.y, cd2 = Math.hypot(cx2 - u.x, cy2 - u.y);
+          if (cd2 > 5) { var cs = Math.min(cd2, this._speed(u) * dt); u.x += (cx2 - u.x) / cd2 * cs; u.y += (cy2 - u.y) / cd2 * cs; u.state = 'move'; u.walkT += dt; this._faceVec(u, cx2 - u.x, cy2 - u.y); u.hold = null; u.slotOf = null; u.slotA = null; u.passY = null; return; }
+          if (dist > u.rangePx) { u.state = 'idle'; this._look(u, 1); return; } }                                      // 뒤에 섰다: 적이 닿지 않으면 기다린다 (닿으면 아래에서 싸운다)
+      }
+    }
     if (u.act) {
       // 공격할 대상: 맞은편 유닛 중 가장 가까운 것. 적은 대상이 없으면 기지를 친다
       var baseDist = u.side === 1 ? u.x - C.BASE.front : Infinity;
@@ -1259,6 +1274,15 @@
     u.act = keep; this._addEffect(u.x, u.y - 10, a.arm, 0); this._say(u.x, u.y - u.t.h - 18, a.name, u.side === 0 ? '#ffd36e' : '#ff8a7a'); this._play(a.snd, 0.9);
     this._damage(u, u.hp + 1);                              // 자신은 죽는다
     return true;
+  };
+  /* u 를 지금 노리고 있는 적의 수 (공격 동작 중이거나 방금 쳐서 다음 공격을 기다리는 적) */
+  P._attackers = function (u) { var n = 0, L = this.units; for (var i = 0; i < L.length; i++) { var o = L[i]; if (o.side !== u.side && o.state !== 'dead' && o.tgt === u && (o.state === 'attack' || o.cd > 0)) n++; } return n; };
+  /* 다친 근접 유닛 u 가 뒤에 설 아군: 가까이 있는 근접 아군 중 체력이 넉넉한(coverHp 넘는) 가장 가까운 유닛. 없으면 null (그 자리에서 싸운다) */
+  P._coverFor = function (u) {
+    var AI = CONFIG.AI, best = null, bd = AI.coverDist, L = this.units;
+    for (var i = 0; i < L.length; i++) { var o = L[i]; if (o === u || o.side !== u.side || o.state === 'dead' || !o.act || o.rangePx >= 80 || o.hp <= o.maxHp * AI.coverHp || o.x < u.x - 40) continue;
+      var d = Math.hypot(o.x - u.x, o.y - u.y); if (d < bd) { bd = d; best = o; } }
+    return best;
   };
   /* 적 u 가 때릴 벙커: 유닛이 들어 있고 부서지지 않은 벙커 중, u 와 같은 쪽(위쪽 벙커 = 전투 줄 위쪽 절반, 아래쪽 = 아래쪽 절반)이고 가로로 사거리 안에 든 것. 이미 지나쳐 간 벙커는 돌아보지 않는다 */
   P._fortFor = function (u) {
