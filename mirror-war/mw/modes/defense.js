@@ -89,16 +89,23 @@
        사거리 = (4000 + 건물 사거리 보정 × 10) × RANGE_SCALE,  피해 = 원본 피해 공식 + 성 안 유닛들의 건물 공격 보너스 합 */
     /* 벙커 (2026-11-13): 성과 전장 가운데 사이의 길목에 세운 원작 방어 건물 2개. 성처럼 눌러서 고른 동안 소환하면 그 안에 들어가 쏜다(원본 건물 사격 규칙 8-35).
        x = 건물 기준점의 가로 위치, cap = 수용 인원. 전투 줄을 막지 않게 맨 윗줄 위(up px)에 세운다. 부서지지 않고 적은 건드리지 않는다(1차 — 재미를 확인한 뒤 체력을 넣을지 정한다) */
-    FORTS: [{ key: 'fort1', name: '타워', x: 470, cap: 2, at: 'top' }, { key: 'fort2', name: '방어기지', x: 730, cap: 2, at: 'bottom' }], FORT_UP: 20, FORT_DOWN: 8,   // at: 'top' = 맨 윗줄 위(FORT_UP px), 'bottom' = 전장 맨 아래(패널 위 FORT_DOWN px). 2026-11-13: 위 하나·아래 하나로 (사용자 요청) — 키 큰 타워가 위, 낮은 방어기지가 아래
-    GAR_MAX: 4,                  // 성에 넣을 수 있는 수비 인원 (원본 성의 수용 인원 8보다 적게 — 사용자 요청)
+    FORTS: [{ key: 'fort1', name: '타워', x: 470, cap: 4, hp: 350, at: 'top' }, { key: 'fort2', name: '방어기지', x: 730, cap: 4, hp: 350, at: 'bottom' }], FORT_UP: 20, FORT_DOWN: 8,
+    /* 2026-11-13 2차: 벙커에 체력(hp). 유닛이 든 벙커는 적의 어그로를 끈다 — 위쪽 벙커는 전투 줄 위쪽 절반의 적, 아래쪽 벙커는 아래쪽 절반의 적이 지나가다 멈춰서 때린다(빈 벙커는 지나친다).
+       체력이 0이 되면 부서지고 안의 유닛이 밖으로 나온다(그 판에서는 다시 못 쓴다). 수용 인원: 벙커 4명, 성 GAR_MAX(8)명 */   // at: 'top' = 맨 윗줄 위(FORT_UP px), 'bottom' = 전장 맨 아래(패널 위 FORT_DOWN px). 2026-11-13: 위 하나·아래 하나로 (사용자 요청) — 키 큰 타워가 위, 낮은 방어기지가 아래
+    GAR_DEF_MIN: 0.3,            // 성 수비대의 방어 보너스로 피해를 줄여도 원래 피해의 이 비율은 받는다
+    GAR_MAX: 8,                  // 성에 넣을 수 있는 수비 인원 (원본 성의 수용 인원 8보다 적게 — 사용자 요청)
     GARRISON: { tps: 12, shotSpeed: 420, classes: { 4: { act: 4, from: 4, mod: 24, step: 1, deploy: 5, loop: 16 }, 0: { act: 15, from: 12, mod: 40, step: 4, deploy: 10, loop: 10 } } },
     /* 아군 마법 유닛(스킬이 있는 유닛)은 공격 유닛에 바짝 붙는다 (2026-11-13 사용자 요청: 강화를 걸어 줄 유닛이 너무 뒤에 선다).
        rangeMul = 기본 공격 사거리에 곱하는 값(정령사·마법사·장로는 210px 밖에서 쏘며 서 있었다 → 약 115px), supportDist = 기본 공격이 없는 아군(성령사·사제·연금술사·공주)이 적과 두는 거리 */
     CASTER: { rangeMul: 0.55, supportDist: 110 },
+    /* 자폭 (좀비, 원본 행동 39 — 자기 둘레 범위 피해를 주고 자신은 죽는다): 맞은편 유닛이 radius 안에 min 기 이상 붙었거나, 체력이 hp 비율 아래로 떨어졌는데 하나라도 붙어 있으면 터진다.
+       멈춤(석화) 중에는 못 터진다 → 턴 언데드로 먼저 잡으면 막을 수 있다. 피해 = 원본 공식(k1 32·k2 26) × dmgMul. 2026-11-13 */
+    BOOM: { radius: 62, min: 2, hp: 0.45, dmgMul: 1 },
+    FLEE_SEC: 2.2, FLEE_SPEED: 1.3,   // 공격 없는 아군이 맞았을 때 물러나는 시간(초)과 걸음 배수 (2026-11-13 사용자 요청)
     SUPPORT_DIST: 210,           // 기본 공격이 없는 유닛(성직자·소환사 등)이 적과 벌려 두는 거리(px)
     /* 스킬은 전체 마나를 쓴다 (소환과 같은 마나) + 짧은 재사용 대기 cool(초). 값 = 원본 행동 마나 × costMul 을 5 단위로, 종류별 [최소, 최대] 안으로 자른다 (COST)
        — 원본은 유닛마다 마나통이 따로라 값을 그대로 쓸 수 없어 비율만 가져온다. 2026-11-12: 쿨타임만 돌던 방식에서 바꿈 (공짜라 강화를 상시 돌리던 문제) */
-    SKILL: { charmMax: 3, cool: 3, costMul: 0.4, COST: { blast: [40, 70], buff: [20, 30], heal: [15, 40], haste: [60, 60], weaken: [20, 25], stun: [35, 50], recall: [40, 40], charm: [50, 60], assassin: [40, 40], morph: [20, 20] }, radius: 95, buffRadius: 170, dmgMul: 2, healRatio: 0.5, stunSec: 6, firstWait: 2, hasteMul: 1.5, maxCast: 320, walkSec: 45, buffSec: 7, buffMax: 2, tierBase: 100, tierPer: 0.004 },   // maxCast = 시전 거리 한도(px). 원본 사거리가 무제한(65535)인 마법도 이 안에 대상이 있어야 한다   // 스킬 공통 수치 (목업 값)
+    SKILL: { charmMax: 3, cool: 3, costMul: 0.4, COST: { blast: [40, 70], buff: [20, 30], heal: [15, 40], haste: [60, 60], weaken: [20, 25], stun: [35, 50], recall: [40, 40], charm: [50, 60], assassin: [40, 40], morph: [20, 20] }, radius: 95, buffRadius: 170, dmgMul: 2, healRatio: 0.5, stunSec: 6, stunBase: 112, firstWait: 2, hasteMul: 1.5, maxCast: 320, walkSec: 45, buffSec: 7, buffMax: 2, summonRadius: 140, undeadDmg: { '턴 언데드': 80, '디스트로이 언홀리': 140 }, tierBase: 100, tierPer: 0.004 },   // maxCast = 시전 거리 한도(px). 원본 사거리가 무제한(65535)인 마법도 이 안에 대상이 있어야 한다   // 스킬 공통 수치 (목업 값)
     /* 소환 패널의 탭: 해방부대 전체(원본 유닛 번호 0~24)를 네 묶음으로 나눈다 */
     TABS: [
       { name: '근접', ids: [0, 1, 2, 3, 6, 7, 8] },          // 전사 기사 창기사 성기사 창검사 격투가 무도가
@@ -125,20 +132,20 @@
     /* 웨이브: 악령군 전체가 섞여 나온다. [유닛 번호, 수]. 한 웨이브 안에서는 순서를 섞는다(_waveQueue).
        28 해골전사 29 해골기사 30 듀라한 32 유령 33 리치 34 다크로드 35 흡혈귀 36 늑대인간 38 메두사 39 데몬 40 데빌 41 사탄 42 서큐버스
        43 늑대 44 켈베로스 45 펜릴 46 박쥐(공중) 47 드래곤(공중) 48 디아블로 25 악령술사 26 강신술사 27 사술사
-       (좀비 31·도펠갱거 37은 기본 공격이 없어 서 있기만 해서 뺐다) */
+       31 좀비: 기본 공격 표시가 없는 '핸드 밤'으로 친다(basicAct 보정) — 2026-11-13 추가(웨이브 2·3·5·6·7·9, 해골전사 자리를 일부 대신). 도펠갱거 37은 공격이 없어 뺐다 */
     /* 웨이브 진행 (2026-11-13 절충안): 그 웨이브의 적이 다 나온 뒤, 쉬는 시간(rest)이 지났고 **남은 적이 left 기 이하**이면 다음 웨이브. 적을 못 줄여도 maxWait 초가 지나면 넘어간다. 전멸하면 바로.
        전에는 쉬는 시간만 지나면 무조건 넘어가서, 한 번 밀리면 웨이브가 겹쳐 60~80기가 쌓이고 그대로 끝났다 (README 103) */
     WAVE_PACE: { left: 10, maxWait: 40 },
     WAVES: [   // 2026-11-12: 성장 시스템으로 너무 쉬워져 웨이브당 적 수를 늘리고(108 → 378기) 10단계로. 8·9·10 웨이브는 적도 마법을 쓴다 (ENEMY_SKILL.fromWave)
       { list: [[28, 6]], gap: 1.6, rest: 6 },
-      { list: [[28, 7], [43, 3]], gap: 1.3, rest: 6 },
-      { list: [[28, 8], [43, 3], [32, 3], [25, 1]], gap: 1.1, rest: 7 },
+      { list: [[28, 5], [31, 2], [43, 3]], gap: 1.3, rest: 6 },
+      { list: [[28, 6], [31, 2], [43, 3], [32, 3], [25, 1]], gap: 1.1, rest: 7 },
       { list: [[28, 11], [29, 4], [46, 6], [35, 2], [39, 4], [33, 1]], gap: 0.9, rest: 7 },
-      { list: [[28, 11], [29, 6], [36, 4], [40, 4], [26, 1], [38, 1], [44, 2], [48, 2]], gap: 0.8, rest: 8 },
-      { list: [[28, 14], [29, 6], [30, 4], [45, 4], [34, 1], [42, 1], [46, 6], [33, 2], [36, 4]], gap: 0.7, rest: 8 },
-      { list: [[28, 14], [29, 8], [30, 4], [44, 4], [34, 2], [41, 1], [27, 1], [47, 1], [48, 4], [38, 1], [40, 6]], gap: 0.6, rest: 8 },
+      { list: [[28, 8], [31, 3], [29, 6], [36, 4], [40, 4], [26, 1], [38, 1], [44, 2], [48, 2]], gap: 0.8, rest: 8 },
+      { list: [[28, 11], [31, 3], [29, 6], [30, 4], [45, 4], [34, 1], [42, 1], [46, 6], [33, 2], [36, 4]], gap: 0.7, rest: 8 },
+      { list: [[28, 10], [31, 4], [29, 8], [30, 4], [44, 4], [34, 2], [41, 1], [27, 1], [47, 1], [48, 4], [38, 1], [40, 6]], gap: 0.6, rest: 8 },
       { list: [[28, 14], [29, 8], [30, 6], [45, 4], [33, 4], [25, 2], [35, 4], [39, 6], [46, 6], [42, 2]], gap: 0.6, rest: 9 },
-      { list: [[28, 17], [29, 10], [30, 6], [44, 4], [45, 4], [34, 4], [26, 2], [27, 2], [47, 2], [48, 6], [40, 6], [38, 2]], gap: 0.55, rest: 9 },
+      { list: [[28, 13], [31, 4], [29, 10], [30, 6], [44, 4], [45, 4], [34, 4], [26, 2], [27, 2], [47, 2], [48, 6], [40, 6], [38, 2]], gap: 0.55, rest: 9 },
       { list: [[28, 17], [29, 11], [30, 8], [36, 6], [34, 4], [41, 2], [27, 2], [33, 4], [47, 4], [48, 7], [45, 6], [42, 2], [39, 6]], gap: 0.5, rest: 0 }
     ]
   };
@@ -281,9 +288,9 @@
     this.selBase = false;        // 성을 골랐는가. 고른 동안에는 소환 버튼이 유닛을 전장 대신 성에 넣고(성 배치), 수비대가 있으면 [퇴각] 팻말이 뜬다.
                                  // 2026-11-13: 따로 있던 [성 배치] 토글(garOn)을 없애고 성 선택으로 합쳤다 — 켜 둔 줄 모르고 계속 성에만 넣는 일을 막는다
     // 수비 건물: 성(자리 0) + 벙커. garrison = 안의 유닛 { r(소환 목록 항목), u(피해 계산용 Unit), cls, bonus } — 순서 = 자리 번호. weapons = 건물 무기 상태(phase -1 없음 / 0 전개 중 / 2 가동, c = 그림 카운터)
-    var D0 = this.bld, self0 = this, mk = function (key, name, B, x, yOf, cap) { var f = { key: key, name: name, B: B, x: x, cap: cap, garrison: [], weapons: { 0: { phase: -1, c: 0 }, 4: { phase: -1, c: 0 } } }; Object.defineProperty(f, 'y', { get: yOf }); return f; };   // y 는 그때그때 계산 (화면 크기가 바뀌면 전투 줄 위치가 바뀐다)
+    var D0 = this.bld, self0 = this, mk = function (key, name, B, x, yOf, cap) { var f = { key: key, name: name, B: B, x: x, cap: cap, garrison: [], weapons: { 0: { phase: -1, c: 0 }, 4: { phase: -1, c: 0 } }, isFort: key !== 'base', hp: 0, maxHp: 0, dead: false, hit: 0 }; Object.defineProperty(f, 'y', { get: yOf }); return f; };   // y 는 그때그때 계산 (화면 크기가 바뀌면 전투 줄 위치가 바뀐다)
     this.forts = []; if (D0.base) this.forts.push(mk('base', '성', D0.base, C.BASE.x, function () { return self0.laneY + 44; }, Math.min(C.GAR_MAX, D0.base.cap)));
-    for (var fi = 0; fi < C.FORTS.length; fi++) { var fc = C.FORTS[fi]; if (D0[fc.key]) (function (fc) { var f = mk(fc.key, fc.name, D0[fc.key], fc.x, fc.at === 'bottom' ? function () { return self0.H - self0.hudH - C.FORT_DOWN; } : function () { return self0.laneY + self0.rows[0] - C.FORT_UP; }, Math.min(fc.cap, D0[fc.key].cap)); f.at = fc.at; self0.forts.push(f); })(fc); }
+    for (var fi = 0; fi < C.FORTS.length; fi++) { var fc = C.FORTS[fi]; if (D0[fc.key]) (function (fc) { var f = mk(fc.key, fc.name, D0[fc.key], fc.x, fc.at === 'bottom' ? function () { return self0.H - self0.hudH - C.FORT_DOWN; } : function () { return self0.laneY + self0.rows[0] - C.FORT_UP; }, Math.min(fc.cap, D0[fc.key].cap)); f.at = fc.at; f.hp = f.maxHp = fc.hp; self0.forts.push(f); })(fc); }
     this.selFort = null;
     this.garTick = 0;            // 마지막으로 처리한 사격 틱
     this.slotFirst = 0; this.slotPos = 0; this.slotView = []; this.groups = [];   // 캐러셀: 맨 왼쪽에 보이는 칸 번호, 넘기는 동작용 현재 위치
@@ -321,10 +328,10 @@
   function garInfo(id) {
     var d = root.MW_DEF && root.MW_DEF.units && root.MW_DEF.units[id]; if (!d) return null;
     var cls = CONFIG.GARRISON.classes[d.cls] ? d.cls : -1;
-    return cls >= 0 || d.bonus > 0 ? { cls: cls, bonus: d.bonus } : null;
+    return cls >= 0 || d.bonus > 0 || d.def > 0 ? { cls: cls, bonus: d.bonus, def: d.def || 0 } : null;   // def = 건물 방어 보너스 (원본 unitdata +0x2B6: 전사·기사 계열)
   }
 
-  function basicAct(t) { var a = t.ai >= 0 ? t.acts[t.ai] : null; return a && a.isAtk == 1 ? a : null; }
+  function basicAct(t) { var a = t.ai >= 0 ? t.acts[t.ai] : null; return a && (a.isAtk == 1 || (a.dmg && !a.suicide && !a.mana && !a.aoe)) ? a : null; }   // 좀비의 핸드 밤처럼 '공격' 표시는 없지만 마나 없이 치는 단일 피해 행동도 기본 공격으로 본다
 
   /* 적이 나올 줄 번호: 지금 무리(pack)의 띠 안에서 고른다. 무리가 다 나오면 다른 띠로 새 무리를 시작한다 */
   P._packRow = function () {
@@ -372,7 +379,8 @@
     u.headY = (f0 ? Math.max(t.h, f0[5]) : t.h) - u.drop;
     u.air = t.fly === 2;                                     // 공중 유닛(엔젤 나이트): 줄 서기 없이 아군 위를 지나간다 — 원본도 공중 유닛은 충돌이 없다
     u.act = basicAct(t);
-    u.rangePx = (u.act ? u.act.range : 0) * C.RANGE_SCALE;
+    u.boom = t.acts.filter(function (a) { return a.suicide && a.dmg; })[0] || null;   // 자폭 행동이 있는 유닛(좀비)
+    u.rangePx = (u.act ? u.act.range : 0) * C.RANGE_SCALE; if (u.act && u.rangePx < 36) u.rangePx = 36;   // 핸드 밤(사거리 100 → 7px)처럼 너무 짧으면 닿을 수 없다 → 근접 최소 거리
     if (u.rangePx >= 80) u.rangePx *= u.rangeK;              // 원거리: 유닛마다 조금씩 다른 거리에서 멈춘다
     var caster = u.side === 0 && !u.hero && skillsOf(t).length > 0;
     if (caster && u.rangePx >= 80) u.rangePx = Math.max(80, u.rangePx * C.CASTER.rangeMul);   // 아군 마법 유닛은 앞줄 가까이에서 쏜다
@@ -405,7 +413,7 @@
   P.summon = function (i) {
     var r = this.roster[this.tab][i]; if (!r || this.screen !== 'play') return false;
     var why = this.canSummon(r);
-    if (why) { var msg = why === 'max' ? '마법 유닛은 ' + CONFIG.MAX_MAGIC + '기까지' : why === 'nogar' ? '성에 배치할 수 없는 유닛' : why === 'full' ? '성이 가득 찼습니다' : '';
+    if (why) { var msg = why === 'max' ? '마법 유닛은 ' + CONFIG.MAX_MAGIC + '기까지' : why === 'nogar' ? '건물에 배치할 수 없는 유닛' : why === 'castle' ? '방어 보너스 유닛은 성에만 배치' : why === 'full' ? '성이 가득 찼습니다' : '';
       if (msg) this._say(this.cam.x + this.W / 2, this.laneY - 120, msg, '#ffb36a'); return false; }
     this.mana -= r.cost; r.wait = r.cd;
     if (this.selBase) { this._garrison(r); return true; }
@@ -420,16 +428,18 @@
   /* 성 안 유닛들의 건물 공격 보너스 합 (원본 건물 +0x30 = Σ unitdata +0x2B4) */
   P.garBonus = function (f) { return (f || this._fort()).garrison.reduce(function (n, m) { return n + m.bonus; }, 0); };
   /* 성의 사거리(px): 원본 4000 + BuildingData[+0x1C] × 10 (0.1px 단위) → 이 게임 배수로 */
+  /* 건물 방어 보너스 합 (원본 unitdata +0x2B6 — 전사·기사 계열이 건물에 들어가면 방어가 오른다, 분석 8-42). 디펜스에서는 성이 받는 피해에서 뺀다 (_hitBase) */
+  P.garDef = function (f) { return (f || this._fort()).garrison.reduce(function (n, m) { return n + (m.def || 0); }, 0); };
   P.garRange = function (f) { return (4000 + (f || this._fort()).B.rangeAdd * 10) * CONFIG.RANGE_SCALE; };
 
   /* 유닛을 성에 넣는다. 무기 등급이 있는 유닛이 처음 들어오면 그 등급의 무기가 전개되기 시작한다 */
   P._garrison = function (r) {
     var G = CONFIG.GARRISON, g = r.gar, u = new MWE.Unit(r.t, 0, 0, 0), k = G.classes[g.cls];
     if (k) { u.act = this.types[k.from].acts.filter(function (a) { return a.id === k.act; })[0]; var w = this.weapons[g.cls]; if (w.phase < 0) { w.phase = 0; w.c = 0; } }   // 건물에서는 등급의 행동으로 쏜다 (명궁·창검사도 활 쏘기)
-    this.garrison.push({ r: r, u: u, cls: g.cls, bonus: g.bonus });
+    this.garrison.push({ r: r, u: u, cls: g.cls, bonus: g.bonus, def: g.def || 0 });
     this._play(r.t.snd.ready, 0.8);
     var F = this._fort(), o = this._bldOrigin(F.B, F.x, F.y);
-    this._say(o[0] + F.B.center[0], Math.min(F.y, this.laneY) - 150, r.t.name + ' ' + F.name + ' 배치' + (g.bonus ? '  (사격 +' + g.bonus + ')' : ''), '#ffe9b0');
+    this._say(o[0] + F.B.center[0], Math.min(F.y, this.laneY) - 150, r.t.name + ' ' + F.name + ' 배치' + (g.bonus ? '  (사격 +' + g.bonus + ')' : '') + (g.def ? '  (방어 +' + g.def + ')' : ''), '#ffe9b0');
   };
   function C_BASE_X() { return CONFIG.BASE.x; }
 
@@ -469,7 +479,7 @@
     this.readyAt = 0;                                        // 쿨타임이 끝난 시각 (패널에서 앞에 설 순서를 정한다)
     this.vi = null;                                          // 패널에서 지금 그려지는 자리 (순서가 바뀌면 그 자리로 미끄러져 간다)
     this.kind = skillKind(act);
-    this.aimed = this.needsFoe() || this.kind === 'recall';   // 적에게 쓰는 마법과 리콜만 지점을 찍는다. 강화·회복·가속은 누르면 바로   // 리콜도 불러올 곳을 찍는다                            // 적에게 쓰는 마법은 누르면 바로 나가지 않고 전장에서 지점을 찍는다 (아군·자기에게 쓰는 마법은 즉시)
+    this.aimed = this.needsFoe() || this.kind === 'recall' || this.kind === 'haste' || act.sup === 'massheal';   // 지점을 찍는 마법: 적에게 쓰는 것, 리콜, 그리고 넓은 범위의 소환 마법(말다 소환 = 범위 회복, 케멘 소환 = 범위 가속 — 2026-11-13 사용자 요청, 원본도 땅을 찍는 마법). 강화·힐링은 누르면 바로   // 리콜도 불러올 곳을 찍는다                            // 적에게 쓰는 마법은 누르면 바로 나가지 않고 전장에서 지점을 찍는다 (아군·자기에게 쓰는 마법은 즉시)
     var lim = CONFIG.SKILL.COST[this.kind] || [20, 60];
     this.cost = Math.max(lim[0], Math.min(lim[1], Math.round(act.mana * CONFIG.SKILL.costMul / 5) * 5));   // 쓸 때 드는 마나
   }
@@ -497,6 +507,9 @@
   /* 범위 공격 마법의 등급 배수 (2026-11-13): 원본 마나 소모가 큰 상위 마법일수록 세다 — 1 + (원본 마나 − tierBase) × tierPer, 1 밑으로는 안 내려간다.
      라이트닝 썬더(100) ×1.0, 나르 소환(150) ×1.2, 홀리 크로스(180) ×1.32, 12 리플렉터스 소환(250) ×1.6. 전에는 등급과 무관하게 피해가 비슷해 비싼 마법 유닛을 뽑을 이유가 약했다. 아군만 */
   function blastTier(a) { var S = CONFIG.SKILL; return Math.max(1, 1 + ((a.mana || 0) - S.tierBase) * S.tierPer); }
+  /* 멈춤(석화) 시간(초): 기본 stunSec. 종족을 가리는 석화 마법은 원본 지속의 비율을 따른다 — 턴 언데드 112틱을 기준(stunSec 6초)으로 디스트로이 언홀리 160틱 → 약 8.6초.
+     원본 그대로(9.3초 / 13.3초)는 너무 길어 비율만 가져왔다 (2026-11-13 사용자 선택) */
+  function stunSecOf(a) { var S = CONFIG.SKILL; return a.races && a.dur ? +(S.stunSec * a.dur / S.stunBase).toFixed(1) : S.stunSec; }
   /* 그 종류가 가진 마법 목록: 기본 공격이 아니고, 마나를 쓰고(방패 막기 같은 몸동작 제외), 효과를 구현한 행동 */
   function skillsOf(t) { return t.acts.filter(function (a) { return a.isAtk != 1 && a.mana > 0 && skillKind(a) && !CONFIG.SKILL_OFF[a.name]; }); }
 
@@ -588,7 +601,7 @@
   /* 지점 지정 마법의 시전 거리(px): 시전자에서 이 가로 거리 안의 지점만 찍을 수 있다 */
   P.aimReach = function (s) { return s.kind === 'recall' ? CONFIG.WORLD_W : Math.min(CONFIG.SKILL.maxCast, s.act.range * CONFIG.RANGE_SCALE); };   // 리콜은 원본처럼 거리 제한 없음
   /* 지점 지정 마법의 효과 반경(px) — 그리기와 판정이 같은 값을 쓴다 */
-  P.aimRadius = function (s) { var S = CONFIG.SKILL, k = 1 + (this.radiusUp || 0); return s.kind === 'buff' ? 22 : s.kind === 'recall' ? 120 : s.kind === 'blast' ? (s.act.aoe ? S.radius * k : 60) : s.kind === 'charm' ? S.radius * 0.7 : s.kind === 'assassin' ? 45 : S.radius * k; };   // radiusUp = "마법 확산" 카드
+  P.aimRadius = function (s) { var S = CONFIG.SKILL, k = 1 + (this.radiusUp || 0); return s.kind === 'haste' || s.act.sup === 'massheal' ? S.summonRadius : s.kind === 'buff' ? 22 : s.kind === 'recall' ? 120 : s.kind === 'blast' ? (s.act.aoe ? S.radius * k : 60) : s.kind === 'charm' ? S.radius * 0.7 : s.kind === 'assassin' ? 45 : S.radius * k; };   // radiusUp = "마법 확산" 카드
   /* 조준 중 전장을 눌렀다 (2026-11-12 "걸어가서 쓰기"로 바꿈): 찍은 곳에 가장 가까운 준비된 유닛이 쓴다.
      시전 거리 안이면 바로, 밖이면 **닿는 곳까지 걸어가서** 쓴다(u.castOrder → _castWalk). 시전 거리 제한으로 못 찍는 곳은 없다 —
      다만 유닛은 전장 가운데(집결선 frontX)를 넘어 적 진영으로 들어가지 못하므로, 가운데에서도 닿지 않는 곳(frontX + 시전 거리 너머)은 찍을 수 없다 */
@@ -683,7 +696,7 @@
         if (this._recallable(u)) { if (d < bd) { bd = d; best = u; } } else if (!plain) plain = u; } }
     if (best) { this.selBase = false; this._selectUnit(best); return; }
     this.sel = null;
-    if (!plain) for (var fi = this.forts.length - 1; fi >= 0; fi--) { var F = this.forts[fi], bb = this._baseBox(F); if (bb && inBox(bb, x, y)) { this.selectFort(this.selFort === F ? null : F); return; } }   // 성·벙커를 누름: 고르기/풀기 (벙커 먼저 — 성 그림이 넓다)
+    if (!plain) for (var fi = this.forts.length - 1; fi >= 0; fi--) { var F = this.forts[fi], bb = F.dead ? null : this._baseBox(F); if (bb && inBox(bb, x, y)) { this.selectFort(this.selFort === F ? null : F); return; } }   // 성·벙커를 누름: 고르기/풀기 (벙커 먼저 — 성 그림이 넓다)
     this.selBase = false;
     if (plain) this._say(wx, y - 12, '마법 유닛만 회수할 수 있습니다', '#c9d1e3');
   };
@@ -767,12 +780,18 @@
     } else if (s.kind === 'blast' && foe) {                         // 가장 가까운 적을 중심으로 범위 피해 (원본 피해 공식 × dmgMul)
       var keep = u.act; u.act = a;
       foesAt(foe, a.aoe ? S.radius * (u.side === 0 ? 1 + this.radiusUp : 1) : 60).forEach(function (o) { self._damage(o, self.rules.damage(u, o, self.rng) * S.dmgMul * (u.side === 0 ? (1 + self.dmgUp) * blastTier(a) : 1)); });
+      var HO = MWE.OriginalRules.HOLY;
+      if (HO && a.arm === HO.arm) {                          // 홀리 크로스 (원본 case 0x10, 분석 8-43): 범위 안의 아군은 회복 + 상태 이상 해제, 언데드 적은 석화
+        var hr = S.radius * (u.side === 0 ? 1 + this.radiusUp : 1), hv = this.rules.attackValue(u) + HO.heal;
+        this.units.forEach(function (o) { if (o.state === 'dead' || Math.hypot(o.x - foe.x, o.y - foe.y) > hr) return;
+          if (o.side === u.side) { var got = Math.min(o.maxHp - o.hp, hv); o.hp += got; if (got > 0) self._say(o.x, o.y - o.t.h - 6, '+' + got, '#8fe89a'); o.stunUntil = 0; delete o.buffs.meltw; delete o.buffs.melta; }
+          else if (o.t.race === HO.race && !o.t.immune) { o.stunUntil = Math.max(o.stunUntil || 0, self.time + HO.stoneTicks / tps); o.state = 'idle'; delete o.buffs.weapon; delete o.buffs.shield; delete o.buffs.haste; } }); }
       u.act = keep; this._addEffect(foe.x, foe.y, a.arm, 0); this.flash = 0.2; ok = true;
     } else if (s.kind === 'heal') {                          // 주변 아군 회복. 말다 소환(massheal)은 더 넓게, 전부 회복
-      var mass = a.sup === 'massheal';
-      allies(mass ? S.buffRadius * 1.5 : S.buffRadius).forEach(function (o) { var h = mass ? o.maxHp : Math.round(o.maxHp * S.healRatio), got = Math.min(o.maxHp - o.hp, h);
+      var mass = a.sup === 'massheal', HL = mass && pt ? this.units.filter(function (o) { return o.side === u.side && o.state !== 'dead' && Math.hypot(o.x - pt.x, o.y - pt.y) <= S.summonRadius; }) : allies(mass ? S.buffRadius * 1.5 : S.buffRadius);   // 말다 소환은 찍은 곳 둘레
+      HL.forEach(function (o) { var h = mass ? o.maxHp : Math.round(o.maxHp * S.healRatio), got = Math.min(o.maxHp - o.hp, h);
         o.hp += got; if (got > 0) self._say(o.x, o.y - o.t.h - 6, '+' + got, '#8fe89a'); if (!mass) self._addEffect(o.x, o.y - o.t.h * 0.5, a.arm, 0); });
-      if (mass) this._addEffect(u.x, this.laneY, a.arm, 0);
+      if (mass) this._addEffect(pt ? pt.x : u.x, pt ? pt.y : this.laneY, a.arm, 0);
       ok = true;
     } else if (s.kind === 'buff') {                          // 주변 아군에게 강화. 배수는 원본 규칙(OriginalRules)이 buffs를 보고 적용한다
       // 강화(파운틴 베리어·웨폰): 누르면 바로, 시전자 주변(buffRadius)의 **공격 유닛 buffMax(2)기**에게 buffSec(7초) 동안 걸린다.
@@ -784,14 +803,16 @@
       BT.forEach(function (o) { o.buffs[a.sup] = { k1: a.k1, k2: a.k2, arm: a.arm, until: self.time + S.buffSec }; });
       ok = true;
     } else if (s.kind === 'haste') {                         // 주변 아군이 빨리 걷는다 (케멘 소환). 걸린 유닛 머리 위에 원본 가속 이펙트(칸 44)
-      allies(S.buffRadius * 1.3).forEach(function (o) { o.buffs.haste = { arm: a.arm, until: self.time + (a.dur || 600) / tps }; });
-      this._addEffect(u.x, this.laneY, a.arm, 0); ok = true;
+      (pt ? this.units.filter(function (o) { return o.side === u.side && o.state !== 'dead' && Math.hypot(o.x - pt.x, o.y - pt.y) <= S.summonRadius; }) : allies(S.buffRadius * 1.3)).forEach(function (o) { o.buffs.haste = { arm: a.arm, until: self.time + (a.dur || 600) / tps }; });   // 찍었으면 찍은 곳 둘레
+      this._addEffect(pt ? pt.x : u.x, pt ? pt.y : this.laneY, a.arm, 0); ok = true;
     } else if (s.kind === 'weaken' && foe) {                 // 범위 안 적의 공격(멜팅 웨폰)·방어(멜팅 아머)를 무너뜨린다 — 수치는 원본 규칙이 buffs를 보고 적용
       foesAt(foe, S.radius).forEach(function (o) { o.buffs[a.sup] = { arm: a.arm, until: self.time + (a.dur || 600) / tps }; self._say(o.x, o.y - o.headY - 6, '약화', '#c7a0ff'); });
       this._addEffect(foe.x, foe.y, a.arm, 0); ok = true;
     } else if (s.kind === 'stun' && foe) {                   // 범위 안의 적을 잠시 멈춘다
-      foesAt(foe, S.radius).forEach(function (o) { if (a.races && a.races.indexOf(o.t.race) < 0) return;   // 걸리는 종족만 (턴 언데드 = 언데드, 디스트로이 언홀리 = 언데드 + 흡혈귀·늑대인간류, 분석 8-36)
-        o.stunUntil = self.time + S.stunSec; o.state = 'idle'; delete o.buffs.weapon; delete o.buffs.shield; delete o.buffs.haste; });
+      var ud = u.side === 0 ? S.undeadDmg[a.name] || 0 : 0;   // 디펜스 고유: 턴 언데드·디스트로이 언홀리는 걸리는 종족에게 피해도 준다 (원본 case 0xE·0xF 는 석화만 — 하급 언데드를 쓸어 내는 마법이라는 사용자 요청, 2026-11-13). 방어 무시, 마법 증폭 적용
+      foesAt(foe, S.radius * (u.side === 0 ? 1 + this.radiusUp : 1)).forEach(function (o) { if (a.races && a.races.indexOf(o.t.race) < 0) return;   // 걸리는 종족만 (턴 언데드 = 언데드, 디스트로이 언홀리 = 언데드 + 흡혈귀·늑대인간류, 분석 8-36)
+        o.stunUntil = self.time + stunSecOf(a); o.state = 'idle'; delete o.buffs.weapon; delete o.buffs.shield; delete o.buffs.haste;
+        if (ud) self._damage(o, ud * (1 + self.dmgUp)); });
       this._addEffect(foe.x, foe.y, a.arm, 0); ok = true;
     } else if (s.kind === 'charm' && foe) {                  // 범위 안의 적이 우리 편이 되어 싸운다   // 한 번에 charmMax(3)기까지 — 찍은 곳에 가까운 순서
       foesAt(foe, S.radius * 0.7).sort(function (p, q) { return Math.hypot(p.x - foe.x, p.y - foe.y) - Math.hypot(q.x - foe.x, q.y - foe.y); }).slice(0, S.charmMax).forEach(function (o) { self._setSide(o, u.side); o.charmed = !o.charmed; o.state = 'idle'; self._say(o.x, o.y - o.t.h - 6, '매혹', '#ff9ad5'); });   // charmed: 원래 편이 아닌 동안 하트 표시 (되매혹하면 풀린다)
@@ -848,7 +869,7 @@
     this._updateGarrison();
     this._enemyMagic(dt);
     this._selfMagic();
-    this._holdSlot();
+    this._holdSlot(); this._holdBtn();
     this._updateCamera(dt);
 
     // 사라질 것 정리: 쓰러진 뒤 다 흐려진 유닛, 끝난 이펙트·글자
@@ -920,7 +941,7 @@
     else if (c.kind === 'mana') { this.manaRegen += G.manaRegen; this.manaMax += G.manaMax; }
     else if (c.kind === 'magic') this.dmgUp += G.dmg;
     else if (c.kind === 'radius') this.radiusUp += G.radius;
-    else if (c.kind === 'repair') this.baseHp = Math.min(CONFIG.BASE.hp, this.baseHp + CONFIG.BASE.hp * G.repair);
+    else if (c.kind === 'repair') { this.baseHp = Math.min(CONFIG.BASE.hp, this.baseHp + CONFIG.BASE.hp * G.repair); this.forts.forEach(function (f) { if (f.isFort && !f.dead) f.hp = Math.min(f.maxHp, f.hp + f.maxHp * G.repair); }); }   // 살아 있는 벙커도 같은 비율로
     this.cards = null; this.pendingLv = Math.max(0, this.pendingLv - 1);
     if (this.pendingLv) this._offerCards();
     return true;
@@ -948,7 +969,12 @@
     if (u.state === 'dead') { u.deadT += dt; if (u.deadT > 1.2) u.fade = Math.min(1, u.fade + dt * 1.5); return; }
     if (u.stunUntil > this.time) { u.state = 'idle'; return; }   // 멈춤 스킬에 걸림
     u.cd = Math.max(0, u.cd - dt);
-    if (u.castOrder && u.state !== 'attack' && this._castWalk(u, dt)) return;   // 마법을 쓰러 걸어가는 중 (치던 동작은 마저 끝내고)
+    if (u.boom && this._boom(u)) return;
+    if (u.castOrder && u.state !== 'attack' && this._castWalk(u, dt)) return;
+    if (u.fleeUntil > this.time && u.side === 0 && !u.castOrder) {   // 도망: 맞은 지원 유닛이 성 쪽으로 물러난다 (FLEE_SEC 초, 성 앞 선까지만). 끝나면 다시 자리로 돌아온다
+      var fx = Math.max(C.BASE.front + 10, u.x - this._speed(u) * C.FLEE_SPEED * dt);
+      if (fx < u.x) { u.x = fx; u.state = 'move'; u.walkT += dt; this._faceVec(u, -1, 0); u.hold = null; u.slotOf = null; u.slotA = null; u.passY = null; return; }
+    }   // 마법을 쓰러 걸어가는 중 (치던 동작은 마저 끝내고)
 
     if (u.state === 'attack') {
       // 공격 동작: 원본 애니메이션을 틱 속도(초당 12장)로 넘기다가, 중간 프레임에서 실제 타격
@@ -965,7 +991,7 @@
     if (u.act) {
       // 공격할 대상: 맞은편 유닛 중 가장 가까운 것. 적은 대상이 없으면 기지를 친다
       var baseDist = u.side === 1 ? u.x - C.BASE.front : Infinity;
-      var canHitUnit = dist <= u.rangePx, canHitBase = !canHitUnit && baseDist <= u.rangePx;
+      var canHitUnit = dist <= u.rangePx, fortT = u.side === 1 && !canHitUnit ? this._fortFor(u) : null, canHitBase = !canHitUnit && (!!fortT || baseDist <= u.rangePx);   // fortT = 때릴 벙커 (유닛이 든 벙커가 어그로를 끈다)
       // 근접 유닛이 적에게 닿았어도, 맡은 자리(적 둘레의 빈칸)에 아직 못 갔으면 먼저 자리로 간다 — 앞에서 멈춰 뒤따르는 유닛의 길을 막지 않게.
       // 단, 내가 둘러싸이는 쪽(besieged)이면 움직이지 않고 그 자리에서 싸운다 (서로 자리를 잡으려다 뒤로 밀려나는 것 방지)
       var melee = u.rangePx < 80, held = melee && tgt && this._besieged(u);
@@ -973,7 +999,7 @@
       if (canHitUnit && melee && !held && u.slotAt !== tgt.uid) { this._approach(u, tgt, dt); return; }
       if (canHitUnit || canHitBase) {
         if (canHitUnit) this._faceVec(u, tgt.x - u.x, tgt.y - u.y, true);   // 때릴 적을 바라본다 (8방향 — 위아래에 있는 적도 그쪽을 보고 친다)
-        if (u.cd <= 0) { u.state = 'attack'; u.at = 0; u.hitDone = false; u.tgt = canHitUnit ? tgt : 'base'; this._play(u.act.snd, 0.5); }
+        if (u.cd <= 0) { u.state = 'attack'; u.at = 0; u.hitDone = false; u.tgt = canHitUnit ? tgt : fortT || 'base'; this._play(u.act.snd, 0.5); }
         else u.state = 'idle';
         return;
       }
@@ -1187,6 +1213,7 @@
   P._strike = function (u) {
     var tgt = u.tgt, R = this.rules;
     if (tgt === 'base') { this._hitBase(R.attackValue(u)); return; }
+    if (tgt && tgt.isFort) { if (!tgt.dead) this._hitFort(tgt, R.attackValue(u)); return; }
     if (!tgt || tgt.state === 'dead' || tgt.side === u.side) return;
     var dmg = R.damage(u, tgt, this.rng), arm = u.act.arm, def = arm >= 0 ? this.data.fx.arms[arm] : null;
     if (def) this.shots.push({ x: u.x + u.dir * 14, y: u.y - u.headY * 0.6, tgt: tgt, dmg: dmg, arm: arm, def: def, dir: u.dir, t0: this.time, speed: 380 });
@@ -1199,6 +1226,7 @@
     this._say(u.x, u.y - u.headY - 6, dmg > 0 ? String(dmg) : 'miss', u.side === 1 ? '#ffe9a8' : '#ff9a8a');
     if (dmg <= 0) return;
     u.hp -= dmg;
+    if (u.side === 0 && !u.act && !u.hero) u.fleeUntil = this.time + CONFIG.FLEE_SEC;   // 기본 공격이 없는 아군(성령사·사제·연금술사·소환사·공주 …)은 맞으면 아군 쪽으로 물러난다
     if (u.hp <= 0) {
       u.hp = 0; u.state = 'dead'; u.deadT = 0; u.fade = 0; u.buffs = {};
       this._removeSlots(u);                                  // 마법 유닛이면 그 유닛의 스킬 칸도 함께 없앤다 → 소환 버튼이 다시 켜진다
@@ -1207,8 +1235,36 @@
     }
   };
 
-  P._hitBase = function (dmg) { this.baseHp -= dmg; this.baseHit = 0.25; this._say(CONFIG.BASE.front - 50, this.laneY - 70, '-' + dmg, '#ff7a6a'); };
+  P._hitBase = function (dmg) { var df = this.forts && this.forts[0] ? this.garDef(this.forts[0]) : 0; if (df > 0) dmg = Math.max(Math.ceil(dmg * CONFIG.GAR_DEF_MIN), dmg - df);   // 수비대의 방어 보너스만큼 덜 받는다 (그래도 원래 피해의 GAR_DEF_MIN 은 받는다)
+    this.baseHp -= dmg; this.baseHit = 0.25; this._say(CONFIG.BASE.front - 50, this.laneY - 70, '-' + dmg, '#ff7a6a'); };
 
+  /* 자폭: 조건이 맞으면 터진다 (CONFIG.BOOM). 둘레의 맞은편 유닛 모두에게 원본 공식 피해, 자신은 죽는다. true = 터졌다 */
+  P._boom = function (u) {
+    var B = CONFIG.BOOM, self = this, near = this.units.filter(function (o) { return o.side !== u.side && o.state !== 'dead' && Math.hypot(o.x - u.x, o.y - u.y) <= B.radius; });
+    if (!(near.length >= B.min || (near.length >= 1 && u.hp <= u.maxHp * B.hp))) return false;
+    var keep = u.act, a = u.boom; u.act = a;
+    near.forEach(function (o) { self._damage(o, self.rules.damage(u, o, self.rng) * B.dmgMul); });
+    u.act = keep; this._addEffect(u.x, u.y - 10, a.arm, 0); this._say(u.x, u.y - u.t.h - 18, a.name, u.side === 0 ? '#ffd36e' : '#ff8a7a'); this._play(a.snd, 0.9);
+    this._damage(u, u.hp + 1);                              // 자신은 죽는다
+    return true;
+  };
+  /* 적 u 가 때릴 벙커: 유닛이 들어 있고 부서지지 않은 벙커 중, u 와 같은 쪽(위쪽 벙커 = 전투 줄 위쪽 절반, 아래쪽 = 아래쪽 절반)이고 가로로 사거리 안에 든 것. 이미 지나쳐 간 벙커는 돌아보지 않는다 */
+  P._fortFor = function (u) {
+    for (var i = this.forts.length - 1; i >= 1; i--) { var F = this.forts[i]; if (F.dead || !F.garrison.length) continue;
+      if ((F.at === 'bottom') !== (u.y >= this.laneY)) continue;
+      var dx = u.x - (F.x + 30); if (dx >= -60 && dx <= u.rangePx) return F; }
+    return null;
+  };
+  /* 벙커가 맞았다: 수비대의 방어 보너스만큼 덜 받는다. 체력이 0이면 부서지고 안의 유닛이 밖으로 나온다 */
+  P._hitFort = function (F, dmg) {
+    var df = this.garDef(F), self = this; if (df > 0) dmg = Math.max(Math.ceil(dmg * CONFIG.GAR_DEF_MIN), dmg - df);
+    F.hp -= dmg; F.hit = 0.25; this._say(F.x + 20, F.y - 60, '-' + dmg, '#ff7a6a');
+    if (F.hp > 0) return;
+    F.hp = 0; F.dead = true;
+    F.garrison.forEach(function (m) { var o = self.spawn(m.r.id, 0); o.x = F.x + 20; });
+    F.garrison = []; F.weapons = { 0: { phase: -1, c: 0 }, 4: { phase: -1, c: 0 } }; if (this.selFort === F) this.selFort = null;
+    this._say(F.x, Math.min(F.y, this.laneY) - 150, F.name + ' 파괴 — 수비대가 밖으로 나왔습니다', '#ff8a7a'); this.flash = 0.15;
+  };
   /* 떠오르는 글자 하나 (피해량, 회복량, 스킬 이름 …) */
   P._say = function (x, y, s, col) { this.texts.push({ x: x, y: y, s: s, t0: this.time, col: col }); };
 
@@ -1259,6 +1315,7 @@
     this._drawBanner();
     if (this.flash > 0) { ctx.fillStyle = 'rgba(255,240,200,' + (this.flash * 0.9) + ')'; ctx.fillRect(0, 0, W, H - this.hudH); }
     this._drawHud();
+    if (this.screen === 'play' && !this.cards) this._drawInfo();   // 소환 버튼을 길게 누르는 동안의 유닛 설명 카드
     if (this.screen !== 'play') this._drawOverlay();
     else if (this.cards) this._drawCards();
   };
@@ -1304,9 +1361,14 @@
 
   /* 벙커 그리기: at = 'top' 또는 'bottom' 인 것만 */
   P._drawForts = function (at) {
-    for (var fi = 1; fi < this.forts.length; fi++) { var F = this.forts[fi]; if ((F.at || 'top') !== at) continue;
-      if (this.selFort === F) this._drawOutline(F.B, F.x, F.y);
-      this._drawBuilding(F.B, F.x, F.y, F); }
+    for (var fi = 1; fi < this.forts.length; fi++) { var F = this.forts[fi], ctx = this.ctx; if ((F.at || 'top') !== at) continue;
+      if (F.dead) { ctx.globalAlpha = 0.3; var o0 = this._bldOrigin(F.B, F.x, F.y); this._pic(F.B.pic, o0[0], o0[1]); ctx.globalAlpha = 1; continue; }   // 부서진 벙커: 흐린 터만
+      if (F.hit > 0) F.hit = Math.max(0, F.hit - 1 / 60);
+      var sh = F.hit > 0 ? Math.round(Math.sin(this.time * 90) * 2) : 0;
+      if (this.selFort === F) this._drawOutline(F.B, F.x + sh, F.y);
+      this._drawBuilding(F.B, F.x + sh, F.y, F);
+      if (F.hp < F.maxHp) { var p = this.bld.pics[F.B.pic], o = this._bldOrigin(F.B, F.x, F.y), bw = 46, bx = Math.round(o[0] + F.B.center[0] - bw / 2), by = Math.round(o[1] - p[5] - 8), k = F.hp / F.maxHp;   // 체력 막대 (맞았을 때부터)
+        ctx.fillStyle = 'rgba(0,0,0,.75)'; ctx.fillRect(bx - 1, by - 1, bw + 2, 6); ctx.fillStyle = k > 1 / 3 ? '#3fbf5a' : '#e0584a'; ctx.fillRect(bx, by, Math.round(bw * k), 4); } }
   };
 
   /* 고른 건물의 윤곽선: 건물 그림의 실루엣을 원작 선택 원과 같은 초록으로 칠해 여덟 방향으로 1px씩 밀어 먼저 그린다 → 건물을 그리면 가장자리에 초록 선만 남는다.
@@ -1324,7 +1386,11 @@
   P._drawBuilding = function (b, x, y, fort) {
     var D = this.bld, p = D.pics[b.pic], o = this._bldOrigin(b, x, y), k = Math.floor(this.time * 8) % b.flagFrames.length;
     this._pic(b.pic, o[0], o[1]);
-    if (fort) this._drawWeapons(b, o, fort.weapons);
+    if (fort) { this._drawWeapons(b, o, fort.weapons);
+      // 방어 보너스 표시: 건물 위에 원작 상태 아이콘의 방패(unitState.spr 3번) + 숫자. 성에만 의미가 있다 — 성 꼭대기 오른쪽([퇴각] 팻말을 피해서)
+      var gd = this.garDef(fort), HB = root.MW && root.MW.hpbar, isBase = fort === this.forts[0];
+      if (gd > 0 && HB && HB.states) { var sf = HB.states[3], ix = Math.round(o[0] + b.center[0] + (isBase ? 44 : 28)), iy = Math.round(o[1] - p[5] + (isBase ? 26 : -14)), ctx = this.ctx; ctx.drawImage(this.assets.get('hpbar'), sf[0], sf[1], sf[2], sf[3], ix, iy, sf[2], sf[3]);
+        ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.9)'; ctx.strokeText('+' + gd, ix + 20, iy + 10); ctx.fillStyle = '#8fe89a'; ctx.fillText('+' + gd, ix + 20, iy + 10); } }
     for (var i = 0; i < b.flags.length; i++) this._pic(b.flagFrames[(k + i * 3) % b.flagFrames.length], o[0] + b.flags[i][0], o[1] + b.flags[i][1]);
   };
   /* 성 위의 건물 무기 (원본 FUN_004f4950의 그림 고르기 그대로):
@@ -1492,7 +1558,7 @@
     if (!this.selBase || this.screen !== 'play') return;
     var ctx = this.ctx, bb = this._baseBox(), W = this.W, fh = this.H - this.hudH, full = this.garrison.length >= this.garCap(); if (!bb) return;
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, fh); ctx.clip();
-    var nm = this._fort().name, msg = full ? nm + ' 선택 — 가득 참 (' + this.garrison.length + '/' + this.garCap() + ') · 다른 곳을 누르면 해제' : nm + ' 선택 — 소환하면 ' + nm + '에 배치 (' + this.garrison.length + '/' + this.garCap() + ') · 다른 곳을 누르면 해제';
+    var nm = this._fort().name, msg = full ? nm + ' 선택 — 가득 참 (' + this.garrison.length + '/' + this.garCap() + ')' + (this.garDef() ? ' · 방어 +' + this.garDef() : '') + ' · 다른 곳을 누르면 해제' : nm + ' 선택 — 소환하면 ' + nm + '에 배치 (' + this.garrison.length + '/' + this.garCap() + ') · 다른 곳을 누르면 해제';
     ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     var mw = Math.min(W - 16, ctx.measureText(msg).width + 20), my = Math.max(this.topBox.y + this._topH(), this.miniBox.y + this.miniBox.h) + 8;
     ctx.fillStyle = 'rgba(8,10,16,.8)'; ctx.fillRect(W / 2 - mw / 2, my, mw, 24); ctx.fillStyle = '#ffd36e'; ctx.fillText(this._fit(msg, mw - 10), W / 2, my + 12.5);
@@ -1674,13 +1740,13 @@
       var b = this.btnBoxes[k], r = list[i], why = this.canSummon(r), ok = !why, cx = b.x + b.w / 2, fh = Math.min(43, b.h - 24), fw = Math.round(fh * 36 / 43);
       ctx.fillStyle = ok ? '#232a3a' : '#191d27'; ctx.fillRect(b.x, b.y, b.w, b.h);
       ctx.strokeStyle = ok ? (r.magic ? '#7fb6ff' : '#c9a35a') : '#3a4152'; ctx.lineWidth = 2; ctx.strokeRect(b.x + 1, b.y + 1, b.w - 2, b.h - 2);
-      ctx.globalAlpha = ok ? 1 : why === 'max' || why === 'nogar' ? 0.2 : 0.5; ctx.drawImage(figs, r.t.pid * 36, 0, 36, 43, Math.round(cx - fw / 2), b.y + 2, fw, fh); ctx.globalAlpha = 1;
+      ctx.globalAlpha = ok ? 1 : why === 'max' || why === 'nogar' || why === 'castle' ? 0.2 : 0.5; ctx.drawImage(figs, r.t.pid * 36, 0, 36, 43, Math.round(cx - fw / 2), b.y + 2, fw, fh); ctx.globalAlpha = 1;
       if (r.wait > 0) { ctx.fillStyle = 'rgba(0,0,0,.6)'; var ch = b.h * r.wait / r.cd; ctx.fillRect(b.x, b.y + b.h - ch, b.w, ch); }
       ctx.textAlign = 'center';
       ctx.font = '9px sans-serif'; ctx.fillStyle = ok ? '#dfe6f5' : '#7b8397'; ctx.fillText(this._fit(r.t.name, b.w - 4), cx, b.y + b.h - 18);
       ctx.font = 'bold 11px sans-serif'; ctx.fillStyle = this.mana >= r.cost ? '#8fc7ff' : '#e0584a'; ctx.fillText(r.cost, cx, b.y + b.h - 7);
       ctx.font = '9px sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = '#8a93a8'; ctx.fillText(i + 1, b.x + 4, b.y + 8);
-      if (this.selBase) { if (r.gar) { ctx.textAlign = 'right'; ctx.fillStyle = '#ffb36a'; ctx.fillText(r.gar.cls >= 0 ? '사격' : '+' + r.gar.bonus, b.x + b.w - 4, b.y + 8); } }
+      if (this.selBase) { if (r.gar) { ctx.textAlign = 'right'; ctx.fillStyle = '#ffb36a'; ctx.fillText(r.gar.cls >= 0 ? '사격' : r.gar.bonus > 0 ? '+' + r.gar.bonus : '방어 +' + r.gar.def, b.x + b.w - 4, b.y + 8); } }
       else if (r.magic || r.tech) { ctx.textAlign = 'right'; ctx.fillStyle = r.magic ? '#7fb6ff' : '#ffd36e'; ctx.fillText(r.magic ? '마법' : '기술', b.x + b.w - 4, b.y + 8); }   // 기술 = 알아서 쓰는 몸동작(암살)
       // 마법 유닛 한도에 닿음: 버튼을 어둡게 덮고 "최대" 표시 (눌러도 소환되지 않는다)
       if (r.magic && full && !this.selBase) { ctx.fillStyle = 'rgba(8,10,16,.55)'; ctx.fillRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4);
@@ -1739,6 +1805,7 @@
     ctx.fillStyle = 'rgba(5,7,12,.78)'; ctx.fillRect(0, 0, W, H);
     if (sc === 'title') items = [['거울전쟁 디펜스', 28, '#ffd36e', 0], ['해골 군단을 막아 성을 지키세요', 14, '#dfe6f5', 14],
       ['탭을 골라 해방부대 유닛을 소환합니다', 12, G, 12],
+      ['소환 버튼을 길게 누르면 그 유닛의 설명이 나옵니다', 12, G, 6],
       ['마법 유닛을 소환하면 그 마법이 스킬 칸에 생깁니다 — 같은 마법은 한 칸(×유닛 수), 많으면 좌우로 넘기기', 12, G, 6],
       ['마법도 마나를 씁니다 — 소환과 마법 중 어디에 쓸지 고르세요', 12, G, 6],
       ['적을 쓰러뜨리면 경험치가 쌓이고, 레벨이 오르면 카드 3장 중 하나를 고릅니다', 12, G, 6],
@@ -1813,6 +1880,40 @@
       return; }
   };
 
+  /* 소환 버튼을 길게 누르면(CONFIG.CAM.holdMs) 소환하지 않고 그 유닛의 설명 카드를 띄운다. 손을 떼면 사라진다 (2026-11-13: 상성에 맞게 뽑으려면 설명이 필요 — 세로 화면이라 늘 띄워 두지 않고 누르는 동안만) */
+  P._holdBtn = function () {
+    var d = this.drag; if (!d || !d.btn || d.moved || d.held || this.screen !== 'play' || this.cards || Date.now() - d.t0 < CONFIG.CAM.holdMs) return;
+    var i = this.btnIndexAt(d.x, d.y); if (i < 0) return;
+    d.held = true; this.info = this.roster[this.tab][i];
+  };
+  /* 유닛 설명 카드의 내용: 첫 줄은 손으로 쓴 한 줄(MWE.UNIT_DESC), 나머지는 데이터에서 자동으로 — 짧게.
+     상성(원본 unitdata 의 강한 상대 목록 aff, 배수 affMul/8)은 이 게임의 적(악령군) 기준으로 묶음 이름을 붙인다 */
+  var AFF_NAME = { 39: '악마류', 35: '흡혈귀·늑대인간·메두사', 43: '짐승·박쥐·드래곤', 28: '언데드' };
+  P.unitInfo = function (r) {
+    var t = r.t, C = CONFIG, basic = basicAct(t), rng = basic ? basic.range * C.RANGE_SCALE : 0, air = t.fly === 2, L = [];
+    var kind = !basic ? '지원(공격 없음)' : rng >= 80 ? '원거리' : '근접';
+    L.push((air ? '공중 유닛 · ' : '') + kind + (basic ? (rng >= 80 || air ? ' · 공중 공격 가능' : ' · 공중 공격 불가') : ''));
+    var grp = null; for (var k in AFF_NAME) if ((t.aff || []).indexOf(+k) >= 0) grp = AFF_NAME[k];
+    if (grp) L.push('강함: ' + grp + ' ×' + (t.affMul / 8).toFixed(2).replace(/0$/, ''));
+    var sk = skillsOf(t).map(function (a) { return a.name + (C.TECH[a.name] || a.self ? '(자동)' : ''); });
+    if (sk.length) L.push('마법: ' + sk.join(', '));
+    if (r.gar) { var gp = []; if (r.gar.cls >= 0) gp.push('성·벙커에 넣으면 사격'); else if (r.gar.bonus > 0) gp.push('성·벙커 사격 +' + r.gar.bonus); if (r.gar.def > 0) gp.push('성·벙커에 넣으면 건물 방어 +' + r.gar.def); L.push(gp.join(' · ')); }
+    return { name: t.name, cost: r.cost, stat: '체력 ' + t.maxHpAt(1 + (this.allyLv || 0)) + ' · 공격 ' + t.atk + ' · 방어 ' + t.def, desc: (MWE.UNIT_DESC && MWE.UNIT_DESC[t.id]) || '', lines: L };
+  };
+  P._drawInfo = function () {
+    var r = this.info; if (!r) return;
+    var ctx = this.ctx, I = this.unitInfo(r), W = this.W, x = 8, w = W - 16, lh = 15, h = 57 + I.lines.length * lh, y = this.H - this.hudH - h - 8, i;
+    this._plate(x, y, w, h, 6, false);
+    ctx.drawImage(this.assets.get('figs'), r.t.pid * 36, 0, 36, 43, x + 10, y + 9, 36, 43);
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    ctx.font = 'bold 14px sans-serif'; ctx.fillStyle = '#ffe9b0'; ctx.fillText(I.name, x + 54, y + 16);
+    var nw = ctx.measureText(I.name).width; ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = '#8fc7ff'; ctx.fillText('마나 ' + I.cost, x + 54 + nw + 8, y + 16.5);
+    ctx.textAlign = 'right'; ctx.font = '10px sans-serif'; ctx.fillStyle = '#9aa3b8'; ctx.fillText(I.stat, x + w - 10, y + 16.5); ctx.textAlign = 'left';
+    ctx.font = '12px sans-serif'; ctx.fillStyle = '#ffffff'; ctx.fillText(this._fit(I.desc, w - 64), x + 54, y + 35);
+    ctx.font = '11px sans-serif';
+    for (i = 0; i < I.lines.length; i++) { ctx.fillStyle = /^강함/.test(I.lines[i]) ? '#8fe89a' : /공중 공격 불가/.test(I.lines[i]) ? '#ffb08a' : '#c9d1e3'; ctx.fillText(this._fit(I.lines[i], w - 24), x + 12, y + 58 + i * lh); }
+  };
+
   /* 진행 막대를 누르거나 그 위에서 끌면: 그 지점이 화면 가운데에 오도록 카메라를 옮긴다 */
   P._miniPan = function (x) { var m = this.miniBox; this.panTo((x - m.x) / m.w * CONFIG.WORLD_W - this.W / 2); };
 
@@ -1839,7 +1940,7 @@
       if (self.screen === 'play' && y < self.H - self.hudH && !inBox(self.soundBtn, x, y)) { self.sfx.unlock(); self.drag = { field: true, x: x, y: y, cam: self.cam.x, moved: false, id: e.pointerId }; try { cv.setPointerCapture(e.pointerId); } catch (err) {} return; }
       // 스킬 칸·소환 줄 위: 바로 누르지 않고, 손을 뗄 때까지 지켜본다 — 그대로 떼면 "누르기", 옆으로 끌면 "캐러셀 넘기기" (HUD 안이라 카메라 이동과 겹치지 않는다)
       if (self.screen === 'play' && inBox(self.slotArea, x, y)) { self.sfx.unlock(); self.drag = { slots: true, x: x, y: y, first: self.slotFirst, moved: false, id: e.pointerId, t0: Date.now() }; try { cv.setPointerCapture(e.pointerId); } catch (err) {} return; }
-      if (self.screen === 'play' && self.btnArea && y >= self.btnArea.y && y <= self.btnArea.y + self.btnArea.h) { self.sfx.unlock(); self.drag = { btn: true, x: x, y: y, first: self.btnFirst, moved: false, id: e.pointerId }; try { cv.setPointerCapture(e.pointerId); } catch (err) {} return; }
+      if (self.screen === 'play' && self.btnArea && y >= self.btnArea.y && y <= self.btnArea.y + self.btnArea.h) { self.sfx.unlock(); self.drag = { btn: true, x: x, y: y, first: self.btnFirst, moved: false, id: e.pointerId, t0: Date.now() }; try { cv.setPointerCapture(e.pointerId); } catch (err) {} return; }
       self._tap(x, y);
     });
     cv.addEventListener('pointermove', function (e) {
@@ -1850,7 +1951,7 @@
       else if (d.btn) { var bx = p[0] - d.x; if (Math.abs(bx) > 8) d.moved = true; if (d.moved) { self.btnFirst = d.first; self._scrollBtns(-Math.round(bx / self.btnStep)); } }
       else if (d.field) { if (!d.moved && Math.hypot(p[0] - d.x, p[1] - d.y) > 6) d.moved = true; if (d.moved) self.panTo(d.cam - (p[0] - d.x)); }   // 끌기로 판정된 뒤에만 전장이 손가락을 따라온다 (손가락 떨림에 화면이 밀려 탭이 어긋나지 않게)
     });
-    var endDrag = function (e) { var d = self.drag; if (!d || d.id !== e.pointerId) return; self.drag = null;
+    var endDrag = function (e) { var d = self.drag; if (!d || d.id !== e.pointerId) return; self.drag = null; self.info = null;   // 손을 떼면 유닛 설명 카드는 사라진다
       if ((d.slots || d.btn) && !d.moved && !d.held && e.type === 'pointerup') self._tap(d.x, d.y);   // 끌지 않고 뗐다 = 그 칸을 눌렀다
       if (d.field && !d.moved && e.type === 'pointerup') self._tapField(d.x, d.y); };   // 전장을 끌지 않고 뗐다 = 탭
     cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
@@ -1877,6 +1978,6 @@
   };
 
   DefenseGame.CONFIG = CONFIG; DefenseGame.SkillSlot = SkillSlot;
-  DefenseGame.summonCost = summonCost; DefenseGame.skillKind = skillKind; DefenseGame.skillsOf = skillsOf; DefenseGame.KIND_NAME = KIND_NAME; DefenseGame.blastTier = blastTier;   // 명세 생성기(tools/specbuild.js)가 게임과 같은 식을 쓰도록 내놓는다
+  DefenseGame.summonCost = summonCost; DefenseGame.skillKind = skillKind; DefenseGame.skillsOf = skillsOf; DefenseGame.KIND_NAME = KIND_NAME; DefenseGame.blastTier = blastTier; DefenseGame.stunSecOf = stunSecOf;   // 명세 생성기(tools/specbuild.js)가 게임과 같은 식을 쓰도록 내놓는다
   MWE.DefenseGame = DefenseGame;
 })(window);

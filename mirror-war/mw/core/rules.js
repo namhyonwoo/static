@@ -45,6 +45,9 @@
   /* 한 번의 공격 동작에서 기본 타격(이벤트 프레임) 말고 더 치는 프레임 — 행동 번호별 (원본 FUN_004c1e10 등 공격 작업, 분석 8-41).
      5 에로우 샤워(명궁): 프레임 10·12·14에 화살을 한 발씩 더 (모두 네 발).  7 컴비네이션 어택(무도가): 프레임 4에 한 번 더 */
   OriginalRules.EXTRA_HITS = { 5: [10, 12, 14], 7: [4] };
+  /* 홀리 크로스(이펙트 칸 16, 원본 FUN_004b9590 case 0x10, 분석 8-43): 범위 안의 적에게는 피해 + 언데드(종족 5, 면역 아님)는 80틱 석화·강화 해제,
+     범위 안의 아군에게는 체력 +(마법 공격값 + 100) 회복과 상태 이상 해제(석화·멜팅 웨폰·멜팅 아머·감속 …) */
+  OriginalRules.HOLY = { arm: 16, heal: 100, stoneTicks: 80, race: 5 };
   var O = OriginalRules.prototype = Object.create(MockRules.prototype);
   O.buff = function (u, k) { var b = u.buffs[k]; return b && b.until > this.now ? b : null; };
   O.attackValue = function (a) {

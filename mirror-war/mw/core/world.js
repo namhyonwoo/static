@@ -126,9 +126,14 @@ P._blast = function (u, a, x, y) {
     if (a.hpCost) { var hc = Math.floor(u.maxHp / a.hpCost); if (u.hp <= hc) return false; u.hp -= hc; }   // 체력을 쓰는 행동 (원본 조건 문구: 체력 1/10·1/4 이상 가능)
     u.mp -= a.mana; u.cd = a.dmg ? R.cooldown(u, this.rng) : (a.delay + 10) / R.tps; u.act = a; if (u.buffs.hide) delete u.buffs.hide;
     u.face(x - u.x, y - u.y);
+    var HO = MWE.OriginalRules.HOLY, holy = HO && a.arm === HO.arm;
+    if (holy) { var hv = R.attackValue(u) + HO.heal;        // 홀리 크로스: 범위 안의 아군(시전자 포함)은 회복 + 상태 이상 해제 (분석 8-43)
+      for (var hi = 0; hi < L.length; hi++) { var ho = L[hi]; if (!ho.alive() || ho.fac !== u.fac || Math.hypot(ho.x - x, ho.y - y) > r) continue;
+        ho.hp = Math.min(ho.maxHp, ho.hp + hv); ['stone', 'meltw', 'melta', 'slow', 'poison'].forEach(function (k) { delete ho.buffs[k]; }); } }
     for (var i = 0; i < L.length; i++) { var o = L[i];
       if (o === u || !o.alive() || Math.hypot(o.x - x, o.y - y) > r || (!a.ff && o.fac === u.fac) || (a.groundOnly && o.t.fly === 2)) continue;
-      if (a.dmg) this._hurt(u, o);
+      if (a.dmg) { this._hurt(u, o);
+        if (holy && o.alive() && o.t.race === HO.race && !o.t.immune) { o.buffs.stone = { arm: a.arm, until: this.time + HO.stoneTicks / R.tps, orig: o.fac }; delete o.buffs.weapon; delete o.buffs.shield; delete o.buffs.haste; delete o.buffs.berserk; o.order = null; o.tgt = null; o.path = null; } }   // 언데드는 석화
       else if (a.sup && !o.t.immune && !(a.races && a.races.indexOf(o.t.race) < 0)) {           // 범위 약화. a.races = 걸리는 종족(유닛 종류 +0x1C): 턴 언데드 [5], 디스트로이 언홀리 [5, 6] (분석 8-36)
         o.buffs[a.sup] = { k1: a.k1, k2: a.k2, arm: a.arm, until: this.time + R.supDuration(a), orig: o.fac }; if (a.drain) o.mp = 0;
         if (a.sup === 'stone' && a.races) { delete o.buffs.weapon; delete o.buffs.shield; delete o.buffs.haste; delete o.buffs.berserk; o.order = null; o.tgt = null; o.path = null; } }   // 원본은 석화와 함께 강화(+0x34·+0x2C·+0x40 …)를 전부 지우고 작업을 멈춘다
