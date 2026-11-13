@@ -244,12 +244,18 @@ if (window.MW_GAME === "orig") document.write('<script src="sim/orig/data.js"><\
 (function(){
   var FAC=[{name:"해방부대",col:"#5aa0ff"},{name:"악령군",col:"#ff5a4a"},{name:"흑마술파",col:"#c07aff"}];
   var cv=document.getElementById("stage");
-  if (window.MW_GAME === "orig" && window.MW_ORIG) { window.MW = Object.assign({}, window.MW, { units: window.MW_ORIG.units, heroes: window.MW_ORIG.heroes, game: "orig" }); }
-  var game=new MWE.RtsGame(cv, window.MW, {base:"sim/", factions:FAC, startSlots:[0,1,3]});
+  /* 원본판: sim/orig/data.js 가 전장 꾸러미 전체(유닛·HUD·초상화·아이콘·이펙트·지도·소리)를 갖고, 그림도 sim/orig/ 에서 읽는다 (mirrorwar-original/tools/simbuild.js).
+     꾸러미에 아직 없는 칸만 어드밴스드 것으로 채운다 */
+  var ORIG = window.MW_GAME === "orig" && window.MW_ORIG;
+  if (ORIG) { window.MW = Object.assign({}, window.MW, window.MW_ORIG, { game: "orig" }); }
+  var game=new MWE.RtsGame(cv, window.MW, {base: ORIG ? "sim/orig/" : "sim/", bgmBase: "sim/", factions:FAC, startSlots:[0,1,3]});
   /* 판 표시·전환 링크 (페이지 맨 위 제목 아래에 한 줄) */
   (function(){ var bar=document.createElement("div"); bar.id="gamesel"; bar.style.cssText="margin:6px 0 10px;font-size:13px;color:#9aa3b8";
     var cur=window.MW.game==="orig", url=function(g){ var u=new URL(location.href); if(g==="orig") u.searchParams.set("game","orig"); else u.searchParams.delete("game"); return u.toString(); };
-    bar.innerHTML='데이터: '+(cur?'<a href="'+url("adv")+'" style="color:#7fb6ff">어드밴스드: 은의 여인 (2001)</a> · <b style="color:#ffd36e">원본판: 악령군 (2000)</b> — 유닛·행동 수치와 유닛 그림만 원본판, 지도·건물·이펙트·소리는 어드밴스드 것':'<b style="color:#ffd36e">어드밴스드: 은의 여인 (2001)</b> · <a href="'+url("orig")+'" style="color:#7fb6ff">원본판: 악령군 (2000)</a>');
+    if (cur) { /* 원본판: 제목·설명을 원본판 지도에 맞춘다 */ var mn = (window.MW.map && window.MW.map.name) || "", ey = document.querySelector(".eyebrow"), h1 = document.querySelector("h1"), le = document.querySelector(".lede");
+      document.title = "거울전쟁: 악령군 전투"; if (ey) ey.textContent = "Mirror War · 2000 · " + mn; if (h1) h1.textContent = "거울전쟁: 악령군 전투";
+      if (le) le.innerHTML = "원본판(2000) 맵 <strong>" + mn + "</strong> 위에 해방부대·악령군·흑마술파·주민 유닛 " + window.MW.units.length + "종이 한 기씩 서 있습니다. 지형·건물·배치물·유닛·스킬 이펙트·소리·HUD·초상화는 원본판 CD에서 읽었습니다. 공격 속도와 적 행동은 시연용으로 정한 값입니다."; }
+    bar.innerHTML='데이터: '+(cur?'<a href="'+url("adv")+'" style="color:#7fb6ff">어드밴스드: 은의 여인 (2001)</a> · <b style="color:#ffd36e">원본판: 악령군 (2000)</b> — 지도·건물·유닛·스킬·이펙트·소리·HUD 모두 원본판 (마우스 커서·상태 아이콘·배경음은 어드밴스드 것)':'<b style="color:#ffd36e">어드밴스드: 은의 여인 (2001)</b> · <a href="'+url("orig")+'" style="color:#7fb6ff">원본판: 악령군 (2000)</a>');
     var host=cv.parentNode; host.parentNode.insertBefore(bar, host); })();   // 캔버스를 감싼 틀의 바로 위
   game.sfx.on=false;   // 효과음·배경음 모두 꺼진 채로 시작 (버튼으로 켠다)
   var scoreEl=document.getElementById("score");

@@ -17,7 +17,7 @@
     this.map = this.maps.battle;
     ['tiles2', 'minimap2', 'objs2', 'blds2'].forEach(function (k) { this.assets.load(k, k + '.png'); }, this);
     this.sfx = new MWE.Sfx(opts.base + 'sfx.js', data.sfx);
-    this.bgm = new MWE.Bgm(opts.base, [['bgm0.mp3', 'bgm0b.mp3', 'bgm0c.mp3'], ['bgm1.mp3', 'bgm1b.mp3', 'bgm1c.mp3'], ['bgm2.mp3', 'bgm2b.mp3', 'bgm2c.mp3']]);
+    this.bgm = new MWE.Bgm(opts.bgmBase || opts.base, [['bgm0.mp3', 'bgm0b.mp3', 'bgm0c.mp3'], ['bgm1.mp3', 'bgm1b.mp3', 'bgm1c.mp3'], ['bgm2.mp3', 'bgm2b.mp3', 'bgm2c.mp3']]);
     this.mode = 'battle'; this.test = { left: [{ id: 0, n: 1 }], right: [{ id: 28, n: 5 }], behave: 'dummy', tough: false };   // 양쪽 모두 [{유닛 번호, 수}] 목록   // mode: battle(전장) | test(아레나: n:m 시험)
     this.speed = 2; this.ais = []; this.aiOn = false; this.infMana = false;   // 컴퓨터 AI는 기본 꺼짐. infMana: 모든 유닛의 마나를 항상 가득 (시험용) this.selB = null; this.skill = null; this.focus = null;   // skill: 대상 지정을 기다리는 행동, focus: 그룹 중 HUD에 보이는 유닛
     this.ctrl = 0; this.sel = []; this.cmdMode = null; this.auto = false; this.showPaths = true;

@@ -97,15 +97,15 @@
     u.cd = (a.delay + 10) / R.tps; if (tgt !== u) u.face(tgt.x - u.x, tgt.y - u.y);
     if (a.sup === "heal") R.heal(u, tgt, a);
     else if (a.sup === "assassin") { if (this.isInvuln(tgt)) { this.events.emit("cast", u, tgt, a); return true; } this._slay(u, tgt); u.hp = Math.max(1, Math.floor(u.hp / 5)); }   // 암살: 대상 즉사, 시전자 체력은 1/5로 (FUN_004ac6f0)
-    else if (a.sup === "morph") { var to = this.typeOf(MORPH[u.t.id]); if (!to) return false; if (!u.origType) u.origType = u.t; u.setType(to);
+    else if (a.sup === "morph") { var MM = (root.MW && root.MW.morph) || MORPH, to = this.typeOf(MM[u.t.id]); if (!to) return false; if (!u.origType) u.origType = u.t; u.setType(to);   // 판마다 다른 표: 원본판은 data.morph (mirrorwar-original/tools/simbuild.js)
       u.morphUntil = 0; }                                                              // 시간 제한 없음. 되돌리기는 revert()
     else if (a.sup === "copy") { if (!u.origType) u.origType = u.t; u.setType(tgt.t); u.morphUntil = 0; }   // 메타몰포시스: 대상 유닛의 모습으로. 되돌리기는 revert()
     else if (a.sup === "raise") { var sk = this.typeOf(28); tgt.deadT = 99; this.spawn(sk, u.fac, tgt.x, tgt.y).made = true; }   // 레이즈 언데드: 시체를 해골전사로 (결과 유닛 추정)
     else if (a.sup === "merge") {                                                   // 합체 (FUN_004f1490, FUN_004585f0): 유령 + 좀비·해골전사 → 리치, 사탄 + 리치 → 다크로드
-      var want = u.t.id === 32 ? [31, 28] : u.t.id === 41 ? [33] : null, mate = null, md = 5; if (!want || u.mp < 30) return false;
+      var MG = root.MW && root.MW.merge, want = MG ? (MG.from.indexOf(u.t.id) >= 0 ? MG.from.filter(function (k) { return k !== u.t.id || MG.self; }) : null) : u.t.id === 32 ? [31, 28] : u.t.id === 41 ? [33] : null, mate = null, md = 5; if (!want || u.mp < 30) return false;   // 원본판: data.merge = { from: [합칠 수 있는 종류], to: 결과 } (FUN_00442740 — 결과 0x1D 리치)
       for (j = 0; j < L.length; j++) { o = L[j]; if (o.fac !== u.fac || !o.alive() || o === u || want.indexOf(o.t.id) < 0 || o.buffs.charm) continue; var dm = u.distTo(o); if (dm < md) { md = dm; mate = o; } }
       if (!mate) return false; u.mp -= 30; var keep = mate.level > u.level ? mate : u, gone = keep === u ? mate : u;
-      gone.state = 'dead'; gone.deadT = 99; gone.hp = 0; keep.x = u.x; keep.y = u.y; keep.origType = null; keep.setType(this.typeOf(u.t.id === 32 ? 33 : 34)); keep.hp = keep.maxHp; keep.mp = Math.floor(keep.maxMp / 3); keep.buffs = {}; tgt = keep; }
+      gone.state = 'dead'; gone.deadT = 99; gone.hp = 0; keep.x = u.x; keep.y = u.y; keep.origType = null; keep.setType(this.typeOf(MG ? MG.to : u.t.id === 32 ? 33 : 34)); keep.hp = keep.maxHp; keep.mp = Math.floor(keep.maxMp / 3); keep.buffs = {}; tgt = keep; }
     else if (a.sup === "sight") { /* 화면 쪽에서 cast 사건을 받아 안개를 걷는다 */ }
     else { tgt.buffs[a.sup] = { k1: a.k1, k2: a.k2, arm: a.arm, until: a.sup === "hide" ? 1e12 : this.time + R.supDuration(a), orig: tgt.fac, block: a.sup === "shield" && a.arm < 0 };   // block: 방패 막기(이펙트 없는 자기 방어) — 막기 자세를 취한다
       if (tgt.buffs[a.sup].block) tgt.blockT = 0;

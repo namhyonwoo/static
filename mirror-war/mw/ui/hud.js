@@ -132,7 +132,7 @@
     }
     if (s0) {
       var id = s0.t.pid;
-      ctx.drawImage(A.get('portraits'), (id % 12) * 120, Math.floor(id / 12) * 160, 120, 160, pr[0], pr[1], pr[2] - pr[0], pr[3] - pr[1]);
+      var PC = (window.MW && window.MW.portraitCell) || [120, 160];   /* 원본판 초상화 칸 126×126 (mirrorwar-original/tools/orighud.js) */ ctx.drawImage(A.get('portraits'), (id % 12) * PC[0], Math.floor(id / 12) * PC[1], PC[0], PC[1], pr[0], pr[1], pr[2] - pr[0], pr[3] - pr[1]);
       // 초상화 바로 아래: 체력·마나 상태 바 (체력은 남은 비율에 따라 초록→노랑→빨강)
       var bw = 76, bx = Math.round((pr[0] + pr[2]) / 2 - bw / 2), by = pr[3] - 13, hr = Math.max(0, Math.min(1, s0.hp / s0.maxHp));
       ctx.fillStyle = 'rgba(6,8,12,.85)'; ctx.fillRect(bx - 1, by - 1, bw + 2, s0.maxMp ? 12 : 6);
