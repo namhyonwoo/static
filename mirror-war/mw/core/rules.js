@@ -42,6 +42,9 @@
   var SHIELD = { 7: 20, 19: 20, 35: 20, 76: 20, 43: 16 };   // 파운틴·이블 스피리츠 베리어·토네이도 실드 ×20/8, 윈드 실드 ×2
   function OriginalRules(arms) { this.arms = arms || {}; this.tps = 12; this.now = 0; }   // tps: 원본 시뮬레이션 틱/초. 게임 속도 0~4 = 6.0 / 9.0 / 12.0 / 14.1 / 16.1 (FUN_0055d570)
   OriginalRules.SPEEDS = [6.02, 9.01, 12.05, 14.08, 16.13];
+  /* 한 번의 공격 동작에서 기본 타격(이벤트 프레임) 말고 더 치는 프레임 — 행동 번호별 (원본 FUN_004c1e10 등 공격 작업, 분석 8-41).
+     5 에로우 샤워(명궁): 프레임 10·12·14에 화살을 한 발씩 더 (모두 네 발).  7 컴비네이션 어택(무도가): 프레임 4에 한 번 더 */
+  OriginalRules.EXTRA_HITS = { 5: [10, 12, 14], 7: [4] };
   var O = OriginalRules.prototype = Object.create(MockRules.prototype);
   O.buff = function (u, k) { var b = u.buffs[k]; return b && b.until > this.now ? b : null; };
   O.attackValue = function (a) {
@@ -98,6 +101,7 @@
   /* 공격 간격 (FUN_004548d0): 행동 +0x26 틱 + rand % (틱÷4 + 1) */
   /* 공격 뒤 다음 공격까지의 대기(초). 원본 FUN_004dace0 (분석 8-38): 기다릴 틱 = 행동 +0x26 지연 + rand % (지연/4 + 1).
      유닛 상태 +0x40 이 1(가속: 케멘 소환·헤이스트)이면 **대기 없이 바로** 다시 공격하고, 2(감속)이면 3배를 기다린다 */
+  O.extraHits = function (act) { return (act && OriginalRules.EXTRA_HITS[act.id]) || null; };
   O.cooldown = function (u, rng) { var c = u.act; if (!c) return 1; var d = (c.delay + Math.floor(rng.next() * 32768) % ((c.delay >> 2) + 1)) / this.tps;
     return this.buff(u, "haste") ? 0 : this.buff(u, "slow") ? d * 3 : d; };
   /* 발사체 속도: armData +56 = 틱당 가로 픽셀 (FUN_004aba40) */

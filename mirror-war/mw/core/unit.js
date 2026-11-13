@@ -87,5 +87,6 @@
     if (A.block && this.blockT > 0) return A.block.f[this.row * A.block.n + Math.min(A.block.ev, A.block.n - 1, Math.floor(this.blockT * fps))];
     return A.idle[this.row];
   };
+  UnitType.MANA_FIX = MANA_FIX;
   MWE.UnitType = UnitType; MWE.Unit = Unit;
 })(typeof window !== 'undefined' ? window : globalThis);

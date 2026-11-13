@@ -330,6 +330,11 @@ P._blast = function (u, a, x, y) {
             else this._strike(u, u.tgt);
           }
         }
+        // 연속 타격 (원본 FUN_004c1e10, 분석 8-41): 에로우 샤워는 프레임 10·12·14에 화살을 더 쏘고, 컴비네이션 어택은 프레임 4에 한 번 더 친다
+        var X = R.extraHits ? R.extraHits(u.act) : null;
+        if (X) { if (u.at < X[0]) u.xN = 0;
+          while ((u.xN || 0) < X.length && u.at >= X[u.xN]) { u.xN = (u.xN || 0) + 1;
+            if (u.tgt && u.tgt.alive()) { if (u.t.ranged) { var s2 = { x: u.x, y: u.y, z: u.t.alt + 24, from: u, to: u.tgt, act: u.act, arm: R.projectile(u), t: 0, dx: 0, dy: 1 }; this.shots.push(s2); this.events.emit('shot', s2); } else this._strike(u, u.tgt); } } }
         if (u.at >= n) { u.state = 'idle'; u.cd = R.cooldown(u, this.rng); }
         continue;
       }
