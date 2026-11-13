@@ -25,7 +25,7 @@
     this.lv = d.lv || { max: 1, exp: 0, hpGrow: 0, mpGrow: 0, tbl: null };
     this.actions = d.actions || []; this.defGrow = d.defGrow || 0; this.aff = d.aff || []; this.affMul = d.affMul || 8;
     this.icons = d.icons || []; this.mana = d.mana || { max: 0, init: 0 };
-    if (MANA_FIX[d.id] != null) this.mana = { max: MANA_FIX[d.id], init: this.mana.init };   // 목업 고유 보정 (아래 MANA_FIX)
+    if (!d.noFix && MANA_FIX[d.id] != null) this.mana = { max: MANA_FIX[d.id], init: this.mana.init };   // 목업 고유 보정 (아래 MANA_FIX)
     this.snd = d.snd || {};             // 원본 음성: sel 선택, mov 이동, atk 공격, die 사망
     this.img = d.img; this.frames = d.fr; this.anim = d.anim;
   }
