@@ -116,6 +116,16 @@
        (배치 순서 힐 → 원거리 → 근접은 HOLD.support = 2 — 지원 유닛이 원거리 뒤 열에 선다) */
     AI: { pullOver: 10, pullMin: 2, pullSec: 1.5, coverHp: 0.5, coverDist: 150, coverBack: 34, engage: 130,
       coverLatch: true, coverOut: 0.65, coverLose: 320, coverTol: 12, coverFar: 70, keep: 110, keepBand: 25, keepBack: 150,
+      /* 2026-11-13 2차 (README 141 — 원거리 유닛이 가운데서 왔다갔다, 궁수가 적 근접 유닛과 붙어 싸움):
+         keepAll      거리 유지를 원거리 공격 유닛 전체로(궁수·명궁 …). 공격 유닛의 기준 거리 = max(keep, 사거리 × keepRange, 최대 keepMax). 공중 유닛은 뺀다(근접에게 안 맞는다).
+                      한번 물러나면 거리가 기준 + keepBand 로 벌어질 때까지 그 자리를 지킨다(keepHold) — 물러났다가 곧바로 대열 자리로 돌아가 또 물러나는 것을 막는다.
+         rangedStay   원거리 유닛은 근접 아군의 맨 앞(없으면 집결선)보다 rangedBehind px 뒤까지만 나아가고, 적이 사거리 + rangedNear px 안에 있는 동안은 대열 자리로 돌아가지 않고 선 자리에서 기다린다
+                      — 닿지 않는 적에게 나갔다가(rstep) 자리로 돌아오기(hold)를 되풀이하던 것(원거리 방향 전환의 87%)을 막는다 */
+      keepAll: true, keepRange: 0.6, keepMax: 140, rangedStay: true, rangedBehind: 30, rangedNear: 140,
+      /* 2026-11-13 3차 (사용자 규칙): calmSec — 원거리·마법 유닛은 주변(사거리 + rangedNear)에 적이 없는 채 calmSec 초가 지나야 대열 자리(근접 아군 뒤)로 돌아간다.
+         근접 아군이 하나도 없으면(noMelee): 대열 전체를 noMeleeBack px 물리고, 열 간격을 noMeleeCol 배로 벌리고, 줄은 가장 빈 줄부터 채워 최대한 퍼진다.
+         그 상태로 바뀌는 순간 regroupSec 초 동안은 (적이 regroupFight px 안에 붙지 않았다면) 싸우기보다 새 자리로 먼저 간다 — 자리를 잡은 뒤 공격 */
+      calmSec: 2, noMeleeBack: 110, noMeleeCol: 1.6, regroupSec: 2.5, regroupFight: 60,
       frontMove: true, frontMin: 2, frontSec: 1.5, frontStep: 60, frontLimit: 790, frontCalm: 6, frontBack: 30 },
     FLEE_SEC: 2.2, FLEE_SPEED: 1.3,   // 공격 없는 아군이 맞았을 때 물러나는 시간(초)과 걸음 배수 (2026-11-13 사용자 요청)
     SUPPORT_DIST: 210,           // 기본 공격이 없는 유닛(성직자·소환사 등)이 적과 벌려 두는 거리(px)
@@ -163,6 +173,9 @@
        31 좀비: 기본 공격 표시가 없는 '핸드 밤'으로 친다(basicAct 보정) — 2026-11-13 추가(웨이브 2·3·5·6·7·9, 해골전사 자리를 일부 대신). 도펠갱거 37은 공격이 없어 뺐다 */
     /* 웨이브 진행 (2026-11-13 절충안): 그 웨이브의 적이 다 나온 뒤, 쉬는 시간(rest)이 지났고 **남은 적이 left 기 이하**이면 다음 웨이브. 적을 못 줄여도 maxWait 초가 지나면 넘어간다. 전멸하면 바로.
        전에는 쉬는 시간만 지나면 무조건 넘어가서, 한 번 밀리면 웨이브가 겹쳐 60~80기가 쌓이고 그대로 끝났다 (README 103) */
+    /* 가운데 띠 (2026-11-13 사용자 요청): 전장 한가운데의 바닥을 같은 원본 지도의 다른 지형으로 바꿔 가운데를 알린다 — tile = 그 지형을 떠 올 지도 칸(갈고리 지도의 돌 깔린 풀밭),
+       w = 띠의 폭(px), edge = 좌우 가장자리가 둘레 바닥으로 풀리는 폭, dark = 덧씌우는 어둡기 */
+    MID: { tile: [73, 76], w: 300, edge: 70, dark: 0.22 },
     WAVE_PACE: { left: 10, leftRatio: 0.3, clearRest: 4, maxWait: 40 },   // 2026-11-13 (사용자: 1·2웨이브가 너무 짧다): 남은 적 기준을 "10기 이하"에서 "그 웨이브 적 수의 leftRatio(30%) 이하, 많아도 left(10)기"로 — 적이 10기도 안 되는 초반 웨이브가 쉬는 시간만 지나면 바로 넘어가던 것을 막는다. 전멸시켜도 clearRest 초는 쉰다(전에는 즉시)
     /* 적 종족 (2026-11-13): 시작 화면에서 고른다. name = 이름, lair = 출구 건물(MW_DEF 의 키), glow = 출구의 빛 색, fig = 시작 화면 버튼에 그릴 유닛, waves = 웨이브 표.
        고른 종족의 waves 가 CONFIG.WAVES 자리에 들어간다(setEnemy) — 진행·승리 판정은 CONFIG.WAVES 만 본다.
@@ -440,7 +453,8 @@
     var caster = u.side === 0 && !u.hero && skillsOf(t).length > 0;
     if (caster && u.rangePx >= 80) u.rangePx = Math.max(80, u.rangePx * C.CASTER.rangeMul);   // 아군 마법 유닛은 앞줄 가까이에서 쏜다
     u.supDist = caster ? C.CASTER.supportDist : C.SUPPORT_DIST;
-    u.keeper = u.side === 0 && C.MORPH[t.id] == null && ((caster && u.rangePx >= 80) || (!u.act && skillsOf(t).length > 0));   // 거리 유지 대상: 원거리 마법 유닛과 공격 없는 지원 유닛 (CONFIG.AI.keep)
+    u.keeper = u.side === 0 && C.MORPH[t.id] == null && (((caster || C.AI.keepAll) && u.rangePx >= 80 && !(C.AI.keepAll && u.air)) || (!u.act && skillsOf(t).length > 0));
+    u.keepR = u.act && C.AI.keepAll ? Math.max(C.AI.keep, Math.min(C.AI.keepMax, u.rangePx * C.AI.keepRange)) : C.AI.keep;   // 거리 유지 대상: 원거리 마법 유닛과 공격 없는 지원 유닛 (CONFIG.AI.keep)
     // reach = "적에게 얼마나 가까이 가려는가". 줄 서기에서 reach가 짧은 유닛(근접)은 긴 유닛(원거리·지원)을 지나쳐 앞으로 나간다
     u.reach = u.act ? u.rangePx : u.supDist;
     u.speedPx = t.walkPx * this.rules.tps * C.MOVE_SCALE * (u.side === 0 ? C.ALLY_MOVE_MUL : 1);    // 초당 이동 px (소환할 때의 편 기준 — 매혹으로 편이 바뀌어도 그대로)
@@ -1100,9 +1114,14 @@
     }
     // 마법 유닛의 거리 유지 (CONFIG.AI.keep): 적의 맨 앞 유닛과의 가로 거리가 keep − keepBand 보다 가까우면 뒤로 물러난다. 엔트(뿌리내림)·시전하러 가는 중은 제외
     if (u.side === 0 && C.AI.keep > 0 && u.keeper && !u.castOrder && !u.rooted) {
-      var ff = this._frontFoe(); if (ff) { var gap = ff.x - u.x, lim = this.frontX - C.AI.keepBack;
-        if (gap < C.AI.keep - C.AI.keepBand && u.x > lim) { u.aiWhy = 'keep'; u.x -= Math.min(u.x - lim, this._speed(u) * dt); u.state = 'move'; u.walkT += dt; this._faceVec(u, -1, 0); u.hold = null; return; } }
+      var ff = this._frontFoe(), KR = u.keepR || C.AI.keep;
+      if (ff) { var gap = ff.x - u.x, lim = this.frontX - C.AI.keepBack;
+        if (gap < KR - C.AI.keepBand && u.x > lim) { u.keepHold = true; u.aiWhy = 'keep'; u.x -= Math.min(u.x - lim, this._speed(u) * dt); u.state = 'move'; u.walkT += dt; this._faceVec(u, -1, 0); u.hold = null; return; }
+        if (u.keepHold && gap >= KR + C.AI.keepBand) u.keepHold = false; }
+      else u.keepHold = false;
     }
+    if (u.side === 0 && u.regroupUntil > this.time && !u.castOrder && !u.rooted && !(u.rangePx < 80 && u.act)) {   // 근접 아군이 사라졌다: 물러나 퍼진 새 자리로 먼저 간다 (적이 코앞이면 싸운다)
+      if (dist > C.AI.regroupFight) { u.aiWhy = 'regroup'; this._holdStep(u, dt); if (u.state === 'idle') u.regroupUntil = 0; return; } }
     if (u.act) {
       // 공격할 대상: 맞은편 유닛 중 가장 가까운 것. 적은 대상이 없으면 기지를 친다
       var baseDist = u.side === 1 ? u.x - C.BASE.front : Infinity;
@@ -1126,11 +1145,21 @@
       }
       // 원거리 유닛: 가로로는 닿는데 못 쏘는 경우는 없다 (거리를 가로로만 잰다)
       // 원거리 아군: 집결선 근처(leash 안)에 적이 있는데 사거리가 모자라면 대열에서 나와 닿을 때까지 다가간다 — 지상 근접이 못 때리는 공중 적(드래곤)이 사거리 밖에서 버티면 아무도 손을 못 대 게임이 끝나지 않았다 (2026-11-12)
-      if (tgt && !melee && u.side === 0 && tgt.x <= this.frontX + C.HOLD.leash) { this._stepToward(u, tgt, dt); return; }
+      if (tgt && !melee && u.side === 0 && tgt.x <= this.frontX + C.HOLD.leash && !u.keepHold) {
+        if (!C.AI.rangedStay || u.air || u.x < this._rangedLimit() - 4) { u.aiWhy = 'rstep'; this._stepToward(u, tgt, dt); return; }   // 근접 아군의 뒤까지만 나아간다 (공중 유닛은 아군 위를 지나가므로 제한 없음)
+        u.state = 'idle'; this._look(u, 1); return; }
     } else if (u.side === 1 && !u.slots.length) {            // 공격도 마법도 없는 적(적 마법이 꺼져 있을 때의 메두사·사탄·서큐버스): 아군을 지나쳐 성까지 가 버리면 잡을 길이 없으므로, 가장 가까운 아군에게 다가와 그 앞에 선다 (2026-11-12 사용자 제안: 적이 아군 쪽으로 오게)
       if (tgt) { if (Math.hypot(tgt.x - u.x, tgt.y - u.y) <= 34) { u.state = 'idle'; return; } var hx = tgt.x - u.x, hy = tgt.y - u.y, hd = Math.hypot(hx, hy), hs = Math.min(hd, this._speed(u) * dt); u.x += hx / hd * hs; u.y += hy / hd * hs; u.state = 'move'; u.walkT += dt; return; }
     } else if (adx <= (u.supDist || C.SUPPORT_DIST)) { u.state = 'idle'; return; }   // 기본 공격이 없는 유닛(아군 지원 유닛, 마법을 쓰는 적)은 적과 거리를 두고 선다
     // 전진 한계: 아군은 집결선(전장 가운데), 적은 성 앞 (매혹된 적은 아군 규칙)
+    if (u.side === 0 && u.keepHold) { u.state = 'idle'; this._look(u, 1); return; }   // 거리를 두려고 물러난 자리: 거리가 벌어질 때까지 지킨다
+    if (u.side === 0 && C.AI.rangedStay && u.act && u.rangePx >= 80 && tgt && adx <= u.rangePx + C.AI.rangedNear) {   // 원거리: 적이 가까이 있는 동안은 대열 자리로 돌아가지 않는다
+      var rl = u.air ? Infinity : this._rangedLimit();
+      if (u.x > rl + 12) { u.aiWhy = 'rback'; u.x -= Math.min(u.x - rl, this._speed(u) * dt); u.state = 'move'; u.walkT += dt; this._faceVec(u, -1, 0); u.hold = null; return; }   // 근접 아군보다 앞에 서 있으면 그 뒤로
+      u.state = 'idle'; this._look(u, 1); return; }
+    if (u.side === 0 && C.AI.rangedStay && u.rangePx >= 80 || (u.side === 0 && !u.act)) {   // 원거리·지원: 적이 사라진 뒤 calmSec 초는 선 자리에 있다가 대열 자리(근접 아군 뒤)로 돌아간다
+      if (u.lastFoeT == null) u.lastFoeT = -99; if (tgt && adx <= u.rangePx + C.AI.rangedNear) u.lastFoeT = this.time;
+      if (this.time - u.lastFoeT < C.AI.calmSec && u.x >= this.frontX - C.HOLD.zone) { u.state = 'idle'; this._look(u, 1); return; } }
     if (u.side === 0 && u.x >= this.frontX - C.HOLD.zone) { u.aiWhy = 'hold'; this._holdStep(u, dt); return; }   // 집결선 근처: 대열의 자기 자리로 가서 선다
     if (u.side === 1 && u.x <= C.BASE.front) { u.state = 'idle'; return; }
     // 줄 서기: 같은 줄 바로 앞에 같은 편이 있으면 멈춰 기다린다. 기다리는 동안 적이 있는 줄 쪽으로 조금씩 비켜 서서 빈자리를 찾는다
@@ -1150,9 +1179,9 @@
   /* 집결 대열: 유닛이 맡은 자리(u.hold = { c 열, r 줄 })로 걸어가 선다. 자리는 서로 다르므로 겹치지 않는다.
      싸우러 나갔다 돌아와도 같은 자리로 온다(그 사이 자리는 비워 둔다). 쓰러지면 자리가 풀린다 */
   P._holdStep = function (u, dt) {
-    var H = CONFIG.HOLD, R = this.rows;
+    var H = CONFIG.HOLD, R = this.rows, nm = this._noMelee();   // _noMelee 는 상태가 바뀌면 모든 자리를 비우므로 자리를 고르기 전에 부른다
     if (!u.hold || u.hold.r >= R.length) u.hold = this._pickHold(u);
-    var tx = this.frontX - u.hold.c * H.col, ty = this.laneY + R[u.hold.r], dx = tx - u.x, dy = ty - u.y, d = Math.hypot(dx, dy);
+    var tx = this.frontX - (nm ? CONFIG.AI.noMeleeBack : 0) - u.hold.c * H.col * (nm ? CONFIG.AI.noMeleeCol : 1), ty = this.laneY + R[u.hold.r], dx = tx - u.x, dy = ty - u.y, d = Math.hypot(dx, dy);
     u.slotOf = null; u.slotA = null; u.passY = null; u.blockT = 0;
     if (d < 1.5) { u.x = tx; u.y = ty; u.state = 'idle'; this._look(u, u.dir); return; }   // 자리에 서면 적이 오는 쪽을 본다
     var step = Math.min(d, this._speed(u) * dt); u.x += dx / d * step; u.y += dy / d * step;
@@ -1162,7 +1191,11 @@
   P._pickHold = function (u) {
     var H = CONFIG.HOLD, R = this.rows, L = this.units, taken = {}, i;
     for (i = 0; i < L.length; i++) { var o = L[i]; if (o !== u && o.side === 0 && o.state !== 'dead' && o.hold) taken[o.hold.c + ',' + o.hold.r] = 1; }
-    var c0 = !u.act ? H.support : u.rangePx >= 80 ? H.ranged : 0, order = R.map(function (v, k) { return k; }), ly = this.laneY;
+    var nm = this._noMelee(), c0 = !u.act ? (nm ? 1 : H.support) : u.rangePx >= 80 ? (nm ? 0 : H.ranged) : 0, order = R.map(function (v, k) { return k; }), ly = this.laneY;
+    if (nm) { var cnt = R.map(function () { return 0; }); for (i = 0; i < L.length; i++) { var q = L[i]; if (q !== u && q.side === 0 && q.state !== 'dead' && q.hold && q.hold.r < R.length) cnt[q.hold.r]++; }
+      order.sort(function (a, b) { return (cnt[a] - cnt[b]) || (Math.abs(ly + R[a] - u.y) - Math.abs(ly + R[b] - u.y)); });   // 근접이 없으면: 가장 빈 줄부터 — 최대한 퍼진다
+      var best = null; for (var c1 = c0; c1 < c0 + 40 && !best; c1++) for (i = 0; i < order.length; i++) if (!taken[c1 + ',' + order[i]]) { best = { c: c1, r: order[i] }; break; }
+      return best || { c: c0, r: order[0] }; }
     order.sort(function (a, b) { return Math.abs(ly + R[a] - u.y) - Math.abs(ly + R[b] - u.y); });
     for (var c = c0; c < c0 + 40; c++) for (i = 0; i < order.length; i++) if (!taken[c + ',' + order[i]]) return { c: c, r: order[i] };
     return { c: c0, r: order[0] };
@@ -1405,6 +1438,20 @@
   /* u 를 지금 노리고 있는 적의 수 (공격 동작 중이거나 방금 쳐서 다음 공격을 기다리는 적) */
   P._attackers = function (u) { var n = 0, L = this.units; for (var i = 0; i < L.length; i++) { var o = L[i]; if (o.side !== u.side && o.state !== 'dead' && o.tgt === u && (o.state === 'attack' || o.cd > 0)) n++; } return n; };
   /* 다친 근접 유닛 u 가 뒤에 설 아군: 가까이 있는 근접 아군 중 체력이 넉넉한(coverHp 넘는) 가장 가까운 유닛. 없으면 null (그 자리에서 싸운다) */
+  /* 싸울 수 있는 근접 아군이 하나도 없는가 (CONFIG.AI.noMelee*). 상태가 바뀌면 대열 자리를 다시 고르게 하고, 없어진 순간에는 원거리·지원 유닛에게 "먼저 새 자리로" 시간을 준다 */
+  P._noMelee = function () {
+    if (this._nmT === this.time) return this._nm;
+    var L = this.units, any = false, i; for (i = 0; i < L.length; i++) { var o = L[i]; if (o.side === 0 && o.state !== 'dead' && o.act && o.rangePx < 80) { any = true; break; } }
+    var nm = !any && L.some(function (o) { return o.side === 0 && o.state !== 'dead'; });
+    if (nm !== this._nm) { var T = this.time, RS = CONFIG.AI.regroupSec; for (i = 0; i < L.length; i++) { var u = L[i]; if (u.side === 0 && u.state !== 'dead') { u.hold = null; if (nm) u.regroupUntil = T + RS; } } }
+    this._nmT = this.time; this._nm = nm; return nm;
+  };
+  /* 원거리 아군이 나아갈 수 있는 한계 x: 싸울 수 있는 근접 아군 중 맨 앞보다 rangedBehind px 뒤, 근접 아군이 없으면 집결선. 한 프레임에 한 번만 계산 */
+  P._rangedLimit = function () {
+    if (this._rlT === this.time) return this._rl;
+    var mx = -Infinity, L = this.units; for (var i = 0; i < L.length; i++) { var o = L[i]; if (o.side === 0 && o.state !== 'dead' && o.act && o.rangePx < 80 && !o.coverOn && o.x > mx) mx = o.x; }
+    this._rlT = this.time; this._rl = mx === -Infinity ? this.frontX - CONFIG.AI.noMeleeBack : Math.max(this.frontX - CONFIG.HOLD.col, mx - CONFIG.AI.rangedBehind); return this._rl;
+  };
   /* 적의 맨 앞 유닛 (성에 가장 가까운 적). 한 프레임에 한 번만 찾는다 */
   P._frontFoe = function () {
     if (this._ffT === this.time) return this._ff;
@@ -1514,6 +1561,20 @@
     var g = cv.getContext('2d'); g.imageSmoothingEnabled = false; g.clearRect(0, 0, GW, GH);
     this.terrain.draw(g, { x: Math.round(c[0] / 64) * 64 - GW / 2, y: Math.round(c[1] / 32) * 32 - GH / 2 }, GW, GH);
     this.ground = cv; this._groundAt = this.time;
+    // 가운데 띠의 바닥 (CONFIG.MID): 같은 원본 지도의 다른 곳(돌이 깔린 풀밭)을 한 조각 떠 온다
+    var MD = CONFIG.MID, c2 = map.t2w(MD.tile[0], MD.tile[1]), cv2 = this.ground2 || document.createElement('canvas'); if (cv2.width !== GW) cv2.width = GW; if (cv2.height !== GH) cv2.height = GH;
+    var g2 = cv2.getContext('2d'); g2.imageSmoothingEnabled = false; g2.clearRect(0, 0, GW, GH);
+    this.terrain.draw(g2, { x: Math.round(c2[0] / 64) * 64 - GW / 2, y: Math.round(c2[1] / 32) * 32 - GH / 2 }, GW, GH);
+    this.ground2 = cv2; this.midStrip = null;                // 띠는 다음에 그릴 때 다시 만든다
+  };
+  /* 가운데 띠 한 장(폭 MID.w × 전장 높이): 가운데 지형을 세로로 이어 깔고 조금 어둡게 덮은 뒤, 좌우 가장자리를 투명하게 풀어 둘레 바닥과 자연스럽게 이어지게 한다 */
+  P._makeMidStrip = function (gh) {
+    var MD = CONFIG.MID, cv = document.createElement('canvas'); cv.width = MD.w; cv.height = gh; var g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
+    for (var y = 0; y < gh; y += GH) g.drawImage(this.ground2, Math.round((GW - MD.w) / 2), 0, MD.w, GH, 0, y, MD.w, GH);
+    g.fillStyle = 'rgba(0,0,0,' + MD.dark + ')'; g.fillRect(0, 0, MD.w, gh);
+    g.globalCompositeOperation = 'destination-in'; var m = g.createLinearGradient(0, 0, MD.w, 0), e = MD.edge / MD.w;
+    m.addColorStop(0, 'rgba(0,0,0,0)'); m.addColorStop(e, 'rgba(0,0,0,1)'); m.addColorStop(1 - e, 'rgba(0,0,0,1)'); m.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = m; g.fillRect(0, 0, MD.w, gh);
+    this.midStrip = cv; this.midStripH = gh;
   };
 
   /* 배경: 평지 조각을 카메라에 맞춰 이어 깔고, 전투 줄을 살짝 어둡게 표시 */
@@ -1522,6 +1583,9 @@
     if (!this.ground) return;
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, gh); ctx.clip();
     for (var x = -(Math.round(this.cam.x) % GW); x < W; x += GW) for (var y = 0; y < gh; y += GH) ctx.drawImage(this.ground, x, y);
+    if (this.ground2 && this.frontBase != null) {            // 가운데 띠: 전장 한가운데(집결선의 원래 자리)의 바닥만 다른 지형으로 — 선을 긋지 않고 가운데를 알린다
+      if (!this.midStrip || this.midStripH !== gh) this._makeMidStrip(gh);
+      var mx = Math.round(this.frontBase - CONFIG.MID.w / 2 - this.cam.x); if (mx < W && mx + CONFIG.MID.w > 0) ctx.drawImage(this.midStrip, mx, 0); }
     var g = ctx.createLinearGradient(0, top, 0, bot);
     g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, 'rgba(0,0,0,.2)'); g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g; ctx.fillRect(0, top, W, bot - top);
@@ -1611,15 +1675,10 @@
   P._bldOrigin = function (b, x, y) { var p = this.bld.pics[b.pic]; return [x - b.ax + p[4], y - b.ay + p[5]]; };
   /* defense.png 안의 그림 한 장을 (x, y)에 원점을 맞춰 그린다 */
   /* 집결선(전장 가운데 — 아군이 나아가는 한계, frontX) 표시 (2026-11-13 사용자 요청: 가운데가 어디인지 잘 보이게, 원작의 깃발로).
-     바닥에 옅은 금빛 점선 띠를 깔고, 전투 줄 위·아래 끝에 원작 해방부대 깃발(flag.mwb — 성에 꽂힌 것과 같은 그림, 두 배로)을 세운다.
-     전투 줄 안에는 점선만 지나가므로 유닛을 가리지 않는다 */
+     전투 줄 위·아래 끝에 원작 해방부대 깃발(flag.mwb — 성에 꽂힌 것과 같은 그림, 두 배로)을 세운다. 깃발은 집결선을 따라 움직인다.
+     처음에는 두 깃발 사이에 금빛 점선을 그었으나, 양 진영을 가르는 선처럼 보여 뺐다(사용자) — 가운데는 바닥 지형을 달리해서 알린다(_drawGround 의 가운데 띠) */
   P._drawRally = function () {
     var B = this.bld.base, ctx = this.ctx, R = this.rows, x = this.frontX, y0 = this.laneY + R[0] - 34, y1 = this.laneY + R[R.length - 1] + 22; if (!B) return;
-    ctx.save();
-    var g = ctx.createLinearGradient(x - 14, 0, x + 14, 0); g.addColorStop(0, 'rgba(255,211,110,0)'); g.addColorStop(0.5, 'rgba(255,211,110,.16)'); g.addColorStop(1, 'rgba(255,211,110,0)');
-    ctx.fillStyle = g; ctx.fillRect(x - 14, y0, 28, y1 - y0);
-    ctx.strokeStyle = 'rgba(255,224,140,.7)'; ctx.lineWidth = 2; ctx.setLineDash([7, 6]); ctx.lineDashOffset = -Math.floor(this.time * 6); ctx.beginPath(); ctx.moveTo(x + 0.5, y0); ctx.lineTo(x + 0.5, y1); ctx.stroke();
-    ctx.restore();
     var k = Math.floor(this.time * 8) % B.flagFrames.length, self = this, im = this.assets.get('defense');
     [[y0 - 2, 0], [y1 + 26, 3]].forEach(function (q) { var p = self.bld.pics[B.flagFrames[(k + q[1]) % B.flagFrames.length]], sc = 2;   // 깃발: 그림의 원점(깃대 발치)을 선 끝에 맞춘다
       ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(x, q[0], 9, 3.5, 0, 0, Math.PI * 2); ctx.fill();
