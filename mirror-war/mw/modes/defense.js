@@ -112,7 +112,7 @@
     /* friendlyFire: 범위 안의 아군(시전자 포함)도 같은 피해를 입는 마법 (2026-11-13 사용자 요청 — 가장 센 범위 마법이라 쓸 자리를 가려야 한다) */
     /* 스킬은 전체 마나를 쓴다 (소환과 같은 마나) + 짧은 재사용 대기 cool(초). 값 = 원본 행동 마나 × costMul 을 5 단위로, 종류별 [최소, 최대] 안으로 자른다 (COST)
        — 원본은 유닛마다 마나통이 따로라 값을 그대로 쓸 수 없어 비율만 가져온다. 2026-11-12: 쿨타임만 돌던 방식에서 바꿈 (공짜라 강화를 상시 돌리던 문제) */
-    SKILL: { charmMax: 3, cool: 3, costMul: 0.4, COST: { blast: [40, 100], buff: [20, 30], heal: [25, 70], haste: [60, 60], weaken: [20, 25], stun: [35, 50], recall: [40, 40], charm: [50, 60], assassin: [40, 40], morph: [20, 20] }, radius: 95, buffRadius: 170, dmgMul: 2, healRatio: 0.35, healMax: 3, stunSec: 6, stunBase: 112, firstWait: 2, hasteMul: 1.5, maxCast: 320, walkSec: 45, buffSec: 7, buffMax: 2, summonRadius: 140, undeadDmg: { '턴 언데드': 80, '디스트로이 언홀리': 140 }, friendlyFire: { '12 리플렉터스 소환': 1 }, tierBase: 100, tierPer: 0.004 },   // maxCast = 시전 거리 한도(px). 원본 사거리가 무제한(65535)인 마법도 이 안에 대상이 있어야 한다   // 스킬 공통 수치 (목업 값)
+    SKILL: { charmMax: 3, cool: 3, costMul: 0.4, COST: { blast: [40, 100], buff: [20, 30], heal: [25, 70], haste: [60, 60], dispel: [30, 40], weaken: [20, 25], stun: [35, 50], recall: [40, 40], charm: [50, 60], assassin: [40, 40], morph: [20, 20] }, radius: 95, buffRadius: 170, dmgMul: 2, healRatio: 0.35, healMax: 3, stunSec: 6, stunBase: 112, firstWait: 2, hasteMul: 1.5, maxCast: 320, walkSec: 45, buffSec: 7, buffMax: 2, summonRadius: 140, undeadDmg: { '턴 언데드': 80, '디스트로이 언홀리': 140 }, friendlyFire: { '12 리플렉터스 소환': 1 }, tierBase: 100, tierPer: 0.004 },   // maxCast = 시전 거리 한도(px). 원본 사거리가 무제한(65535)인 마법도 이 안에 대상이 있어야 한다   // 스킬 공통 수치 (목업 값)
     /* 소환 패널의 탭: 해방부대 전체(원본 유닛 번호 0~24)를 네 묶음으로 나눈다 */
     TABS: [
       { name: '근접', ids: [0, 1, 2, 3, 6, 7, 8] },          // 전사 기사 창기사 성기사 창검사 격투가 무도가
@@ -132,8 +132,14 @@
     /* 적 레벨: 웨이브가 진행될수록 적이 높은 레벨로 나온다 — 레벨 = start + perWave × (웨이브 − 1). 원본 성장 규칙 그대로 체력(+hpGrow)·공격(k1 × 레벨)·방어(defGrow × 레벨)가 함께 오른다.
        체력 배수만 올리는 것보다 낫다: 초반은 그대로 두고 후반만 어려워지며, "전군 단련"으로 오르는 아군 레벨과 짝이 맞는다 (2026-11-12 사용자 제안) */
     ENEMY_LV: { start: 1, perWave: 0.7 },   // 2026-11-13: 1 → 0.7 (10웨이브에 레벨 7). 1일 때 봇이 6~7웨이브에서 무너졌다 (README 105)
-    SKILL_OFF: { '넨 소환': 1 },   // 디펜스에서 뺀 마법 (원본 행동 이름). 넨 소환 = 아군 텔레포트(리콜): 2026-11-12 사용자 요청으로 제외 — 코드(recall)는 남겨 둔다
+    SKILL_OFF: { '넨 소환': 1, '헤이스트': 1 },   // 헤이스트(마녀): 원작은 자기 전용인데 디펜스에서는 주변 적 전부가 60초 동안 공격 대기 없이 쳐서 흑마술파 8웨이브가 무너졌다 — 2026-11-13 사용자 결정으로 제외 (README 128)
+      // 디펜스에서 뺀 마법 (원본 행동 이름). 넨 소환 = 아군 텔레포트(리콜): 2026-11-12 사용자 요청으로 제외 — 코드(recall)는 남겨 둔다
     TECH: { '암살': { cool: 20, first: 4 } },
+    /* 몸동작 기술 (2026-11-13 사용자 지정): 마나 0 인 원본 행동이라 스킬 칸·TECH(마나를 쓰는 행동) 경로에 없다 — 아군 유닛이 조건이 되면 알아서 쓴다 (_bodyTech). SKILL_OFF 에 이름을 넣으면 꺼진다.
+       방패 막기(전사·기사): 체력이 hpBelow(20%) 이하가 되면 켜져 방어 ×2 (원본 방패 막기의 방어 배수, rules.js). 싸움은 계속한다.
+         푸는 조건(사용자 지정): 체력이 hpRelease(70%) 이상이고, 둘레 near(px) 안의 적이 foes(3)기 미만일 때 — 둘 다 맞아야 풀린다.
+       창 돌리기(창검사): 둘레(원본 사거리 1200 → 84px)에 지상의 적이 foes(3)기 이상이면 한 바퀴 돌려 그 적 전부에게 원본 공식 피해, 원본대로 자기 체력 10 소모(1 밑으로는 안 내려감), 다시 쓰기까지 cool 초 */
+    BODY_TECH: { '방패 막기': { hpBelow: 0.2, hpRelease: 0.7, foes: 3, near: 60 }, '창 돌리기': { foes: 3, cool: 8 } },
     ENEMY_SKILL: { on: false, fromWave: 8, cool: 30, first: [8, 16] },   // fromWave = 이 웨이브(1부터)부터는 on 이 꺼져 있어도 적이 마법을 쓴다 (2026-11-12 사용자 요청: 8·9·10)
       // on = 적이 마법을 쓰는가. 2026-11-12: 아군이 불리해 끔(사용자 요청). 켜면 cool·first 로 빈도 조절
     /* 웨이브: 악령군 전체가 섞여 나온다. [유닛 번호, 수]. 한 웨이브 안에서는 순서를 섞는다(_waveQueue).
@@ -143,10 +149,29 @@
     /* 웨이브 진행 (2026-11-13 절충안): 그 웨이브의 적이 다 나온 뒤, 쉬는 시간(rest)이 지났고 **남은 적이 left 기 이하**이면 다음 웨이브. 적을 못 줄여도 maxWait 초가 지나면 넘어간다. 전멸하면 바로.
        전에는 쉬는 시간만 지나면 무조건 넘어가서, 한 번 밀리면 웨이브가 겹쳐 60~80기가 쌓이고 그대로 끝났다 (README 103) */
     WAVE_PACE: { left: 10, maxWait: 40 },
-    WAVES: [   // 2026-11-12: 성장 시스템으로 너무 쉬워져 웨이브당 적 수를 늘리고(108 → 378기) 10단계로. 8·9·10 웨이브는 적도 마법을 쓴다 (ENEMY_SKILL.fromWave)
-      { list: [[28, 6]], gap: 1.6, rest: 6 },
-      { list: [[28, 5], [31, 2], [43, 3]], gap: 1.3, rest: 6 },
-      { list: [[28, 6], [31, 2], [43, 3], [32, 3], [25, 1]], gap: 1.1, rest: 7 },
+    /* 적 종족 (2026-11-13): 시작 화면에서 고른다. name = 이름, lair = 출구 건물(MW_DEF 의 키), glow = 출구의 빛 색, fig = 시작 화면 버튼에 그릴 유닛, waves = 웨이브 표.
+       고른 종족의 waves 가 CONFIG.WAVES 자리에 들어간다(setEnemy) — 진행·승리 판정은 CONFIG.WAVES 만 본다.
+       흑마술파(진영 2, 유닛 49~71): 52 전사 53 흑전사 54 흑기사(근접) 55 도둑 56 대도 57 마기사 49 흑마술사 50 요마술사 51 대마술사 61 인챈터(원거리) 63 흡혈귀 64 늑대인간 68 개미 69 거미 70 전갈(근접)
+       66 구렁이(사거리 긺) 67 드래곤(공중). 58 소환사·59 환술사·60 연금술사·62 마녀(공중)는 기본 공격이 없어 적 마법이 켜지는 8웨이브부터만 나온다.
+       가고일 65(변형뿐)·왕자 71(감속 마법 — 디펜스에 아직 없는 종류)은 뺐다. 유닛 하나하나가 악령군보다 튼튼해서(전사 체력 150 : 해골전사 50) 수는 줄이고 웨이브별 체력 합을 악령군과 맞췄다(232기) */
+    ENEMY_DEFAULT: 'evil',
+    ENEMIES: {
+      dark: { name: '흑마술파', lair: 'lair2', glow: '110,120,255', fig: 54, hpMul: 0.85, waves: [   // hpMul = 이 종족만의 체력 배수(ENEMY_HP_MUL 에 곱한다). 체력 합을 맞춰도 방어·원거리 비중이 높아 봇이 악령군보다 한 웨이브 일찍(8~9) 무너져서 0.85 (README 128)
+        { list: [[52, 3], [55, 1]], gap: 2.2, rest: 6 },   // 2026-11-13 사용자 요청: 초반(1~3웨이브) 물량 1.4~2배 (2·4·7 → 4·7·10기), 간격은 줄여 웨이브 길이는 비슷하게
+        { list: [[52, 3], [55, 2], [68, 2]], gap: 1.9, rest: 6 },
+        { list: [[52, 4], [55, 3], [68, 2], [53, 1]], gap: 1.6, rest: 7 },
+        { list: [[52, 5], [55, 3], [68, 2], [53, 2], [63, 1], [49, 2]], gap: 1.5, rest: 7 },
+        { list: [[52, 5], [53, 4], [55, 3], [64, 3], [69, 2], [57, 2], [49, 2]], gap: 1.2, rest: 8 },
+        { list: [[52, 6], [53, 4], [56, 2], [63, 3], [64, 1], [69, 2], [57, 2], [49, 2], [68, 4]], gap: 1.1, rest: 8 },
+        { list: [[52, 6], [53, 5], [54, 1], [56, 3], [64, 3], [70, 1], [66, 1], [50, 2], [57, 2], [67, 1], [69, 2], [68, 2]], gap: 0.95, rest: 8 },
+        { list: [[52, 8], [53, 5], [54, 2], [55, 4], [63, 3], [70, 2], [49, 3], [61, 2], [60, 1], [59, 1], [62, 3], [68, 4]], gap: 0.9, rest: 9 },
+        { list: [[52, 8], [53, 7], [54, 3], [56, 4], [64, 4], [69, 3], [66, 2], [50, 3], [58, 2], [60, 2], [67, 2], [57, 3], [62, 3]], gap: 0.78, rest: 9 },
+        { list: [[52, 9], [53, 7], [54, 4], [56, 4], [63, 3], [64, 3], [70, 3], [66, 2], [51, 2], [50, 2], [61, 3], [59, 2], [58, 1], [67, 4], [62, 3]], gap: 0.76, rest: 0 }
+      ] },
+      evil: { name: '악령군', lair: 'lair', glow: '190,90,220', fig: 30, waves: [   // 2026-11-12: 성장 시스템으로 너무 쉬워져 웨이브당 적 수를 늘리고(108 → 378기) 10단계로. 8·9·10 웨이브는 적도 마법을 쓴다 (ENEMY_SKILL.fromWave)
+      { list: [[28, 9]], gap: 1.3, rest: 6 },   // 2026-11-13 사용자 요청: 초반(1~3웨이브)이 너무 쉬워 물량 약 1.5배 (6·10·15 → 9·15·21기), 간격은 줄여 웨이브 길이는 비슷하게
+      { list: [[28, 8], [31, 3], [43, 4]], gap: 1.1, rest: 6 },
+      { list: [[28, 9], [31, 3], [43, 4], [32, 4], [25, 1]], gap: 0.95, rest: 7 },
       { list: [[28, 11], [29, 4], [46, 6], [35, 2], [39, 4], [33, 1]], gap: 0.9, rest: 7 },
       { list: [[28, 8], [31, 3], [29, 6], [36, 4], [40, 4], [26, 1], [38, 1], [44, 2], [48, 2]], gap: 0.8, rest: 8 },
       { list: [[28, 11], [31, 3], [29, 6], [30, 4], [45, 4], [34, 1], [42, 1], [46, 6], [33, 2], [36, 4]], gap: 0.7, rest: 8 },
@@ -154,8 +179,10 @@
       { list: [[28, 14], [29, 8], [30, 6], [45, 4], [33, 4], [25, 2], [35, 4], [39, 6], [46, 6], [42, 2]], gap: 0.6, rest: 9 },
       { list: [[28, 13], [31, 4], [29, 10], [30, 6], [44, 4], [45, 4], [34, 4], [26, 2], [27, 2], [47, 2], [48, 6], [40, 6], [38, 2]], gap: 0.55, rest: 9 },
       { list: [[28, 17], [29, 11], [30, 8], [36, 6], [34, 4], [41, 2], [27, 2], [33, 4], [47, 4], [48, 7], [45, 6], [42, 2], [39, 6]], gap: 0.5, rest: 0 }
-    ]
+      ] }
+    }
   };
+  CONFIG.WAVES = CONFIG.ENEMIES[CONFIG.ENEMY_DEFAULT].waves;   // 지금 고른 적 종족의 웨이브 표 (setEnemy 가 바꾼다)
 
   /* ───────────────────────── 2. 준비 ───────────────────────── */
   function DefenseGame(canvas, data, opts) {
@@ -168,19 +195,20 @@
     data.units.forEach(function (d) { self.types[d.id] = new MWE.UnitType(d); });   // 유닛 번호로 찾는다 (77 같은 변형 형태도 있다)
     this.rules = new MWE.OriginalRules(data.fx.arms);        // 원본 피해 공식
     this.rng = new MWE.Rng(Date.now() & 0xffff);
+    this.enemy = CONFIG.ENEMY_DEFAULT; CONFIG.WAVES = CONFIG.ENEMIES[this.enemy].waves;   // 적 종족 (시작 화면에서 고른다 — setEnemy)
     this.map = new MWE.GameMap(data.map2);                   // 배경으로 쓸 원본 맵 (평지가 있는 2인용 맵)
 
     var parentOf = {}; data.units.forEach(function (d) { (d.up || []).forEach(function (x) { if (parentOf[x] == null) parentOf[x] = d.id; }); });   // 전직 대상 → 원래 유닛
     // 소환 목록: 탭마다 { 유닛 종류, 마나 값, 다시 소환까지(초), 마법 유닛인가 }
     this.roster = CONFIG.TABS.map(function (tab) { return tab.ids.map(function (id) {
       var t = self.types[id], cost = summonCost(self.types, parentOf, id);
-      return { id: id, t: t, cost: cost, cd: Math.max(1, Math.min(8, cost / 20)), magic: skillsOf(t).some(function (a) { return !CONFIG.TECH[a.name]; }), tech: skillsOf(t).some(function (a) { return !!CONFIG.TECH[a.name]; }), wait: 0, gar: garInfo(id) };
+      return { id: id, t: t, cost: cost, cd: Math.max(1, Math.min(8, cost / 20)), magic: skillsOf(t).some(function (a) { return !CONFIG.TECH[a.name]; }), tech: skillsOf(t).some(function (a) { return !!CONFIG.TECH[a.name]; }) || bodyTechs(t).length > 0, wait: 0, gar: garInfo(id) };
     }); });
     this.tab = 0;
 
     // 그림: 필요한 것만 불러온다 (배경 타일, 이펙트, 스킬 아이콘, 유닛 작은 그림, 건물, 쓰는 유닛의 스프라이트)
     var A = this.assets = new MWE.Assets(opts.base);
-    A.load('tiles', this.map.keys.tiles + '.png').load('acticons', 'acticons.png').load('figs', 'figs.png').load('defense', 'defense.png').load('hpbar', 'hpbar.png').load('portraits', 'portraits.png').load('hud0', 'hud0.png');   // 원작 체력 바 틀·숫자, 초상화(영웅 카드) (bar.spr, helpnum.mwl → tools/hpbarbuild.js)
+    A.load('tiles', this.map.keys.tiles + '.png').load('acticons', 'acticons.png').load('figs', 'figs.png').load('defense', 'defense.png').load('hpbar', 'hpbar.png').load('portraits', 'portraits.png').load('hud0', 'hud0.png').load('hudwin', 'hudwin.png');   // 원작 체력 바 틀·숫자, 초상화(영웅 카드) (bar.spr, helpnum.mwl → tools/hpbarbuild.js)
     this.bld = root.MW_DEF || {};                            // 건물 그림 위치표 { base, lair } (sim/defense.js)
     this._usedUnitIds().forEach(function (id) { A.load('u' + id, self.types[id].img); });
     // 이펙트 시트: 여러 장 중 이 게임이 쓰는 이펙트 칸의 것만 미리 받는다 (쓰는 유닛들의 모든 행동 + 순간이동·가속·회수 이펙트). 빠진 것이 있으면 그릴 때 그 장을 받는다 (_fxFrame)
@@ -339,6 +367,8 @@
     return cls >= 0 || d.bonus > 0 || d.def > 0 ? { cls: cls, bonus: d.bonus, def: d.def || 0 } : null;   // def = 건물 방어 보너스 (원본 unitdata +0x2B6: 전사·기사 계열)
   }
 
+  /* 그 종류가 가진 몸동작 기술 (CONFIG.BODY_TECH 에 있고 꺼지지 않은 원본 행동) */
+  function bodyTechs(t) { return t.acts.filter(function (a) { return a && CONFIG.BODY_TECH[a.name] && !CONFIG.SKILL_OFF[a.name]; }); }
   function basicAct(t) { var a = t.ai >= 0 ? t.acts[t.ai] : null; return a && (a.isAtk == 1 || (a.dmg && !a.suicide && !a.mana && !a.aoe)) ? a : null; }   // 좀비의 핸드 밤처럼 '공격' 표시는 없지만 마나 없이 치는 단일 피해 행동도 기본 공격으로 본다
 
   /* 적이 나올 줄 번호: 지금 무리(pack)의 띠 안에서 고른다. 무리가 다 나오면 다른 띠로 새 무리를 시작한다 */
@@ -356,7 +386,7 @@
     u.side = side;
     u.x = side === 0 ? C.BASE.front - 8 : this.spawnX;
     u.y = this.laneY + this.rows[side === 1 ? this._packRow() : Math.floor(this.rng.next() * this.rows.length)];
-    if (side === 1) { this._setLevel(u, Math.max(1, Math.round(C.ENEMY_LV.start + C.ENEMY_LV.perWave * Math.min(this.wave, C.WAVES.length - 1)))); u.maxHp = Math.round(u.maxHp * C.ENEMY_HP_MUL); u.hp = u.maxHp; }
+    if (side === 1) { this._setLevel(u, Math.max(1, Math.round(C.ENEMY_LV.start + C.ENEMY_LV.perWave * Math.min(this.wave, C.WAVES.length - 1)))); u.maxHp = Math.round(u.maxHp * C.ENEMY_HP_MUL * (C.ENEMIES[this.enemy].hpMul || 1)); u.hp = u.maxHp; }
     u.state = 'move'; u.cd = 0; u.fade = 0; u.stunUntil = 0; u.blockT = 0; u.passY = null;
     u.rangeK = 1 - C.RANGE_SPREAD * this.rng.next();         // 이 유닛이 서는 거리 배수 (원거리만 쓴다)
     u.lookDir = 0; u.slotOf = null; u.slotA = null; u.slotAt = null; u.slotT = 0; u.apT = -9; u.skipUid = null; u.skipUntil = 0; this._setSide(u, side);
@@ -489,7 +519,7 @@
     this.readyAt = 0;                                        // 쿨타임이 끝난 시각 (패널에서 앞에 설 순서를 정한다)
     this.vi = null;                                          // 패널에서 지금 그려지는 자리 (순서가 바뀌면 그 자리로 미끄러져 간다)
     this.kind = skillKind(act);
-    this.aimed = this.needsFoe() || this.kind === 'recall' || this.kind === 'haste' || act.sup === 'massheal';   // 지점을 찍는 마법: 적에게 쓰는 것, 리콜, 그리고 넓은 범위의 소환 마법(말다 소환 = 범위 회복, 케멘 소환 = 범위 가속 — 2026-11-13 사용자 요청, 원본도 땅을 찍는 마법). 강화·힐링은 누르면 바로   // 리콜도 불러올 곳을 찍는다                            // 적에게 쓰는 마법은 누르면 바로 나가지 않고 전장에서 지점을 찍는다 (아군·자기에게 쓰는 마법은 즉시)
+    this.aimed = this.needsFoe() || this.kind === 'recall' || this.kind === 'haste' || this.kind === 'dispel' || act.sup === 'massheal';   // 지점을 찍는 마법: 적에게 쓰는 것, 리콜, 그리고 넓은 범위의 소환 마법(말다 소환 = 범위 회복, 케멘 소환 = 범위 가속 — 2026-11-13 사용자 요청, 원본도 땅을 찍는 마법). 강화·힐링은 누르면 바로   // 리콜도 불러올 곳을 찍는다                            // 적에게 쓰는 마법은 누르면 바로 나가지 않고 전장에서 지점을 찍는다 (아군·자기에게 쓰는 마법은 즉시)
     var lim = CONFIG.SKILL.COST[this.kind] || [20, 60];
     this.cost = Math.max(lim[0], Math.min(lim[1], Math.round(act.mana * CONFIG.SKILL.costMul / 5) * 5));   // 쓸 때 드는 마나
   }
@@ -509,10 +539,11 @@
     if (a.sup === 'charm') return 'charm';                             // 적을 우리 편으로
     if (a.sup === 'assassin') return 'assassin';                       // 적 하나 즉사
     if (a.sup === 'morph') return 'morph';                             // 변형
+    if (a.sup === 'massdispel') return 'dispel';                       // 강화 해제: 찍은 곳 둘레의 적 강화를 지우고 아군 약화·멈춤을 푼다 (술 소환)
     if (a.sup === 'recall') return 'recall';                           // 리콜: 찍은 곳 주변의 아군을 시전자 곁으로 (넨 소환)
     return null;
   }
-  var KIND_NAME = { blast: '범위 공격', heal: '회복', buff: '강화', haste: '가속', weaken: '약화', stun: '적 멈춤', charm: '매혹', assassin: '암살', morph: '변형', recall: '리콜' };
+  var KIND_NAME = { blast: '범위 공격', heal: '회복', buff: '강화', haste: '가속', weaken: '약화', stun: '적 멈춤', charm: '매혹', assassin: '암살', morph: '변형', recall: '리콜', dispel: '강화 해제' };
 
   /* 범위 공격 마법의 등급 배수 (2026-11-13): 원본 마나 소모가 큰 상위 마법일수록 세다 — 1 + (원본 마나 − tierBase) × tierPer, 1 밑으로는 안 내려간다.
      라이트닝 썬더(100) ×1.0, 나르 소환(150) ×1.2, 홀리 크로스(180) ×1.32, 12 리플렉터스 소환(250) ×1.6. 전에는 등급과 무관하게 피해가 비슷해 비싼 마법 유닛을 뽑을 이유가 약했다. 아군만 */
@@ -571,7 +602,7 @@
     for (var i = 0; i < this.slots.length; i++) { var s = this.slots[i], u = s.unit; if (!s.auto || !u || u.side !== 0 || u.state === 'dead' || s.cd > 0 || u.stunUntil > T) continue;
       var f = this._nearestFoe(u), fd = f ? Math.abs(f.x - u.x) : Infinity, key = s.act.sup === 'masshaste' ? 'haste' : s.act.sup;
       if (s.act.self) { var b = u.buffs[key]; if ((b && b.until > T) || fd > 300) continue; this.castUnitSkill(u, u.slots.indexOf(s)); continue; }
-      if (s.kind === 'recall' || s.kind === 'morph' || !this.skillTarget(u, s)) continue;
+      if (s.kind === 'recall' || s.kind === 'morph' || s.kind === 'dispel' || !this.skillTarget(u, s)) continue;
       var near = function (r, test) { return L.some(function (o) { return o.side === 0 && o.state !== 'dead' && Math.abs(o.x - u.x) <= r && test(o); }); };
       if (s.kind === 'heal' && !near(S.buffRadius, function (o) { return o.hp < o.maxHp * 0.7; })) continue;
       if ((s.kind === 'buff' || s.kind === 'haste') && (fd > 320 || !near(S.buffRadius, function (o) { return !(o.buffs[key] && o.buffs[key].until > T); }))) continue;
@@ -611,7 +642,7 @@
   /* 지점 지정 마법의 시전 거리(px): 시전자에서 이 가로 거리 안의 지점만 찍을 수 있다 */
   P.aimReach = function (s) { return s.kind === 'recall' ? CONFIG.WORLD_W : Math.min(CONFIG.SKILL.maxCast, s.act.range * CONFIG.RANGE_SCALE); };   // 리콜은 원본처럼 거리 제한 없음
   /* 지점 지정 마법의 효과 반경(px) — 그리기와 판정이 같은 값을 쓴다 */
-  P.aimRadius = function (s) { var S = CONFIG.SKILL, k = 1 + (this.radiusUp || 0); return s.kind === 'haste' || s.act.sup === 'massheal' ? S.summonRadius : s.kind === 'buff' ? 22 : s.kind === 'recall' ? 120 : s.kind === 'blast' ? (s.act.aoe ? S.radius * k : 60) : s.kind === 'charm' ? S.radius * 0.7 : s.kind === 'assassin' ? 45 : S.radius * k; };   // radiusUp = "마법 확산" 카드
+  P.aimRadius = function (s) { var S = CONFIG.SKILL, k = 1 + (this.radiusUp || 0); return s.kind === 'haste' || s.kind === 'dispel' || s.act.sup === 'massheal' ? S.summonRadius : s.kind === 'buff' ? 22 : s.kind === 'recall' ? 120 : s.kind === 'blast' ? (s.act.aoe ? S.radius * k : 60) : s.kind === 'charm' ? S.radius * 0.7 : s.kind === 'assassin' ? 45 : S.radius * k; };   // radiusUp = "마법 확산" 카드
   /* 조준 중 전장을 눌렀다 (2026-11-12 "걸어가서 쓰기"로 바꿈): 찍은 곳에 가장 가까운 준비된 유닛이 쓴다.
      시전 거리 안이면 바로, 밖이면 **닿는 곳까지 걸어가서** 쓴다(u.castOrder → _castWalk). 시전 거리 제한으로 못 찍는 곳은 없다 —
      다만 유닛은 전장 가운데(집결선 frontX)를 넘어 적 진영으로 들어가지 못하므로, 가운데에서도 닿지 않는 곳(frontX + 시전 거리 너머)은 찍을 수 없다 */
@@ -797,7 +828,7 @@
       if (HO && a.arm === HO.arm) {                          // 홀리 크로스 (원본 case 0x10, 분석 8-43): 범위 안의 아군은 회복 + 상태 이상 해제, 언데드 적은 석화
         var hr = S.radius * (u.side === 0 ? 1 + this.radiusUp : 1), hv = this.rules.attackValue(u) + HO.heal;
         this.units.forEach(function (o) { if (o.state === 'dead' || Math.hypot(o.x - foe.x, o.y - foe.y) > hr) return;
-          if (o.side === u.side) { var got = Math.min(o.maxHp - o.hp, hv); o.hp += got; if (got > 0) self._say(o.x, o.y - o.t.h - 6, '+' + got, '#8fe89a'); o.stunUntil = 0; delete o.buffs.meltw; delete o.buffs.melta; }
+          if (o.side === u.side) { var got = Math.min(o.maxHp - o.hp, hv); o.hp += got; if (got > 0) self._say(o.x, o.y - o.t.h - 6, '+' + got, '#8fe89a'); o.stunUntil = 0; delete o.buffs.meltw; delete o.buffs.melta; delete o.buffs.poison; delete o.buffs.slow; }   /* 아군 상태 이상 해제 (원본 case 0x10, 8-43): 석화·멜팅 웨폰·멜팅 아머·중독·감속 */
           else if (o.t.race === HO.race && !o.t.immune) { o.stunUntil = Math.max(o.stunUntil || 0, self.time + HO.stoneTicks / tps); o.state = 'idle'; delete o.buffs.weapon; delete o.buffs.shield; delete o.buffs.haste; } }); }
       u.act = keep; this._addEffect(foe.x, foe.y, a.arm, 0); this.flash = 0.2; ok = true;
     } else if (s.kind === 'heal') {                          // 주변 아군 회복. 말다 소환(massheal)은 더 넓게, 전부 회복
@@ -805,7 +836,7 @@
       // 힐링(2026-11-13 너프 — 마나 15로 주변 전원을 50%씩 채워 너무 셌다): 주변에서 체력 비율이 가장 낮은 healMax(3)기만, 최대 체력의 healRatio(35%)씩. 말다 소환은 그대로(범위 안 전원 완전 회복)
       if (!mass) HL = HL.filter(function (o) { return o.hp < o.maxHp; }).sort(function (p, q) { return p.hp / p.maxHp - q.hp / q.maxHp; }).slice(0, S.healMax);
       HL.forEach(function (o) { var h = mass ? o.maxHp : Math.round(o.maxHp * S.healRatio), got = Math.min(o.maxHp - o.hp, h);
-        o.hp += got; if (got > 0) self._say(o.x, o.y - o.t.h - 6, '+' + got, '#8fe89a'); if (!mass) self._addEffect(o.x, o.y - o.t.h * 0.5, a.arm, 0); });
+        o.hp += got; if (got > 0) self._say(o.x, o.y - o.t.h - 6, '+' + got, '#8fe89a'); if (mass) { o.stunUntil = 0; delete o.buffs.meltw; delete o.buffs.melta; delete o.buffs.poison; delete o.buffs.slow; }   /* 말다 소환은 상태 이상도 푼다 (원본 case 0x38) */ if (!mass) self._addEffect(o.x, o.y - o.t.h * 0.5, a.arm, 0); });
       if (mass) this._addEffect(pt ? pt.x : u.x, pt ? pt.y : this.laneY, a.arm, 0);
       ok = true;
     } else if (s.kind === 'buff') {                          // 주변 아군에게 강화. 배수는 원본 규칙(OriginalRules)이 buffs를 보고 적용한다
@@ -820,6 +851,16 @@
     } else if (s.kind === 'haste') {                         // 주변 아군이 빨리 걷는다 (케멘 소환). 걸린 유닛 머리 위에 원본 가속 이펙트(칸 44)
       (pt ? this.units.filter(function (o) { return o.side === u.side && o.state !== 'dead' && Math.hypot(o.x - pt.x, o.y - pt.y) <= S.summonRadius; }) : allies(S.buffRadius * 1.3)).forEach(function (o) { o.buffs.haste = { arm: a.arm, until: self.time + (a.dur || 600) / tps }; });   // 찍었으면 찍은 곳 둘레
       this._addEffect(pt ? pt.x : u.x, pt ? pt.y : this.laneY, a.arm, 0); ok = true;
+    } else if (s.kind === 'dispel') {                        // 술 소환 (원본 FUN_004b9590 case 0x36, 분석 8-29): 찍은 곳 둘레의 적은 강화(무기·방어막·가속)가 풀리고, 아군은 약화·멈춤이 풀린다. 피해 없음. 면역 유닛 제외
+      // 가드 (2026-11-13 사용자 요청): 범위 안에 풀 것이 있는 유닛(강화가 걸린 적, 약화·멈춤이 걸린 아군)이 하나도 없으면 쓰이지 않는다 — 마나·재사용 대기 그대로
+      var dc = pt || this._nearestFoe(u) || u, T0 = this.time, live = function (b) { return b && b.until > T0; };
+      // 중독도 풀고, 적에게 매혹돼 넘어간 우리 유닛(charmed 이고 지금 상대편)은 되돌린다 (원본의 +0x54 연결 끊기 — 연결의 주인이 시전자의 동맹일 때만). 우리가 매혹한 적은 그대로
+      var DK = function (o) { return o.side !== u.side ? ['weapon', 'shield', 'haste', 'berserk'] : ['meltw', 'melta', 'slow', 'poison']; };
+      var DL = this.units.filter(function (o) { return o.state !== 'dead' && !o.t.immune && Math.hypot(o.x - dc.x, o.y - dc.y) <= S.summonRadius && (DK(o).some(function (k) { return live(o.buffs[k]); }) || (o.side === u.side && o.stunUntil > T0) || (o.side !== u.side && o.charmed)); });
+      if (!DL.length) { this._say(dc.x, dc.y - 12, '풀 것이 없음', '#c9d1e3'); return false; }
+      DL.forEach(function (o) { DK(o).forEach(function (k) { delete o.buffs[k]; }); if (o.side === u.side) o.stunUntil = 0; else if (o.charmed) { self._setSide(o, u.side); o.charmed = false; o.state = 'idle'; }
+        self._say(o.x, o.y - o.headY - 6, '해제', '#9fd8ff'); });
+      this._addEffect(dc.x, dc.y, a.arm, 0); ok = true;
     } else if (s.kind === 'weaken' && foe) {                 // 범위 안 적의 공격(멜팅 웨폰)·방어(멜팅 아머)를 무너뜨린다 — 수치는 원본 규칙이 buffs를 보고 적용
       foesAt(foe, S.radius).forEach(function (o) { o.buffs[a.sup] = { arm: a.arm, until: self.time + (a.dur || 600) / tps }; self._say(o.x, o.y - o.headY - 6, '약화', '#c7a0ff'); });
       this._addEffect(foe.x, foe.y, a.arm, 0); ok = true;
@@ -855,6 +896,7 @@
       this._makeGround();
       if (this.screen === 'loading') this.screen = 'title';
     }
+    if (this._pendStart && this.assets.ready()) { this._pendStart = false; this.reset(); this.screen = 'play'; }   // 적 종족을 고른 뒤 그림을 기다리던 시작
     // 바닥 조각을 0.5초마다 다시 그린다: 큰 이펙트 시트(나누기 전 arms.png 는 2,150만 픽셀)를 펼칠 때 아이폰에서 보조 캔버스가 비워져 전장 바닥만 검게 나오던 문제의 복구 (448×192 한 장이라 비용은 작다)
     else if (this.ground && this.terrain && this.time - this._groundAt > 0.5) this._makeGround();
     if (this.screen === 'play' && !this.paused && !this.cards && !this.modal) this.update(dt);   // 카드를 고르는 동안과 상성 모달이 떠 있는 동안은 멈춘다
@@ -983,7 +1025,10 @@
   P._updateUnit = function (u, dt) {
     var R = this.rules, C = CONFIG, tps = R.tps;
     if (u.state === 'dead') { u.deadT += dt; if (u.deadT > 1.2) u.fade = Math.min(1, u.fade + dt * 1.5); return; }
+    var ps = u.buffs.poison;                                 // 중독 (원본 FUN_00454580, 분석 8-26): 2틱마다 체력 −1, 1 밑으로는 안 내려간다 (12틱/초 → 초당 6)
+    if (ps) { if (ps.until <= this.time) delete u.buffs.poison; else { u.poisonAcc = (u.poisonAcc || 0) + dt * tps / 2; while (u.poisonAcc >= 1) { u.poisonAcc -= 1; if (u.hp > 1) u.hp--; } } }
     if (u.stunUntil > this.time) { u.state = 'idle'; return; }   // 멈춤 스킬에 걸림
+    if (u.side === 0) this._bodyTech(u);
     u.cd = Math.max(0, u.cd - dt);
     if (u.boom && this._boom(u)) return;
     if (u.castOrder && u.state !== 'attack' && this._castWalk(u, dt)) return;
@@ -1134,6 +1179,24 @@
 
   /* 내가 둘러싸이는 쪽인가: 나를 둘러싸려고 자리를 맡은(slotOf = 나) 적이 가까이에 있다.
      두 근접 유닛이 마주치면 먼저 움직인 쪽이 상대 둘레에 자리를 잡고, 상대는 이 판정으로 제자리를 지킨다 */
+  /* 몸동작 기술 (CONFIG.BODY_TECH): 아군만. 쓸 때 유닛 위에 이름이 잠깐 뜬다 */
+  P._bodyTech = function (u) {
+    var B = CONFIG.BODY_TECH, T = this.time, self = this, L = bodyTechs(u.t); if (!L.length) return;
+    for (var i = 0; i < L.length; i++) { var a = L[i], c = B[a.name];
+      if (a.name === '방패 막기') {
+        var sb = u.buffs.shield, on = u.hp <= u.maxHp * c.hpBelow;
+        if (!on && u.blocking) on = !(u.hp >= u.maxHp * c.hpRelease && this.units.filter(function (o) { return o.side !== u.side && o.state !== 'dead' && Math.hypot(o.x - u.x, o.y - u.y) <= c.near; }).length < c.foes);   // 켜진 뒤에는 체력 70% 이상 + 둘레의 적 3기 미만이어야 풀린다
+        if (on && (!sb || sb.block || sb.until <= T)) u.buffs.shield = { arm: -1, block: 1, until: T + 0.5 };   // 다른 방어막(파운틴 베리어 등)이 걸려 있으면 그쪽이 더 세므로 덮지 않는다. arm -1 = 원본 방패 막기 배수 ×2
+        if (on && !u.blocking) this._say(u.x, u.y - u.headY - 10, a.name, '#ffd36e');
+        u.blocking = on;
+      } else if (a.name === '창 돌리기' && T >= (u.spinAt || 0) && u.state !== 'dead') {
+        var r = a.range * CONFIG.RANGE_SCALE, near = this.units.filter(function (o) { return o.side !== u.side && o.state !== 'dead' && o.t.fly !== 2 && Math.hypot(o.x - u.x, o.y - u.y) <= r; });
+        if (near.length < c.foes) continue;
+        var keep = u.act; u.act = a; near.forEach(function (o) { self._damage(o, self.rules.damage(u, o, self.rng)); }); u.act = keep;
+        u.hp = Math.max(1, u.hp - (a.hpCost || 0)); u.spinAt = T + c.cool;
+        if (a.arm >= 0) this._addEffect(u.x, u.y - u.headY * 0.4, a.arm, 0); this._play(a.snd, 0.5); this._say(u.x, u.y - u.headY - 10, a.name, '#ffd36e');
+      } }
+  };
   P._besieged = function (u) {
     var L = this.units;
     for (var i = 0; i < L.length; i++) { var o = L[i]; if (o.side === u.side || o.state === 'dead' || o.slotOf !== u.uid || Math.hypot(o.x - u.x, o.y - u.y) >= CONFIG.SURROUND.holdDist) continue;   // 코앞까지 온 적만 — 멀리서 오는 적은 서서 기다리지 않고 마주 다가간다
@@ -1244,7 +1307,9 @@
     if (!tgt || tgt.state === 'dead' || tgt.side === u.side) return;
     var dmg = R.damage(u, tgt, this.rng), arm = u.act.arm, def = arm >= 0 ? this.data.fx.arms[arm] : null;
     if (def) this.shots.push({ x: u.x + u.dir * 14, y: u.y - u.headY * 0.6, tgt: tgt, dmg: dmg, arm: arm, def: def, dir: u.dir, t0: this.time, speed: 380 });
-    else this._damage(tgt, dmg);
+    else { this._damage(tgt, dmg);
+      // 중독 (원본 FUN_004ac6f0: 행동 종류 +0x3C == 1 = 전갈의 포이즌 테일 — 맞은 유닛에 중독, 지속 = 행동 +0x3E 틱. 면역 유닛(종류 +0x54) 제외). 피해는 _updateUnit
+      if (u.act.type === 1 && tgt.state !== 'dead' && !tgt.t.immune) { if (!(tgt.buffs.poison && tgt.buffs.poison.until > this.time)) this._say(tgt.x, tgt.y - tgt.headY - 6, '중독', '#9be36a'); tgt.buffs.poison = { until: this.time + (u.act.dur || 160) / R.tps }; } }
   };
 
   P._damage = function (u, dmg) {
@@ -1351,7 +1416,7 @@
     this._drawBanner();
     if (this.flash > 0) { ctx.fillStyle = 'rgba(255,240,200,' + (this.flash * 0.9) + ')'; ctx.fillRect(0, 0, W, H - this.hudH); }
     this._drawHud();
-    if (this.screen === 'play' && !this.cards && !this.modal) this._drawInfo();   // 소환 버튼을 길게 누르는 동안의 유닛 설명 카드
+    if (this.screen === 'play' && !this.cards && !this.modal) { this._drawInfo(); this._drawSkillInfo(); }   // 소환 버튼·스킬 칸을 길게 누르는 동안의 설명 카드
     if (this.screen !== 'play') this._drawOverlay();
     else if (this.cards) this._drawCards();
     if (this.screen === 'play' && this.modal === 'aff') this._drawAff();   // 유닛 상성 모달 (게임은 멈춰 있다)
@@ -1383,7 +1448,7 @@
 
   /* 아군 기지(왼쪽 성)와 적 출구(오른쪽 마굴): 원본 건물 그림. 그림의 기준점(ax, ay = 땅에 닿는 앞쪽 모서리)을 전투 줄 바로 아래에 맞춘다 */
   P._drawBases = function () {
-    var C = CONFIG, D = this.bld, B = D.base, L = D.lair, gy = this.laneY + 44;
+    var C = CONFIG, D = this.bld, B = D.base, EN = C.ENEMIES[this.enemy], L = D[EN.lair] || D.lair, gy = this.laneY + 44;
     if (B) { var sh = this.baseHit > 0 ? Math.round(Math.sin(this.time * 90) * 2) : 0, F0 = this.forts[0];   // 맞으면 살짝 흔들린다
       if (this.selFort === F0) this._drawOutline(B, C.BASE.x + sh, gy);   // 고른 건물: 윤곽을 따라 초록 선
       this._drawBuilding(B, C.BASE.x + sh, gy, F0); }
@@ -1392,7 +1457,7 @@
       this._drawBuilding(L, lx, gy);
       // 마굴 입구의 으스스한 빛 (가산 합성으로 깜박임)
       var gx = lx - lp[2] * 0.16, gcy = gy - lp[3] * 0.30, g = ctx.createRadialGradient(gx, gcy, 2, gx, gcy, 46);
-      g.addColorStop(0, 'rgba(190,90,220,' + (0.30 + 0.16 * Math.sin(this.time * 3)) + ')'); g.addColorStop(1, 'rgba(190,90,220,0)');
+      g.addColorStop(0, 'rgba(' + EN.glow + ',' + (0.30 + 0.16 * Math.sin(this.time * 3)) + ')'); g.addColorStop(1, 'rgba(' + EN.glow + ',0)');
       ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(gx - 46, gcy - 46, 92, 92); ctx.globalCompositeOperation = 'source-over'; }
   };
 
@@ -1563,7 +1628,25 @@
   };
 
   /* 원작 HUD 풍 판: 모서리를 깎은 어두운 판 + 청동 테두리(위는 밝고 아래는 어둡게) + 안쪽 가는 선 + 네 귀의 징. 회수 팻말과 같은 생김새 */
-  P._plate = function (x, y, w, h, c, hot) {
+  /* 창·카드의 판. HUD 스킨 2단계(2026-11-13): 원작 대화창(dialogLiber.spr → hudwin.png, tools/hudwinbuild.js)을 아홉 조각으로 잘라 입힌다 —
+     모서리는 그대로, 변과 가운데는 늘린다. skin: 'dark' = 유닛 정보 창의 검은 돌판(설명 카드), 그 밖 = 청동 테 양피지(카드·모달·버튼).
+     양피지 바탕은 밝아서 흰 글자가 안 읽히므로 어둡게 덮는다(dim). hot = 강조(영웅 카드, 고른 버튼): 덜 어둡게 + 금빛 테. 그림이 아직 없으면 예전 그림(아래)으로 */
+  var WIN = { bronze: { r: [0, 0, 414, 218], cs: 34, pad: 9, dim: 0.66, hot: 0.42 }, dark: { r: [0, 220, 347, 179], cs: 8, pad: 4, dim: 0, hot: 0 } };
+  P._plateSkin = function (x, y, w, h, hot, skin) {
+    var im = this.assets.get('hudwin'); if (!im || !im.naturalWidth) return false;
+    var K = WIN[skin] || WIN.bronze, r = K.r, ctx = this.ctx, cs = Math.max(4, Math.min(K.cs, Math.floor(w * 0.3), Math.floor(h * 0.42))), k = cs / K.cs, sc = K.cs;
+    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+    ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(x + 3, y + 4, w, h);
+    var sx = [r[0], r[0] + sc, r[0] + r[2] - sc], sw = [sc, r[2] - 2 * sc, sc], sy = [r[1], r[1] + sc, r[1] + r[3] - sc], sh = [sc, r[3] - 2 * sc, sc];
+    var dx = [x, x + cs, x + w - cs], dw = [cs, w - 2 * cs, cs], dy = [y, y + cs, y + h - cs], dh = [cs, h - 2 * cs, cs];
+    for (var j = 0; j < 3; j++) for (var i = 0; i < 3; i++) if (dw[i] > 0 && dh[j] > 0) ctx.drawImage(im, sx[i], sy[j], sw[i], sh[j], dx[i], dy[j], dw[i], dh[j]);
+    var p = Math.max(2, Math.round(K.pad * k)), d = hot ? K.hot : K.dim;
+    if (d > 0) { ctx.fillStyle = 'rgba(10,7,4,' + d + ')'; ctx.fillRect(x + p, y + p, w - 2 * p, h - 2 * p); }
+    if (hot) { ctx.strokeStyle = 'rgba(255,224,140,.85)'; ctx.lineWidth = 1; ctx.strokeRect(x + p + 0.5, y + p + 0.5, w - 2 * p - 1, h - 2 * p - 1); }
+    return true;
+  };
+  P._plate = function (x, y, w, h, c, hot, skin) {
+    if (this._plateSkin(x, y, w, h, hot, skin)) return;
     var ctx = this.ctx, path = function (px, py, pw, ph, k) { ctx.beginPath(); ctx.moveTo(px + k, py); ctx.lineTo(px + pw - k, py); ctx.lineTo(px + pw, py + k); ctx.lineTo(px + pw, py + ph - k); ctx.lineTo(px + pw - k, py + ph); ctx.lineTo(px + k, py + ph); ctx.lineTo(px, py + ph - k); ctx.lineTo(px, py + k); ctx.closePath(); };
     ctx.fillStyle = 'rgba(0,0,0,.5)'; path(x + 3, y + 4, w, h, c); ctx.fill();
     var gb = ctx.createLinearGradient(0, y, 0, y + h); gb.addColorStop(0, hot ? '#fff0b8' : '#e6c476'); gb.addColorStop(0.45, '#a8823a'); gb.addColorStop(1, '#5c431a');
@@ -1666,12 +1749,13 @@
 
   /* 상태 이상 표시 (2026-11-12 사용자 요청): 체력 바 바로 위에 원작 상태 아이콘(unitState.spr, 18×18)을 한 줄로. 여러 개가 겹치면 옆으로 나란히, 가운데 정렬.
      STATUS_ICON = 상태 → unitState.spr 프레임. 그림 뜻으로 맞춘 것(원본 코드의 대응표는 아직 해독하지 않음): 12 부러진 칼 = 멜팅 웨폰, 13 깨진 갑옷 = 멜팅 아머, 14 하트 = 매혹, 5 붙잡는 손 = 멈춤(석화) */
-  var STATUS_ICON = { meltw: 12, melta: 13, charm: 14, stun: 5 };
+  var STATUS_ICON = { meltw: 12, melta: 13, charm: 14, stun: 5, poison: 6 };   // 6 해골 병 = 중독
   P._statusOf = function (u) {
     var T = this.time, b = u.buffs, L = [];
     if (u.stunUntil > T) L.push(STATUS_ICON.stun);
     if (b.meltw && b.meltw.until > T) L.push(STATUS_ICON.meltw);
     if (b.melta && b.melta.until > T) L.push(STATUS_ICON.melta);
+    if (b.poison && b.poison.until > T) L.push(STATUS_ICON.poison);
     if (u.charmed) L.push(STATUS_ICON.charm);
     return L;
   };
@@ -1885,7 +1969,7 @@
   P._drawOverlay = function () {
     var ctx = this.ctx, W = this.W, H = this.H, sc = this.screen, G = '#9aa3b8', items;
     ctx.fillStyle = 'rgba(5,7,12,.78)'; ctx.fillRect(0, 0, W, H);
-    if (sc === 'title') items = [['거울전쟁 디펜스', 28, '#ffd36e', 0], ['해골 군단을 막아 성을 지키세요', 14, '#dfe6f5', 14],
+    if (sc === 'title') items = [['거울전쟁 디펜스', 28, '#ffd36e', 0], ['적군을 막아 성을 지키세요', 14, '#dfe6f5', 14],
       ['탭을 골라 해방부대 유닛을 소환합니다', 12, G, 12],
       ['소환 버튼을 길게 누르면 그 유닛의 설명이 나옵니다', 12, G, 6],
       ['오른쪽 위 [상성] 버튼으로 유닛 상성을 볼 수 있습니다', 12, G, 6],
@@ -1895,18 +1979,29 @@
       ['적에게 쓰는 마법은 칸을 누른 뒤 전장에서 쓸 곳을 누릅니다', 12, G, 6],
       ['전장의 마법 유닛을 누르면 [회수] 버튼 — 남은 체력만큼 마나를 돌려받습니다', 12, G, 6],
       ['성을 눌러 고른 동안 궁수·명궁·창검사·마법사·장로를 소환하면 성에 들어가 적을 쏩니다 (4명까지)', 12, G, 6],
-      ['전장은 좌우로 깁니다 — 화면을 끌거나 위쪽 막대를 눌러 둘러보세요', 12, G, 6], ['화면을 눌러 시작', 16, '#fff', 18],
+      ['전장은 좌우로 깁니다 — 화면을 끌거나 위쪽 막대를 눌러 둘러보세요', 12, G, 6], ['상대할 적군을 고르세요', 16, '#fff', 18], ['@enemy', 40, '', 8],
       // 팬 게임 고지 (사용자 2026-11-12 확정 문구) — 전장 시뮬 페이지 하단과 같은 문장
       ['이 게임은 원작 「거울전쟁」에 대한 팬심으로 만든 비영리 팬 게임입니다.', 10, '#7b8397', 22],
       ['원작 자산의 저작권은 제작사 L&K Logic Korea에 있으며, 요청이 있으면 즉시 내리겠습니다.', 10, '#7b8397', 4]];
-    else if (sc === 'win') items = [['스테이지 클리어!', 28, '#8fe89a', 0], ['처치 ' + this.kills + '   ·   남은 기지 체력 ' + Math.ceil(this.baseHp), 14, '#dfe6f5', 14], ['화면을 눌러 다시 하기', 16, '#fff', 22]];
-    else items = [['게임 오버', 28, '#ff7a6a', 0], ['웨이브 ' + Math.min(this.wave + 1, CONFIG.WAVES.length) + ' 에서 기지가 무너졌습니다', 14, '#dfe6f5', 14], ['화면을 눌러 다시 하기', 16, '#fff', 22]];
+    else if (sc === 'win') items = [['스테이지 클리어!', 28, '#8fe89a', 0], ['처치 ' + this.kills + '   ·   남은 기지 체력 ' + Math.ceil(this.baseHp), 14, '#dfe6f5', 14], ['화면을 눌러 처음으로', 16, '#fff', 22]];
+    else items = [['게임 오버', 28, '#ff7a6a', 0], ['웨이브 ' + Math.min(this.wave + 1, CONFIG.WAVES.length) + ' 에서 기지가 무너졌습니다', 14, '#dfe6f5', 14], ['화면을 눌러 처음으로', 16, '#fff', 22]];
     var lines = [], total = 0, maxW = W - 28, self = this;
     items.forEach(function (it) { ctx.font = (it[1] <= 10 ? '' : 'bold ') + it[1] + 'px sans-serif';
       self._wrap(it[0], maxW).forEach(function (ln, k) { var gap = k ? 3 : it[3], lh = Math.round(it[1] * 1.25); lines.push([ln, it[1], it[2], gap, lh]); total += gap + lh; }); });
     var y = Math.max(8, Math.round((H - total) / 2));
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    lines.forEach(function (l) { y += l[3]; ctx.font = (l[1] <= 10 ? '' : 'bold ') + l[1] + 'px sans-serif'; ctx.fillStyle = l[2]; ctx.fillText(l[0], W / 2, y + l[4] / 2); y += l[4]; });
+    this.enemyBtns = null;
+    lines.forEach(function (l) { y += l[3];
+      if (l[0] === '@enemy') {   // 적 종족 버튼 (시작 화면): 대표 유닛 그림 + 이름. 지금 고른(직전에 한) 종족은 밝게
+        var keys = Object.keys(CONFIG.ENEMIES).sort(function (a, b) { return a === CONFIG.ENEMY_DEFAULT ? -1 : b === CONFIG.ENEMY_DEFAULT ? 1 : 0; }), bw = Math.min(150, Math.floor((W - 36) / keys.length)), bh = l[4], x0 = Math.round(W / 2 - (bw * keys.length + 12 * (keys.length - 1)) / 2), figs = self.assets.get('figs');
+        self.enemyBtns = keys.map(function (k, i) { var E = CONFIG.ENEMIES[k], b = { key: k, x: x0 + i * (bw + 12), y: y, w: bw, h: bh }, t = self.types[E.fig];
+          self._plate(b.x, b.y, b.w, b.h, 7, k === self.enemy);
+          ctx.font = 'bold 16px sans-serif'; var tw = ctx.measureText(E.name).width, cx = Math.round(b.x + (b.w - tw - 34) / 2);
+          if (t && figs) ctx.drawImage(figs, t.pid * 36, 0, 36, 43, cx, b.y + Math.round((bh - 34) / 2), 28, 34);
+          ctx.textAlign = 'left'; ctx.fillStyle = '#ffe9b0'; ctx.fillText(E.name, cx + 34, b.y + bh / 2 + 1); ctx.textAlign = 'center';
+          return b; });
+        y += l[4]; return; }
+      ctx.font = (l[1] <= 10 ? '' : 'bold ') + l[1] + 'px sans-serif'; ctx.fillStyle = l[2]; ctx.fillText(l[0], W / 2, y + l[4] / 2); y += l[4]; });
     ctx.textAlign = 'left';
   };
   /* 글을 폭 w 안에 들어가게 띄어쓰기에서 나눈다 (지금 ctx.font 기준) */
@@ -1931,9 +2026,12 @@
     this.sfx.unlock();                                       // 브라우저는 첫 터치 뒤에만 소리를 허락한다
     if (inBox(this.soundBtn, x, y)) { this.toggleSound(); return; }
     if (this.screen === 'play' && this.modal) { if (this.modalT > 0.25) this.modal = null; return; }   // 상성 모달: 아무 곳이나 누르면 닫히고 게임이 이어진다
-    if (this.screen === 'play' && !this.cards && inBox(this.affBtn, x, y)) { this.modal = 'aff'; this.modalT = 0; this.aim = null; this.info = null; return; }
-    if (this.screen === 'title') { this.start(); return; }
-    if (this.screen === 'win' || this.screen === 'lose') { this.reset(); this.screen = 'play'; return; }
+    if (this.screen === 'play' && !this.cards && inBox(this.affBtn, x, y)) { this.modal = 'aff'; this.modalT = 0; this.aim = null; this.info = null; this.sinfo = null; return; }
+    if (this.screen === 'title') {   // 적 종족 버튼을 눌러 시작 (스페이스·엔터는 지금 고른 종족으로)
+      if (x < 0) { this.pickEnemy(this.enemy); return; }
+      for (i = 0; i < (this.enemyBtns || []).length; i++) if (inBox(this.enemyBtns[i], x, y)) { this.pickEnemy(this.enemyBtns[i].key); break; }
+      return; }
+    if (this.screen === 'win' || this.screen === 'lose') { this.reset(); this.screen = 'title'; return; }   // 처음 화면으로 — 적 종족을 다시 고른다
     if (this.screen === 'play' && this.cards) { if (this.cardT > 0.35) for (i = 0; i < this.cards.length; i++) if (inBox(this.cards[i].box, x, y)) { this.pickCard(i); break; } return; }   // 카드를 고르는 중: 카드만 누를 수 있다 (뜨자마자 잘못 누르지 않게 0.35초 뒤부터)
     if (this.screen !== 'play') return;
     if (y < this.H - this.hudH) { this._tapField(x, y); return; }   // 전장 (키보드 등으로 들어온 경우 — 포인터는 _bind 가 직접 _tapField 로 보낸다)
@@ -1957,6 +2055,7 @@
     d.held = true;
     for (var i = 0; i < this.slotBoxes.length; i++) if (inBox(this.slotBoxes[i], d.x, d.y)) {
       var g = this.groups[this.slotFirst + i]; if (!g) return;
+      this.sinfo = g;                                        // 누르고 있는 동안 마법 설명 카드 (_drawSkillInfo)
       var rd = this._readyOf(g), L = (rd.length ? rd : g.slots.filter(function (q) { return q.unit && q.unit.state !== 'dead'; })).slice();
       if (!L.length) return;
       L.sort(rd.length ? function (a, b) { return b.unit.x - a.unit.x; } : function (a, b) { return a.cd - b.cd; });
@@ -1973,27 +2072,75 @@
   };
   /* 유닛 설명 카드의 내용: 첫 줄은 손으로 쓴 한 줄(MWE.UNIT_DESC), 나머지는 데이터에서 자동으로 — 짧게.
      상성(원본 unitdata 의 강한 상대 목록 aff, 배수 affMul/8)은 이 게임의 적(악령군) 기준으로 묶음 이름을 붙인다 */
-  var AFF_NAME = { 39: '악마류', 35: '흡혈귀·늑대인간·메두사', 43: '짐승·박쥐·드래곤', 28: '언데드' };
-  var AFF_FAM = {}; [[39, [39, 40, 41, 42]], [35, [35, 36, 38]], [43, [43, 44, 45, 46, 47]], [28, [28, 29, 30, 31, 32, 33, 48]]].forEach(function (q) { q[1].forEach(function (id) { AFF_FAM[id] = AFF_NAME[q[0]]; }); });   // 적 유닛 → 묶음 이름
+  /* 적 종족별 상성 표. name = 아군의 강한 상대 목록(aff)에 든 대표 유닛 번호 → 묶음 이름, fam = [대표, 그 묶음의 적 유닛들],
+     rings = 상성 모달의 고리 두 개(시계 방향으로 강하다. open = 마지막 화살표 없음 — 고리가 아니라 사슬), foot = 모달 아래 안내 세 줄.
+     흑마술파(원본 aff): 전사류 → 소환·환술류(58~62) → 격투류 → 흡혈귀·늑대인간(63~65) → 전사류 / 성직·소환류 → 전사·도둑류(52~57) → 마법사류 → 구렁이·드래곤·벌레(66~70).
+     구렁이·드래곤·개미·거미는 해방부대에 강한 상대가 없고(전갈만 전사류에 강함), 마술사 49~51 은 상성이 아예 없다 */
+  var AFF = {
+    evil: { name: { 39: '악마류', 35: '흡혈귀·늑대인간·메두사', 43: '짐승·박쥐·드래곤', 28: '언데드' },
+      fam: [[39, [39, 40, 41, 42]], [35, [35, 36, 38]], [43, [43, 44, 45, 46, 47]], [28, [28, 29, 30, 31, 32, 33, 48]]],
+      rings: [
+        [{ n: '전사류', fig: 0, ally: 1, m: '전사·기사·창기사·성기사·궁수·명궁·창검사' }, { n: '악마류', fig: 39, m: '데몬·데빌·사탄·서큐버스' }, { n: '격투류', fig: 8, ally: 1, m: '격투가·무도가·도사·의적' }, { n: '흡혈귀류', fig: 35, m: '흡혈귀·늑대인간·메두사' }],
+        [{ n: '마법사류', fig: 12, ally: 1, m: '정령사·마법사·장로·연금술사·마법전사·마법기사' }, { n: '짐승류', fig: 43, m: '늑대·켈베로스·펜릴·박쥐·드래곤' }, { n: '성직·소환류', fig: 19, ally: 1, m: '성령사·사제·주교·소환사·신수사·엔젤 나이트·엔트' }, { n: '언데드', fig: 28, m: '해골전사·해골기사·좀비·듀라한·유령·리치·디아블로' }]],
+      foot: ['상성이 맞으면 피해가 1.25~2배가 됩니다 (유닛 설명 카드의 "강함")', '지상 근접 유닛은 공중 유닛(박쥐·드래곤)을 공격할 수 없습니다', '턴 언데드·디스트로이 언홀리·홀리 크로스는 언데드를 멈춥니다'] },
+    dark: { name: { 58: '소환·환술류', 63: '흡혈귀·늑대인간', 66: '구렁이·드래곤·벌레', 52: '전사·도둑류' },
+      fam: [[58, [58, 59, 60, 61, 62]], [63, [63, 64, 65]], [66, [66, 67, 68, 69, 70]], [52, [52, 53, 54, 55, 56, 57]]],
+      rings: [
+        [{ n: '전사류', fig: 0, ally: 1, m: '전사·기사·창기사·성기사·궁수·명궁·창검사' }, { n: '소환·환술류', fig: 59, m: '소환사·환술사·연금술사·인챈터·마녀' }, { n: '격투류', fig: 8, ally: 1, m: '격투가·무도가·도사·의적' }, { n: '흡혈귀류', fig: 63, m: '흡혈귀·늑대인간 (전갈도 전사류에 강함)' }],
+        [{ n: '성직·소환류', fig: 19, ally: 1, m: '성령사·사제·주교·소환사·신수사·엔젤 나이트·엔트' }, { n: '전사·도둑류', fig: 52, m: '전사·흑전사·흑기사·도둑·대도·마기사' }, { n: '마법사류', fig: 12, ally: 1, m: '정령사·마법사·장로·연금술사·마법전사·마법기사' }, { n: '짐승·벌레류', fig: 66, m: '구렁이·드래곤·개미·거미·전갈' }]],
+      open: [0, 1],
+      foot: ['상성이 맞으면 피해가 1.25~2배 (마술사 3종은 상성 없음)', '지상 근접 유닛은 공중 유닛(마녀·드래곤)을 공격할 수 없습니다', '흑마술파에는 언데드가 없어 턴 언데드가 통하지 않습니다'] }
+  };
+  Object.keys(AFF).forEach(function (k) { var A = AFF[k]; A.famOf = {}; A.repOf = {}; A.fam.forEach(function (q) { q[1].forEach(function (id) { A.famOf[id] = A.name[q[0]]; A.repOf[id] = q[0]; }); }); });   // 적 유닛 → 묶음 이름·대표 유닛
   P.unitInfo = function (r) {
     var t = r.t, C = CONFIG, basic = basicAct(t), rng = basic ? basic.range * C.RANGE_SCALE : 0, air = t.fly === 2, L = [];
     var kind = !basic ? '지원(공격 없음)' : rng >= 80 ? '원거리' : '근접';
     L.push((air ? '공중 유닛 · ' : '') + kind + (basic ? (rng >= 80 || air ? ' · 공중 공격 가능' : ' · 공중 공격 불가') : ''));
+    var AF = AFF[this.enemy] || AFF.evil, AFF_NAME = AF.name, AFF_FAM = AF.famOf;
     var grp = null; for (var k in AFF_NAME) if ((t.aff || []).indexOf(+k) >= 0) grp = AFF_NAME[k];
     if (grp) L.push('강함: ' + grp + ' ×' + (t.affMul / 8).toFixed(2).replace(/0$/, ''));
     // 약함: 이 게임에 나오는 적 중 이 유닛을 상성으로 잡는 적 (원본 aff — 적의 강한 상대 목록에 이 유닛이 있다). 짧게 세 이름까지
-    var weak = [], seen = {}, self = this; C.WAVES.forEach(function (wv) { wv.list.forEach(function (e) { var et = self.types[e[0]]; if (!et || (et.aff || []).indexOf(t.id) < 0 || !basicAct(et)) return; var fam = AFF_FAM[et.id] || et.name; if (!seen[fam]) { seen[fam] = 1; weak.push(fam); } }); });   // 강함과 같은 묶음 이름으로
+    var weak = [], seen = {}, self = this; C.WAVES.forEach(function (wv) { wv.list.forEach(function (e) { var et = self.types[e[0]]; if (!et || (et.aff || []).indexOf(t.id) < 0 || !basicAct(et)) return; var rep = self.types[AF.repOf[et.id]], fam = rep && (rep.aff || []).indexOf(t.id) >= 0 ? AFF_FAM[et.id] : et.name; if (!seen[fam]) { seen[fam] = 1; weak.push(fam); } }); });   // 강함과 같은 묶음 이름으로
     if (weak.length) L.push('약함: ' + weak.join('·'));
     var sk = skillsOf(t).map(function (a) { return a.name + (C.TECH[a.name] || a.self ? '(자동)' : ''); });
     if (sk.length) L.push('마법: ' + sk.join(', '));
+    // 변형 유닛(엔트): 걷는 형태에는 공격이 없어 설명이 없으면 "공격 없는 유닛"으로만 보인다 → 변형하면 무엇이 되는지 적는다 (2026-11-13 사용자 요청)
+    var mt = this.types[C.MORPH[t.id]], mb = mt ? basicAct(mt) : null;
+    if (mt && mb) { var mr = Math.round(mb.range * C.RANGE_SCALE), ms = skillsOf(mt).filter(function (a) { return skillKind(a) !== 'morph'; }).map(function (a) { return a.name; });
+      L.push('변형(스킬 칸, 마나 ' + new SkillSlot({ state: 'idle' }, t.acts.filter(function (a) { return a && a.sup === 'morph'; })[0]).cost + '): 뿌리내려 ' + mb.name + '(사거리 ' + mr + ')' + (ms.length ? '·' + ms.join('·') : '') + ' — 그동안 못 움직임'); }
+    var bt = bodyTechs(t).map(function (a) { return a.name === '방패 막기' ? '방패 막기(체력 ' + Math.round(C.BODY_TECH[a.name].hpBelow * 100) + '% 이하에서 방어 ×2, ' + Math.round(C.BODY_TECH[a.name].hpRelease * 100) + '% 이상이면 해제)' : a.name === '창 돌리기' ? '창 돌리기(적 ' + C.BODY_TECH[a.name].foes + '기 이상에 둘러싸이면 둘레 공격)' : a.name; });
+    if (bt.length) L.push('기술(자동): ' + bt.join(', '));
     // 사격 보너스 유닛(정령사·연금술사·마법전사·마법기사)은 혼자 넣으면 효과가 없다 — 쏘는 유닛(궁수·명궁·창검사·마법사·장로)과 함께여야 한다
     if (r.gar) { var gp = []; if (r.gar.cls >= 0) gp.push('성·벙커에 넣으면 사격'); else if (r.gar.bonus > 0) gp.push('쏘는 유닛과 함께 넣으면 사격 +' + r.gar.bonus); if (r.gar.def > 0) gp.push('성·벙커에 넣으면 건물 방어 +' + r.gar.def); L.push(gp.join(' · ')); }
     return { name: t.name, cost: r.cost, stat: '체력 ' + t.maxHpAt(1 + (this.allyLv || 0)) + ' · 공격 ' + t.atk + ' · 방어 ' + t.def, desc: (MWE.UNIT_DESC && MWE.UNIT_DESC[t.id]) || '', lines: L };
   };
+  /* 마법 설명 카드의 내용 (스킬 칸을 길게 누르면): 손으로 쓴 설명(MWE.DEF_SKILL_DESC)의 {자리}를 CONFIG 값으로 채우고, 종류·마나·범위·시전 거리는 데이터에서 */
+  P.skillInfo = function (g) {
+    var s = g.slots[0], a = g.act, S = CONFIG.SKILL, tps = this.rules.tps, self = this; if (!s) return null;
+    var V = { healMax: S.healMax, healPct: Math.round(S.healRatio * 100), buffMax: S.buffMax, buffSec: S.buffSec, stun: stunSecOf(a), charmMax: S.charmMax, dur: Math.round((a.dur || 600) / tps), undead: S.undeadDmg[a.name] || 0 };
+    var desc = ((MWE.DEF_SKILL_DESC && MWE.DEF_SKILL_DESC[a.name]) || '').replace(/\{(\w+)\}/g, function (m, k) { return V[k] != null ? V[k] : m; });
+    var L = [], n = g.slots.filter(function (q) { return q.unit && q.unit.state !== 'dead'; }).length;
+    if (s.aimed) L.push('칸을 누른 뒤 전장을 찍어 씁니다 · 효과 반경 ' + Math.round(this.aimRadius(s)) + ' · 시전 거리 ' + (s.kind === 'recall' ? '제한 없음' : Math.round(this.aimReach(s))));
+    else L.push(a.self || CONFIG.TECH[a.name] ? '유닛이 알아서 씁니다' : '칸을 누르면 바로 씁니다' + (s.kind === 'morph' ? '' : ' · 시전 유닛 주변 ' + S.buffRadius));
+    L.push('재사용 ' + S.cool + '초 · 가진 유닛 ' + n + '기' + (s.kind === 'blast' && blastTier(a) > 1 ? ' · 피해 ×' + blastTier(a).toFixed(2).replace(/0$/, '') : ''));
+    return { name: a.name, cost: s.cost, kind: KIND_NAME[s.kind] || '', desc: desc, lines: L };
+  };
+  P._drawSkillInfo = function () {
+    var g = this.sinfo; if (!g) return; var I = this.skillInfo(g); if (!I) return;
+    var ctx = this.ctx, W = this.W, x = 8, w = W - 16, lh = 15, i;
+    ctx.font = '12px sans-serif'; var D = I.desc ? this._wrapAny(I.desc, w - 24) : [], h = 34 + D.length * 16 + I.lines.length * lh + 8, y = this.H - this.hudH - h - 8;
+    this._plate(x, y, w, h, 6, false, 'dark');
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    ctx.font = 'bold 14px sans-serif'; ctx.fillStyle = '#ffe9b0'; ctx.fillText(I.name, x + 12, y + 17);
+    var nw = ctx.measureText(I.name).width; ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = '#8fc7ff'; ctx.fillText('마나 ' + I.cost, x + 12 + nw + 8, y + 17.5);
+    ctx.textAlign = 'right'; ctx.font = '11px sans-serif'; ctx.fillStyle = '#ffd36e'; ctx.fillText(I.kind, x + w - 12, y + 17.5); ctx.textAlign = 'left';
+    ctx.font = '12px sans-serif'; ctx.fillStyle = '#ffffff'; for (i = 0; i < D.length; i++) ctx.fillText(D[i], x + 12, y + 38 + i * 16);
+    ctx.font = '11px sans-serif'; ctx.fillStyle = '#c9d1e3'; for (i = 0; i < I.lines.length; i++) ctx.fillText(this._fit(I.lines[i], w - 24), x + 12, y + 38 + D.length * 16 + 2 + i * lh);
+  };
   P._drawInfo = function () {
     var r = this.info; if (!r) return;
     var ctx = this.ctx, I = this.unitInfo(r), W = this.W, x = 8, w = W - 16, lh = 15, h = 57 + I.lines.length * lh, y = this.H - this.hudH - h - 8, i;
-    this._plate(x, y, w, h, 6, false);
+    this._plate(x, y, w, h, 6, false, 'dark');
     ctx.drawImage(this.assets.get('figs'), r.t.pid * 36, 0, 36, 43, x + 10, y + 9, 36, 43);
     ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
     ctx.font = 'bold 14px sans-serif'; ctx.fillStyle = '#ffe9b0'; ctx.fillText(I.name, x + 54, y + 16);
@@ -2006,15 +2153,11 @@
 
   /* 유닛 상성 모달 (2026-11-13): 오른쪽 위 [상성] 버튼으로 연다. 떠 있는 동안 게임은 멈추고, 아무 곳이나 누르면 닫힌다.
      원본 상성(unitdata 의 강한 상대 목록)은 고리 두 개다 — 화살표 방향으로 강하다. 아군 묶음은 초록, 적 묶음은 빨강. 묶음마다 대표 유닛 그림과 구성원 */
-  var AFF_RINGS = [
-    [{ n: '전사류', fig: 0, ally: 1, m: '전사·기사·창기사·성기사·궁수·명궁·창검사' }, { n: '악마류', fig: 39, m: '데몬·데빌·사탄·서큐버스' }, { n: '격투류', fig: 8, ally: 1, m: '격투가·무도가·도사·의적' }, { n: '흡혈귀류', fig: 35, m: '흡혈귀·늑대인간·메두사' }],
-    [{ n: '마법사류', fig: 12, ally: 1, m: '정령사·마법사·장로·연금술사·마법전사·마법기사' }, { n: '짐승류', fig: 43, m: '늑대·켈베로스·펜릴·박쥐·드래곤' }, { n: '성직·소환류', fig: 19, ally: 1, m: '성령사·사제·주교·소환사·신수사·엔젤 나이트·엔트' }, { n: '언데드', fig: 28, m: '해골전사·해골기사·좀비·듀라한·유령·리치·디아블로' }]
-  ];
   P._drawAff = function () {
-    var ctx = this.ctx, W = this.W, H = this.H, figs = this.assets.get('figs'), self = this, x0 = 8, w = W - 16, y0 = 44, foot = 78, h = H - y0 - 12, rh = Math.floor((h - 40 - foot) / 2), nw = Math.floor((w - 24 - 40) / 2), nh = Math.floor((rh - 44) / 2), r, k;
+    var ctx = this.ctx, W = this.W, H = this.H, figs = this.assets.get('figs'), self = this, x0 = 8, w = W - 16, y0 = 44, foot = 78, h = H - y0 - 12, rh = Math.floor((h - 40 - foot) / 2), nw = Math.floor((w - 24 - 40) / 2), nh = Math.floor((rh - 44) / 2), r, k, AF = AFF[this.enemy] || AFF.evil, AFF_RINGS = AF.rings;
     ctx.fillStyle = 'rgba(4,6,10,.72)'; ctx.fillRect(0, 0, W, H);
     this._plate(x0, y0, w, h, 8, false);
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold 15px sans-serif'; ctx.fillStyle = '#ffe9b0'; ctx.fillText('유닛 상성 — 화살표 방향으로 강합니다', W / 2, y0 + 20);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold 15px sans-serif'; ctx.fillStyle = '#ffe9b0'; ctx.fillText('유닛 상성 (적: ' + CONFIG.ENEMIES[this.enemy].name + ') — 화살표 방향으로 강합니다', W / 2, y0 + 20);
     var node = function (q, nx, ny) {
       ctx.fillStyle = q.ally ? 'rgba(40,110,60,.35)' : 'rgba(140,40,34,.35)'; ctx.fillRect(nx, ny, nw, nh); ctx.strokeStyle = q.ally ? '#58e86a' : '#ff7a6a'; ctx.lineWidth = 1; ctx.strokeRect(nx + 0.5, ny + 0.5, nw - 1, nh - 1);
       var t = self.types[q.fig]; ctx.drawImage(figs, (t ? t.pid : q.fig) * 36, 0, 36, 43, nx + 6, ny + 6, 30, 36);
@@ -2027,10 +2170,10 @@
     for (r = 0; r < 2; r++) { var R = AFF_RINGS[r], ry = y0 + 40 + r * rh, lx = x0 + 12, rx = x0 + w - 12 - nw, ty = ry, by = ry + nh + 36;
       // 시계 방향: 왼쪽 위(아군) → 오른쪽 위(적) → 오른쪽 아래(아군) → 왼쪽 아래(적) → 왼쪽 위
       node(R[0], lx, ty); node(R[1], rx, ty); node(R[2], rx, by); node(R[3], lx, by);
-      arrow(lx + nw + 4, ty + nh / 2, rx - 4, ty + nh / 2); arrow(rx + nw / 2, ty + nh + 4, rx + nw / 2, by - 4); arrow(rx - 4, by + nh / 2, lx + nw + 4, by + nh / 2); arrow(lx + nw / 2, by - 4, lx + nw / 2, ty + nh + 4);
+      arrow(lx + nw + 4, ty + nh / 2, rx - 4, ty + nh / 2); arrow(rx + nw / 2, ty + nh + 4, rx + nw / 2, by - 4); arrow(rx - 4, by + nh / 2, lx + nw + 4, by + nh / 2); if (!(AF.open && AF.open[r])) arrow(lx + nw / 2, by - 4, lx + nw / 2, ty + nh + 4);   // open = 사슬(마지막 묶음은 처음 묶음에 강하지 않다)
       if (r === 0) { ctx.strokeStyle = 'rgba(255,233,176,.18)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0 + 16, ry + rh - 4.5); ctx.lineTo(x0 + w - 16, ry + rh - 4.5); ctx.stroke(); } }
     var fy = y0 + h - foot + 4; ctx.textAlign = 'center'; ctx.font = '11px sans-serif'; ctx.fillStyle = '#c9d1e3';
-    ['상성이 맞으면 피해가 1.25~2배가 됩니다 (유닛 설명 카드의 "강함")', '지상 근접 유닛은 공중 유닛(박쥐·드래곤)을 공격할 수 없습니다', '턴 언데드·디스트로이 언홀리·홀리 크로스는 언데드를 멈춥니다'].forEach(function (t, i) { ctx.fillText(self._fit(t, w - 20), W / 2, fy + 8 + i * 16); });
+    AF.foot.forEach(function (t, i) { ctx.fillText(self._fit(t, w - 20), W / 2, fy + 8 + i * 16); });
     ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = '#ffd36e'; ctx.fillText('아무 곳이나 누르면 닫힙니다', W / 2, y0 + h - 14);
     ctx.textAlign = 'left';
   };
@@ -2038,8 +2181,19 @@
   /* 진행 막대를 누르거나 그 위에서 끌면: 그 지점이 화면 가운데에 오도록 카메라를 옮긴다 */
   P._miniPan = function (x) { var m = this.miniBox; this.panTo((x - m.x) / m.w * CONFIG.WORLD_W - this.W / 2); };
 
+  /* 적 종족을 바꾼다: 웨이브 표를 갈아 끼우고, 그 종족의 유닛 그림·이펙트 시트 중 아직 안 받은 것을 받는다 (처음에는 기본 종족 것만 받아 둔다 — 한 종족에 3MB쯤) */
+  P.setEnemy = function (key) {
+    var E = CONFIG.ENEMIES[key], self = this, A = this.assets; if (!E) return false;
+    this.enemy = key; CONFIG.WAVES = E.waves;
+    this._usedUnitIds().forEach(function (id) { var t = self.types[id]; if (!t) return;
+      if (!A.img['u' + id]) A.load('u' + id, t.img);
+      t.acts.forEach(function (a) { var d = a && a.arm >= 0 ? self.data.fx.arms[a.arm] : null; (d && d.sheets || []).forEach(function (n) { self._loadFxSheet(n); }); }); });
+    return true;
+  };
+  P.pickEnemy = function (key) { if (this.setEnemy(key)) this.start(); };
   P.start = function () {
-    this.reset(); this.screen = 'play';
+    if (this.assets.ready()) { this._pendStart = false; this.reset(); this.screen = 'play'; }
+    else { this._pendStart = true; this.screen = 'loading'; }   // 고른 종족의 그림을 받는 중: 다 오면 _frame 이 시작한다
     if (this.soundOn && !this.bgm.on) { this.bgm.set(0); this.bgm.toggle(); }
     // 휴대폰: 전체 화면을 시도한다 (지원하지 않는 브라우저에서는 조용히 넘어간다). 세로 전용
     try { var el = document.documentElement, p = root.matchMedia && root.matchMedia('(pointer: coarse)').matches && el.requestFullscreen ? el.requestFullscreen() : null;
@@ -2072,7 +2226,7 @@
       else if (d.btn) { var bx = p[0] - d.x; if (Math.abs(bx) > 8) d.moved = true; if (d.moved) { self.btnFirst = d.first; self._scrollBtns(-Math.round(bx / self.btnStep)); } }
       else if (d.field) { if (!d.moved && Math.hypot(p[0] - d.x, p[1] - d.y) > 6) d.moved = true; if (d.moved) self.panTo(d.cam - (p[0] - d.x)); }   // 끌기로 판정된 뒤에만 전장이 손가락을 따라온다 (손가락 떨림에 화면이 밀려 탭이 어긋나지 않게)
     });
-    var endDrag = function (e) { var d = self.drag; if (!d || d.id !== e.pointerId) return; self.drag = null; self.info = null;   // 손을 떼면 유닛 설명 카드는 사라진다
+    var endDrag = function (e) { var d = self.drag; if (!d || d.id !== e.pointerId) return; self.drag = null; self.info = null; self.sinfo = null;   // 손을 떼면 유닛 설명 카드는 사라진다
       if ((d.slots || d.btn) && !d.moved && !d.held && e.type === 'pointerup') self._tap(d.x, d.y);   // 끌지 않고 뗐다 = 그 칸을 눌렀다
       if (d.field && !d.moved && e.type === 'pointerup') self._tapField(d.x, d.y); };   // 전장을 끌지 않고 뗐다 = 탭
     cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
@@ -2095,7 +2249,7 @@
     document.addEventListener('visibilitychange', function () { self.paused = document.hidden; });
   };
 
-  DefenseGame.CONFIG = CONFIG; DefenseGame.SkillSlot = SkillSlot;
-  DefenseGame.summonCost = summonCost; DefenseGame.skillKind = skillKind; DefenseGame.skillsOf = skillsOf; DefenseGame.KIND_NAME = KIND_NAME; DefenseGame.blastTier = blastTier; DefenseGame.stunSecOf = stunSecOf;   // 명세 생성기(tools/specbuild.js)가 게임과 같은 식을 쓰도록 내놓는다
+  DefenseGame.CONFIG = CONFIG; DefenseGame.AFF = AFF; DefenseGame.SkillSlot = SkillSlot;
+  DefenseGame.bodyTechs = bodyTechs; DefenseGame.summonCost = summonCost; DefenseGame.skillKind = skillKind; DefenseGame.skillsOf = skillsOf; DefenseGame.KIND_NAME = KIND_NAME; DefenseGame.blastTier = blastTier; DefenseGame.stunSecOf = stunSecOf;   // 명세 생성기(tools/specbuild.js)가 게임과 같은 식을 쓰도록 내놓는다
   MWE.DefenseGame = DefenseGame;
 })(window);
