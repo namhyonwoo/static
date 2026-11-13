@@ -105,9 +105,10 @@
     BOOM: { radius: 62, min: 2, hp: 0.45, dmgMul: 1 },
     FLEE_SEC: 2.2, FLEE_SPEED: 1.3,   // 공격 없는 아군이 맞았을 때 물러나는 시간(초)과 걸음 배수 (2026-11-13 사용자 요청)
     SUPPORT_DIST: 210,           // 기본 공격이 없는 유닛(성직자·소환사 등)이 적과 벌려 두는 거리(px)
+    /* friendlyFire: 범위 안의 아군(시전자 포함)도 같은 피해를 입는 마법 (2026-11-13 사용자 요청 — 가장 센 범위 마법이라 쓸 자리를 가려야 한다) */
     /* 스킬은 전체 마나를 쓴다 (소환과 같은 마나) + 짧은 재사용 대기 cool(초). 값 = 원본 행동 마나 × costMul 을 5 단위로, 종류별 [최소, 최대] 안으로 자른다 (COST)
        — 원본은 유닛마다 마나통이 따로라 값을 그대로 쓸 수 없어 비율만 가져온다. 2026-11-12: 쿨타임만 돌던 방식에서 바꿈 (공짜라 강화를 상시 돌리던 문제) */
-    SKILL: { charmMax: 3, cool: 3, costMul: 0.4, COST: { blast: [40, 70], buff: [20, 30], heal: [15, 40], haste: [60, 60], weaken: [20, 25], stun: [35, 50], recall: [40, 40], charm: [50, 60], assassin: [40, 40], morph: [20, 20] }, radius: 95, buffRadius: 170, dmgMul: 2, healRatio: 0.5, stunSec: 6, stunBase: 112, firstWait: 2, hasteMul: 1.5, maxCast: 320, walkSec: 45, buffSec: 7, buffMax: 2, summonRadius: 140, undeadDmg: { '턴 언데드': 80, '디스트로이 언홀리': 140 }, tierBase: 100, tierPer: 0.004 },   // maxCast = 시전 거리 한도(px). 원본 사거리가 무제한(65535)인 마법도 이 안에 대상이 있어야 한다   // 스킬 공통 수치 (목업 값)
+    SKILL: { charmMax: 3, cool: 3, costMul: 0.4, COST: { blast: [40, 100], buff: [20, 30], heal: [25, 70], haste: [60, 60], weaken: [20, 25], stun: [35, 50], recall: [40, 40], charm: [50, 60], assassin: [40, 40], morph: [20, 20] }, radius: 95, buffRadius: 170, dmgMul: 2, healRatio: 0.35, healMax: 3, stunSec: 6, stunBase: 112, firstWait: 2, hasteMul: 1.5, maxCast: 320, walkSec: 45, buffSec: 7, buffMax: 2, summonRadius: 140, undeadDmg: { '턴 언데드': 80, '디스트로이 언홀리': 140 }, friendlyFire: { '12 리플렉터스 소환': 1 }, tierBase: 100, tierPer: 0.004 },   // maxCast = 시전 거리 한도(px). 원본 사거리가 무제한(65535)인 마법도 이 안에 대상이 있어야 한다   // 스킬 공통 수치 (목업 값)
     /* 소환 패널의 탭: 해방부대 전체(원본 유닛 번호 0~24)를 네 묶음으로 나눈다 */
     TABS: [
       { name: '근접', ids: [0, 1, 2, 3, 6, 7, 8] },          // 전사 기사 창기사 성기사 창검사 격투가 무도가
@@ -786,6 +787,8 @@
     } else if (s.kind === 'blast' && foe) {                         // 가장 가까운 적을 중심으로 범위 피해 (원본 피해 공식 × dmgMul)
       var keep = u.act; u.act = a;
       foesAt(foe, a.aoe ? S.radius * (u.side === 0 ? 1 + this.radiusUp : 1) : 60).forEach(function (o) { self._damage(o, self.rules.damage(u, o, self.rng) * S.dmgMul * (u.side === 0 ? (1 + self.dmgUp) * blastTier(a) : 1)); });
+      if (S.friendlyFire[a.name]) { var fr = a.aoe ? S.radius * (u.side === 0 ? 1 + this.radiusUp : 1) : 60, fm = S.dmgMul * (u.side === 0 ? (1 + this.dmgUp) * blastTier(a) : 1);   // 아군도 맞는다
+        this.units.forEach(function (o) { if (o.side === u.side && o.state !== 'dead' && Math.hypot(o.x - foe.x, o.y - foe.y) <= fr) self._damage(o, self.rules.damage(u, o, self.rng) * fm); }); }
       var HO = MWE.OriginalRules.HOLY;
       if (HO && a.arm === HO.arm) {                          // 홀리 크로스 (원본 case 0x10, 분석 8-43): 범위 안의 아군은 회복 + 상태 이상 해제, 언데드 적은 석화
         var hr = S.radius * (u.side === 0 ? 1 + this.radiusUp : 1), hv = this.rules.attackValue(u) + HO.heal;
@@ -795,6 +798,8 @@
       u.act = keep; this._addEffect(foe.x, foe.y, a.arm, 0); this.flash = 0.2; ok = true;
     } else if (s.kind === 'heal') {                          // 주변 아군 회복. 말다 소환(massheal)은 더 넓게, 전부 회복
       var mass = a.sup === 'massheal', HL = mass && pt ? this.units.filter(function (o) { return o.side === u.side && o.state !== 'dead' && Math.hypot(o.x - pt.x, o.y - pt.y) <= S.summonRadius; }) : allies(mass ? S.buffRadius * 1.5 : S.buffRadius);   // 말다 소환은 찍은 곳 둘레
+      // 힐링(2026-11-13 너프 — 마나 15로 주변 전원을 50%씩 채워 너무 셌다): 주변에서 체력 비율이 가장 낮은 healMax(3)기만, 최대 체력의 healRatio(35%)씩. 말다 소환은 그대로(범위 안 전원 완전 회복)
+      if (!mass) HL = HL.filter(function (o) { return o.hp < o.maxHp; }).sort(function (p, q) { return p.hp / p.maxHp - q.hp / q.maxHp; }).slice(0, S.healMax);
       HL.forEach(function (o) { var h = mass ? o.maxHp : Math.round(o.maxHp * S.healRatio), got = Math.min(o.maxHp - o.hp, h);
         o.hp += got; if (got > 0) self._say(o.x, o.y - o.t.h - 6, '+' + got, '#8fe89a'); if (!mass) self._addEffect(o.x, o.y - o.t.h * 0.5, a.arm, 0); });
       if (mass) this._addEffect(pt ? pt.x : u.x, pt ? pt.y : this.laneY, a.arm, 0);
