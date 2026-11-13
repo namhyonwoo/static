@@ -122,7 +122,11 @@
     ],
     /* 마법 유닛과 마법은 표로 정하지 않는다: 원본 행동 중 "기본 공격이 아니고, 마나를 쓰고, 이 게임이 효과를 구현한(skillKind)" 것이
        그 유닛의 마법이고(skillsOf), 마법이 하나라도 있으면 마법 유닛이다. 아이콘·이펙트·소리·수치는 원본 행동 데이터 그대로. */
-    MORPH: { 23: 77, 77: 23 },   // 변형 스킬로 오가는 유닛 번호 (엔트 ↔ 지상 엔트)
+    MORPH: { 23: 77, 77: 23 },   // 오가는 유닛 번호 (엔트 ↔ 지상 엔트)
+    /* 엔트 (2026-11-13 사용자 요청 — 변형을 손으로 누르는 것이 번거롭다): 변형 스킬 칸을 없애고 전부 알아서 한다 (_entAuto).
+       적이 뿌리 공격 사거리(× rootRange) 안에 들면 뿌리내려(지상 엔트) 뿌리 공격을 하고, healCool 초마다 주변의 다친 아군 healMax 기를 최대 체력의 healRatio(5%)씩 치료한다 — 양은 적고 자주.
+       사거리(+ unrootPad px) 안에 적이 없는 채 unrootSec 초가 지나면 다시 걷는 형태가 되어 대열을 따라간다. 마나는 들지 않는다 */
+    ENT: { rootRange: 0.95, unrootSec: 4, unrootPad: 60, healCool: 5, healRatio: 0.05, healMax: 2 },   // 2026-11-13: 치료를 4초·3기 → 5초·2기로 줄임(사용자 결정) — 엔트 2~3기가 아군이 받는 피해의 13~16%를 채워 악령군에서 한 웨이브쯤 쉬워졌다 (README 133)
     /* 웨이브: list = [유닛 번호, 수] 묶음들(순서대로 나온다), gap = 한 기씩 나오는 간격(초), rest = 다음 웨이브까지 쉬는 시간(초)
        28 해골전사, 29 해골기사 */
     /* 적 마법: 적 마법 유닛(리치·다크로드·사탄·메두사·서큐버스·술사류)도 자기 마법을 스스로 쓴다 — 마나 없이 재사용 대기만.
@@ -132,7 +136,8 @@
     /* 적 레벨: 웨이브가 진행될수록 적이 높은 레벨로 나온다 — 레벨 = start + perWave × (웨이브 − 1). 원본 성장 규칙 그대로 체력(+hpGrow)·공격(k1 × 레벨)·방어(defGrow × 레벨)가 함께 오른다.
        체력 배수만 올리는 것보다 낫다: 초반은 그대로 두고 후반만 어려워지며, "전군 단련"으로 오르는 아군 레벨과 짝이 맞는다 (2026-11-12 사용자 제안) */
     ENEMY_LV: { start: 1, perWave: 0.7 },   // 2026-11-13: 1 → 0.7 (10웨이브에 레벨 7). 1일 때 봇이 6~7웨이브에서 무너졌다 (README 105)
-    SKILL_OFF: { '넨 소환': 1, '헤이스트': 1 },   // 헤이스트(마녀): 원작은 자기 전용인데 디펜스에서는 주변 적 전부가 60초 동안 공격 대기 없이 쳐서 흑마술파 8웨이브가 무너졌다 — 2026-11-13 사용자 결정으로 제외 (README 128)
+    SKILL_OFF: { '넨 소환': 1, '헤이스트': 1, '엔트 변형': 1 },   // 엔트 변형: 스킬 칸에서 뺌 — 알아서 변형한다 (CONFIG.ENT)
+      // 헤이스트(마녀): 원작은 자기 전용인데 디펜스에서는 주변 적 전부가 60초 동안 공격 대기 없이 쳐서 흑마술파 8웨이브가 무너졌다 — 2026-11-13 사용자 결정으로 제외 (README 128)
       // 디펜스에서 뺀 마법 (원본 행동 이름). 넨 소환 = 아군 텔레포트(리콜): 2026-11-12 사용자 요청으로 제외 — 코드(recall)는 남겨 둔다
     TECH: { '암살': { cool: 20, first: 4 } },
     /* 몸동작 기술 (2026-11-13 사용자 지정): 마나 0 인 원본 행동이라 스킬 칸·TECH(마나를 쓰는 행동) 경로에 없다 — 아군 유닛이 조건이 되면 알아서 쓴다 (_bodyTech). SKILL_OFF 에 이름을 넣으면 꺼진다.
@@ -622,6 +627,10 @@
     if (!g.aimed && !R.some(function (s) { return self.skillTarget(s.unit, s); })) return [g.slots[0].needsFoe() ? '가까이에 적이 없음' : '가까이에 아군이 없음', '#c9d1e3', R[0].unit];
     return null;
   };
+  /* 종족을 가리는 마법(턴 언데드 = 언데드, 디스트로이 언홀리 = 언데드 + 흡혈귀·늑대인간류)이 걸릴 적. pt·r 을 주면 그 둘레 안에서만 찾는다.
+     2026-11-13 사용자 요청: 걸릴 적이 없으면 "대상 없음"을 띄우고 조준을 풀어 준다 — 흑마술파에는 언데드가 없어 턴 언데드를 쓸 일이 거의 없다 */
+  P._raceFoes = function (a, pt, r) { return this.units.filter(function (o) { return o.side === 1 && o.state !== 'dead' && a.races.indexOf(o.t.race) >= 0 && (!pt || Math.hypot(o.x - pt.x, o.y - pt.y) <= r); }); };
+  function raceLabel(a) { return a.races.indexOf(6) >= 0 ? '언데드·흡혈귀류' : '언데드'; }
   /* 패널의 칸(묶음)을 누름. 적에게 쓰는 마법·리콜은 조준 상태로, 나머지(강화·회복·가속·변형)는 준비된 유닛 한 기가 바로 쓴다 */
   P.pressGroup = function (g) {
     var was = (this.aim && this.aim.group) || this._aimWas, self = this; this.aim = null; this._aimWas = null;
@@ -630,6 +639,7 @@
     if (g.aimed && was === g) return false;                  // 조준 중인 칸을 다시 누르면 취소
     var why = this._whyNot(g); if (why) { if (why[2]) this._say(why[2].x, why[2].y - why[2].headY - 10, why[0], why[1]); return false; }
     var R = this._readyOf(g);
+    if (g.act.races && !this._raceFoes(g.act).length) { var ru = (R[0] || g.slots[0]).unit; this._say(ru.x, ru.y - ru.headY - 10, '대상 없음 — 전장에 ' + raceLabel(g.act) + ' 없음', '#c9d1e3'); return false; }   // 조준에 들어가지 않는다
     if (!g.aimed) {                                          // 즉시 쓰는 마법: 주변에 효과를 받을 아군이 가장 많은 유닛이 쓴다
       var best = null, bn = -1; R.forEach(function (s) { if (!self.skillTarget(s.unit, s)) return; var n = self.units.filter(function (o) { return o.side === 0 && o.state !== 'dead' && Math.abs(o.x - s.unit.x) <= CONFIG.SKILL.buffRadius && (s.kind !== 'heal' || o.hp < o.maxHp) && !(s.kind === 'buff' && o.buffs[s.act.sup] && o.buffs[s.act.sup].until > self.time); }).length; if (n > bn) { bn = n; best = s; } });
       return !!best && this.castUnitSkill(best.unit, best.unit.slots.indexOf(best));
@@ -652,6 +662,7 @@
     var Rw = this.rows, y = Math.max(this.laneY + Rw[0] - 30, Math.min(this.laneY + Rw[Rw.length - 1] + 10, wy));
     if (!R.length) { this._say(wx, y - 12, '쿨타임', '#e08a6a'); return false; }
     var s = R.slice().sort(function (a, b) { return Math.abs(wx - a.unit.x) - Math.abs(wx - b.unit.x); })[0], u = s.unit;
+    if (g.act.races && !this._raceFoes(g.act, { x: wx, y: y }, this.aimRadius(s)).length) { this._say(wx, y - 12, '대상 없음 — ' + raceLabel(g.act) + '에게만 통합니다', '#c9d1e3'); this.aim = null; this.aimPt = null; return false; }   // 걸릴 적이 없는 곳: 조준을 푼다 (마나·대기 그대로)
     if (wx > this.frontX + this.aimReach(s)) { this._say(wx, y - 12, '적 진영 안쪽 — 닿지 않음', '#e08a6a'); return false; }
     if (Math.abs(wx - u.x) <= this.aimReach(s)) { var ok = this.castUnitSkill(u, u.slots.indexOf(s), { x: wx, y: y }); if (ok) { this.aim = null; this.aimPt = null; } return ok; }
     var foe = null, bd = 45; if (s.kind === 'assassin') this.units.forEach(function (o) { if (o.side === u.side || o.state === 'dead') return; var d = Math.hypot(o.x - wx, o.y - y); if (d < bd) { bd = d; foe = o; } });   // 암살류는 그 적을 따라간다
@@ -865,6 +876,7 @@
       foesAt(foe, S.radius).forEach(function (o) { o.buffs[a.sup] = { arm: a.arm, until: self.time + (a.dur || 600) / tps }; self._say(o.x, o.y - o.headY - 6, '약화', '#c7a0ff'); });
       this._addEffect(foe.x, foe.y, a.arm, 0); ok = true;
     } else if (s.kind === 'stun' && foe) {                   // 범위 안의 적을 잠시 멈춘다
+      if (u.side === 0 && a.races && !this._raceFoes(a, foe, S.radius * (1 + this.radiusUp)).length) { this._say(foe.x, foe.y - 12, '대상 없음', '#c9d1e3'); return false; }   // 걸어가서 쓰는 사이에 대상이 사라졌을 때도 헛쓰지 않는다
       var ud = u.side === 0 ? S.undeadDmg[a.name] || 0 : 0;   // 디펜스 고유: 턴 언데드·디스트로이 언홀리는 걸리는 종족에게 피해도 준다 (원본 case 0xE·0xF 는 석화만 — 하급 언데드를 쓸어 내는 마법이라는 사용자 요청, 2026-11-13). 방어 무시, 마법 증폭 적용
       foesAt(foe, S.radius * (u.side === 0 ? 1 + this.radiusUp : 1)).forEach(function (o) { if (a.races && a.races.indexOf(o.t.race) < 0) return;   // 걸리는 종족만 (턴 언데드 = 언데드, 디스트로이 언홀리 = 언데드 + 흡혈귀·늑대인간류, 분석 8-36)
         o.stunUntil = self.time + stunSecOf(a); o.state = 'idle'; delete o.buffs.weapon; delete o.buffs.shield; delete o.buffs.haste;
@@ -1028,7 +1040,7 @@
     var ps = u.buffs.poison;                                 // 중독 (원본 FUN_00454580, 분석 8-26): 2틱마다 체력 −1, 1 밑으로는 안 내려간다 (12틱/초 → 초당 6)
     if (ps) { if (ps.until <= this.time) delete u.buffs.poison; else { u.poisonAcc = (u.poisonAcc || 0) + dt * tps / 2; while (u.poisonAcc >= 1) { u.poisonAcc -= 1; if (u.hp > 1) u.hp--; } } }
     if (u.stunUntil > this.time) { u.state = 'idle'; return; }   // 멈춤 스킬에 걸림
-    if (u.side === 0) this._bodyTech(u);
+    if (u.side === 0) { this._bodyTech(u); if (C.MORPH[u.t.id] != null) this._entAuto(u, dt); }
     u.cd = Math.max(0, u.cd - dt);
     if (u.boom && this._boom(u)) return;
     if (u.castOrder && u.state !== 'attack' && this._castWalk(u, dt)) return;
@@ -1179,6 +1191,25 @@
 
   /* 내가 둘러싸이는 쪽인가: 나를 둘러싸려고 자리를 맡은(slotOf = 나) 적이 가까이에 있다.
      두 근접 유닛이 마주치면 먼저 움직인 쪽이 상대 둘레에 자리를 잡고, 상대는 이 판정으로 제자리를 지킨다 */
+  /* 엔트의 자동 변형·자동 치료 (CONFIG.ENT). 걷는 형태 = 원본 엔트(공격 없음), 뿌리내린 형태 = 지상 엔트(뿌리 공격). 영웅 폴로운도 같다 — 영웅은 이름·수치를 지킨 채 그림과 행동만 바뀐다 */
+  P._entForm = function (u, rooted) {
+    var base = this.types[rooted ? 77 : 23], to = base, h = u.hero; if (!base) return;
+    if (h) { if (!h.forms) h.forms = {}; to = h.forms[base.id]; if (!to) { to = h.forms[base.id] = Object.create(base); ['name', 'job', 'pid', 'hp', 'atk', 'def', 'lv'].forEach(function (k) { to[k] = h.t[k]; }); } }
+    var ratio = u.hp / u.maxHp; u.setType(to); u.hp = Math.max(1, Math.round(u.maxHp * ratio)); this._applyType(u); u.face(u.dir, -u.dir);
+    u.rooted = rooted; u.rootIdle = 0; u.tgt = null; u.slotOf = null; u.slotA = null; u.slotAt = null; if (u.state !== 'dead') u.state = 'idle';
+  };
+  P._entAuto = function (u, dt) {
+    var E = CONFIG.ENT, self = this, root = this.types[77], ra = root ? basicAct(root) : null; if (!ra || u.state === 'dead') return;
+    var range = ra.range * CONFIG.RANGE_SCALE, f = this._nearestFoe(u), fd = f ? Math.abs(f.x - u.x) : Infinity;
+    if (!u.rooted) { if (fd <= range * E.rootRange) { this._entForm(u, true); this._play(u.t.snd && u.t.snd.ready, 0.4); } return; }
+    if (fd > range + E.unrootPad) { u.rootIdle = (u.rootIdle || 0) + dt; if (u.rootIdle >= E.unrootSec && u.state !== 'attack') { this._entForm(u, false); return; } } else u.rootIdle = 0;
+    u.healT = (u.healT || 0) - dt; if (u.healT > 0) return;
+    var HL = this.units.filter(function (o) { return o.side === u.side && o.state !== 'dead' && o.hp < o.maxHp && Math.abs(o.x - u.x) <= CONFIG.SKILL.buffRadius; }).sort(function (p, q) { return p.hp / p.maxHp - q.hp / q.maxHp; }).slice(0, E.healMax);
+    if (!HL.length) { u.healT = 0.5; return; }
+    var ha = root.acts.filter(function (a) { return a && a.sup === 'heal'; })[0];
+    HL.forEach(function (o) { var got = Math.min(o.maxHp - o.hp, Math.max(1, Math.round(o.maxHp * E.healRatio))); o.hp += got; self._say(o.x, o.y - o.t.h - 6, '+' + got, '#8fe89a'); if (ha && ha.arm >= 0) self._addEffect(o.x, o.y - o.t.h * 0.5, ha.arm, 0); });
+    u.healT = E.healCool;
+  };
   /* 몸동작 기술 (CONFIG.BODY_TECH): 아군만. 쓸 때 유닛 위에 이름이 잠깐 뜬다 */
   P._bodyTech = function (u) {
     var B = CONFIG.BODY_TECH, T = this.time, self = this, L = bodyTechs(u.t); if (!L.length) return;
@@ -2104,10 +2135,11 @@
     if (weak.length) L.push('약함: ' + weak.join('·'));
     var sk = skillsOf(t).map(function (a) { return a.name + (C.TECH[a.name] || a.self ? '(자동)' : ''); });
     if (sk.length) L.push('마법: ' + sk.join(', '));
-    // 변형 유닛(엔트): 걷는 형태에는 공격이 없어 설명이 없으면 "공격 없는 유닛"으로만 보인다 → 변형하면 무엇이 되는지 적는다 (2026-11-13 사용자 요청)
+    // 변형 유닛(엔트): 걷는 형태에는 공격이 없어 설명이 없으면 "공격 없는 유닛"으로만 보인다 → 알아서 뿌리내려 무엇을 하는지 적는다 (CONFIG.ENT)
     var mt = this.types[C.MORPH[t.id]], mb = mt ? basicAct(mt) : null;
-    if (mt && mb) { var mr = Math.round(mb.range * C.RANGE_SCALE), ms = skillsOf(mt).filter(function (a) { return skillKind(a) !== 'morph'; }).map(function (a) { return a.name; });
-      L.push('변형(스킬 칸, 마나 ' + new SkillSlot({ state: 'idle' }, t.acts.filter(function (a) { return a && a.sup === 'morph'; })[0]).cost + '): 뿌리내려 ' + mb.name + '(사거리 ' + mr + ')' + (ms.length ? '·' + ms.join('·') : '') + ' — 그동안 못 움직임'); }
+    if (mt && mb) { L[0] = '원거리(뿌리내려 공격) · 공중 공격 가능';
+      L.push('적이 다가오면 알아서 뿌리내려 ' + mb.name + '(사거리 ' + Math.round(mb.range * C.RANGE_SCALE) + ')');
+      L.push('뿌리내린 동안 ' + C.ENT.healCool + '초마다 다친 아군 ' + C.ENT.healMax + '기를 체력의 ' + Math.round(C.ENT.healRatio * 100) + '%씩 치료 · 적이 없으면 다시 걷는다'); }
     var bt = bodyTechs(t).map(function (a) { return a.name === '방패 막기' ? '방패 막기(체력 ' + Math.round(C.BODY_TECH[a.name].hpBelow * 100) + '% 이하에서 방어 ×2, ' + Math.round(C.BODY_TECH[a.name].hpRelease * 100) + '% 이상이면 해제)' : a.name === '창 돌리기' ? '창 돌리기(적 ' + C.BODY_TECH[a.name].foes + '기 이상에 둘러싸이면 둘레 공격)' : a.name; });
     if (bt.length) L.push('기술(자동): ' + bt.join(', '));
     // 사격 보너스 유닛(정령사·연금술사·마법전사·마법기사)은 혼자 넣으면 효과가 없다 — 쏘는 유닛(궁수·명궁·창검사·마법사·장로)과 함께여야 한다
