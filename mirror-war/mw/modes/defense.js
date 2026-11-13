@@ -61,7 +61,8 @@
     ALT_MAX: 16,                 // 공중 유닛이 땅에서 떠 보이는 높이의 한도(px). 원본 그림은 엔젤 나이트가 100px 넘게 떠 있어 위쪽 표시를 가린다
     RANGE_SPREAD: 0.2,           // 원거리 유닛마다 서는 거리를 사거리의 (1 − 이 값)~1배 사이에서 다르게 (한 줄로 뭉치지 않게)
     CAM: { holdMs: 450, follow: 2.5, manualSec: 5, skillSec: 2.5, skillSpeed: 7 },   // skillSec = 내 마법을 쓴 뒤 그 지점을 비추는 시간(초), skillSpeed = 그리로 미끄러져 가는 빠르기   // 카메라: 전선을 따라가는 빠르기, 손으로 움직인 뒤 자동으로 돌아오기까지(초)
-    BASE: { hp: 600, x: 78, front: 196 },   // 아군 기지(성): 체력, 그림 기준점의 가로 위치, 성 앞 선(아군이 나오고 적이 멈춰 때리는 곳)
+    BASE: { hp: 600, x: 134, front: 252 },   // 2026-11-13: x 78 → 150, front 196 → 268 — 성 그림 전체가 화면에 들어오게 오른쪽으로(전에는 왼쪽 일부가 잘려 수비대 자리가 안 보였다)
+      // 아군 기지(성): 체력, 그림 기준점의 가로 위치, 성 앞 선(아군이 나오고 적이 멈춰 때리는 곳)
     LAIR: { back: 74, mouth: 150 },         // 적 출구(마굴): 그림 기준점이 화면 오른쪽 끝에서 떨어진 거리, 적이 나오는 입구까지의 거리
     MANA: { max: 300, start: 80, regen: 11, perWave: 0.8 },   // perWave: 웨이브가 하나 넘어갈 때마다 초당 회복 +0.8 (1웨이브 11 → 10웨이브 18.2). 적은 수·레벨·마법이 함께 느는데 아군 수입이 고정이라 8웨이브에서 꺾였다 (README 118, 2026-11-13)
       // 마나: 최대, 시작, 초당 회복. 처치 보상은 없앴다(2026-11-12) — 적을 잡으면 마나 대신 경험치를 얻는다. 그만큼 회복을 9 → 11
@@ -90,7 +91,7 @@
        사거리 = (4000 + 건물 사거리 보정 × 10) × RANGE_SCALE,  피해 = 원본 피해 공식 + 성 안 유닛들의 건물 공격 보너스 합 */
     /* 벙커 (2026-11-13): 성과 전장 가운데 사이의 길목에 세운 원작 방어 건물 2개. 성처럼 눌러서 고른 동안 소환하면 그 안에 들어가 쏜다(원본 건물 사격 규칙 8-35).
        x = 건물 기준점의 가로 위치, cap = 수용 인원. 전투 줄을 막지 않게 맨 윗줄 위(up px)에 세운다. 부서지지 않고 적은 건드리지 않는다(1차 — 재미를 확인한 뒤 체력을 넣을지 정한다) */
-    FORTS: [{ key: 'fort1', name: '타워', x: 470, cap: 4, hp: 350, at: 'top' }, { key: 'fort2', name: '방어기지', x: 730, cap: 4, hp: 350, at: 'bottom' }], FORT_UP: 20, FORT_DOWN: 8,
+    FORTS: [{ key: 'fort1', name: '타워', x: 470, cap: 4, hp: 500, at: 'top' }, { key: 'fort2', name: '방어기지', x: 730, cap: 4, hp: 500, at: 'bottom' }], FORT_UP: 20, FORT_DOWN: 30,
     /* 2026-11-13 2차: 벙커에 체력(hp). 유닛이 든 벙커는 적의 어그로를 끈다 — 위쪽 벙커는 전투 줄 위쪽 절반의 적, 아래쪽 벙커는 아래쪽 절반의 적이 지나가다 멈춰서 때린다(빈 벙커는 지나친다).
        체력이 0이 되면 부서지고 안의 유닛이 밖으로 나온다(그 판에서는 다시 못 쓴다). 수용 인원: 벙커 4명, 성 GAR_MAX(8)명 */   // at: 'top' = 맨 윗줄 위(FORT_UP px), 'bottom' = 전장 맨 아래(패널 위 FORT_DOWN px). 2026-11-13: 위 하나·아래 하나로 (사용자 요청) — 키 큰 타워가 위, 낮은 방어기지가 아래
     GAR_DEF_MIN: 0.3,            // 성 수비대의 방어 보너스로 피해를 줄여도 원래 피해의 이 비율은 받는다
@@ -174,7 +175,7 @@
 
     // 그림: 필요한 것만 불러온다 (배경 타일, 이펙트, 스킬 아이콘, 유닛 작은 그림, 건물, 쓰는 유닛의 스프라이트)
     var A = this.assets = new MWE.Assets(opts.base);
-    A.load('tiles', this.map.keys.tiles + '.png').load('acticons', 'acticons.png').load('figs', 'figs.png').load('defense', 'defense.png').load('hpbar', 'hpbar.png').load('portraits', 'portraits.png');   // 원작 체력 바 틀·숫자, 초상화(영웅 카드) (bar.spr, helpnum.mwl → tools/hpbarbuild.js)
+    A.load('tiles', this.map.keys.tiles + '.png').load('acticons', 'acticons.png').load('figs', 'figs.png').load('defense', 'defense.png').load('hpbar', 'hpbar.png').load('portraits', 'portraits.png').load('hud0', 'hud0.png');   // 원작 체력 바 틀·숫자, 초상화(영웅 카드) (bar.spr, helpnum.mwl → tools/hpbarbuild.js)
     this.bld = root.MW_DEF || {};                            // 건물 그림 위치표 { base, lair } (sim/defense.js)
     this._usedUnitIds().forEach(function (id) { A.load('u' + id, self.types[id].img); });
     // 이펙트 시트: 여러 장 중 이 게임이 쓰는 이펙트 칸의 것만 미리 받는다 (쓰는 유닛들의 모든 행동 + 순간이동·가속·회수 이펙트). 빠진 것이 있으면 그릴 때 그 장을 받는다 (_fxFrame)
@@ -667,9 +668,9 @@
   /* 성(아군 기지)의 화면 상자와, 성을 골랐을 때 그 위에 뜨는 [퇴각] 팻말의 상자 */
   P._baseBox = function (f) { var F = f || this._fort(), B = F.B; if (!B) return null; var p = this.bld.pics[B.pic], o = this._bldOrigin(B, F.x, F.y); return { x: o[0] - p[4] - this.cam.x, y: o[1] - p[5], w: p[2], h: p[3], cx: o[0] + B.center[0] - this.cam.x }; };   // _pic 은 (o − 그림 원점)에 그린다
   P._retreatBox = function () {
-    var bb = this._baseBox(), w = 74, h = 44; if (!bb) return null;
-    var topY = Math.max(this.topBox.y + this._topH(), this.miniBox.y + this.miniBox.h) + 4;
-    return { x: Math.max(6, Math.min(this.W - 6 - w, Math.round(bb.cx - w / 2))), y: Math.max(topY, Math.round(bb.y + bb.h * 0.25) - h), w: w, h: h, tx: bb.cx };
+    var bb = this._baseBox(), w = 62, h = 24; if (!bb) return null;   // 작게, 건물 위쪽 바깥에 (전에는 74×44가 건물 위에 겹쳐 건물을 가렸다 — 2026-11-13). 누르는 범위는 _tapField 에서 넉넉하게
+    var topY = Math.max(this.topBox.y + this._topH(), this.miniBox.y + this.miniBox.h) + 34;   // 건물 선택 안내 줄 아래
+    return { x: Math.max(6, Math.min(this.W - 6 - w, Math.round(bb.cx - w / 2))), y: Math.max(topY, Math.round(bb.y) - h - 8), w: w, h: h, tx: bb.cx, small: true };
   };
   /* 성을 고른다/푼다. 고르면 카메라가 성으로 가고, 고른 동안 소환 버튼은 성 배치로 동작한다 */
   P.selectBase = function (on) { this.selectFort(on ? this.forts[0] : null); };
@@ -677,7 +678,7 @@
   P.selectFort = function (f) {
     this.selFort = f || null; if (!f) return;
     this.sel = null; this.aim = null; this.aimPt = null;
-    this.camGoal = { x: f.x - (f === this.forts[0] ? CONFIG.BASE.x : this.W / 2), until: this.time + 1.5 }; this.manualUntil = 0;
+    this.camGoal = { x: f === this.forts[0] ? 0 : f.x - this.W / 2, until: this.time + 1.5 }; this.manualUntil = 0;
   };
   /* 퇴각: 성 안의 수비대가 모두 성 밖으로 나와 전장 유닛이 된다 (마나는 들지 않는다). 성의 무기는 접힌다 */
   P.retreat = function () {
@@ -692,7 +693,8 @@
   P._tapField = function (x, y) {
     if (this.screen !== 'play') return;
     if (this.aim) { this._aimCast(x + this.cam.x, y); return; }   // 조준 중: 누른 지점에 마법
-    if (this.selBase && this.garrison.length && inBox(this._retreatBox(), x, y)) { this.retreat(); this.selBase = false; return; }   // 성을 고른 뒤 [퇴각] 팻말
+    var rb0 = this.selBase && this.garrison.length ? this._retreatBox() : null;
+    if (rb0 && inBox({ x: rb0.x - 8, y: rb0.y - 10, w: rb0.w + 16, h: rb0.h + 20 }, x, y)) { this.retreat(); this.selBase = false; return; }   // 팻말은 작지만 누르는 범위는 손가락에 맞게 넓다   // 성을 고른 뒤 [퇴각] 팻말
     var sel = this.sel; if (sel && this._recallable(sel) && inBox(this._recallBtnBox(sel), x, y)) { this.recall(sel); this.sel = null; return; }
     var wx = x + this.cam.x, best = null, bd = Infinity, plain = null, L = this.units, i, u, d;
     for (i = 0; i < L.length; i++) { u = L[i]; if (u.side !== 0 || u.state === 'dead') continue;
@@ -896,7 +898,7 @@
   };
 
   /* ── 성장: 경험치 → 레벨업 → 카드 ── */
-  P._topH = function () { return 56 + (this._garAll().length ? 24 : 0); };   // 위 왼쪽 상자(기지·마나·경험치 [+ 수비대])의 높이
+  P._topH = function () { return 56; };   // 2026-11-13: 수비대 현황 줄을 뺐다(사용자 요청) — 수비대는 건물 가장자리의 실루엣으로 보인다   // 위 왼쪽 상자(기지·마나·경험치 [+ 수비대])의 높이
   P._xpNeed = function () { var G = CONFIG.GROW; return Math.round(G.base * Math.pow(G.grow, this.plv - 1)); };
   P._gainXp = function (n) {
     this.xp += n;
@@ -1392,12 +1394,32 @@
   P._drawBuilding = function (b, x, y, fort) {
     var D = this.bld, p = D.pics[b.pic], o = this._bldOrigin(b, x, y), k = Math.floor(this.time * 8) % b.flagFrames.length;
     this._pic(b.pic, o[0], o[1]);
-    if (fort) { this._drawWeapons(b, o, fort.weapons);
+    if (fort) { this._drawWeapons(b, o, fort.weapons); this._drawOccupants(b, o, fort);
       // 방어 보너스 표시: 건물 위에 원작 상태 아이콘의 방패(unitState.spr 3번) + 숫자. 성에만 의미가 있다 — 성 꼭대기 오른쪽([퇴각] 팻말을 피해서)
       var gd = this.garDef(fort), HB = root.MW && root.MW.hpbar, isBase = fort === this.forts[0];
       if (gd > 0 && HB && HB.states) { var sf = HB.states[3], ix = Math.round(o[0] + b.center[0] + (isBase ? 44 : 28)), iy = Math.round(o[1] - p[5] + (isBase ? 26 : -14)), ctx = this.ctx; ctx.drawImage(this.assets.get('hpbar'), sf[0], sf[1], sf[2], sf[3], ix, iy, sf[2], sf[3]);
         ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.9)'; ctx.strokeText('+' + gd, ix + 20, iy + 10); ctx.fillStyle = '#8fe89a'; ctx.fillText('+' + gd, ix + 20, iy + 10); } }
     for (var i = 0; i < b.flags.length; i++) this._pic(b.flagFrames[(k + i * 3) % b.flagFrames.length], o[0] + b.flags[i][0], o[1] + b.flags[i][1]);
+  };
+  /* 건물 안의 수비대: 원작처럼 건물 가장자리의 자리(BuildingData 의 자리 줄 4개, 분석 8-44)에 원판 + 유닛의 작은 실루엣을 세운다.
+     자리: 앞쪽 두 줄(A·B)의 보이는 자리를 모서리에서부터 번갈아 채우고, 모자라면 그 앞으로 한 줄 더 선다 (_fortSlots).
+     (원본에서 수비대 실루엣을 그리는 함수 자체는 아직 못 찾았다 — 자리 좌표와 간격은 원본 값, 원판·실루엣의 모양은 사용자가 준 원작 화면을 따랐다) */
+  P._fortSlots = function (fort) {
+    if (fort._slots) return fort._slots; var b = fort.B, R = b.rows || [], o = this._bldOrigin(b, fort.x, 0), per = Math.ceil(fort.cap / 2), V = [], k;
+    // 앞쪽 두 줄(A·B)의 모서리를 따라 한 줄로 선다: 줄마다 수용 인원의 절반씩, 원본 자리 줄의 처음 칸부터 마지막 칸까지를 고르게 나눠서
+    // (원본은 성 3칸 + 3칸, 디펜스는 8명이라 4명 + 4명 — 같은 구간에 조금 촘촘히). 가운데 모서리에서부터 번갈아 채운다. 뒤쪽 줄(C·D)은 건물에 가려져 쓰지 않는다
+    for (k = 0; k < per; k++) [R[0], R[1]].forEach(function (r) { if (!r) return; var t = per > 1 ? k * (r[2] - 1) / (per - 1) : 0, x = r[0] + t * r[3], y = r[1] + t * r[4]; if (o[0] + x >= 12) V.push({ x: x, y: y }); });
+    var out = [], rank = 0; while (V.length && out.length < fort.cap) { V.forEach(function (q) { if (out.length < fort.cap) out.push({ x: q.x, y: q.y + rank * 15 }); }); rank++; }   // (화면 밖 자리가 있어 모자라면 앞으로 한 줄 더)
+    return (fort._slots = out);
+  };
+  P._drawOccupants = function (b, o, fort) {
+    var S = this._fortSlots(fort), G = fort.garrison, ctx = this.ctx, figs = this.assets.get('figs'), L = [];
+    for (var i = 0; i < G.length && i < S.length; i++) L.push({ q: S[i], m: G[i] });
+    L.sort(function (p, q) { return p.q.y - q.q.y; });       // 아래쪽(앞)에 선 유닛이 위에 그려지게
+    L.forEach(function (it) { var x = Math.round(o[0] + it.q.x), y = Math.round(o[1] + it.q.y);
+      ctx.fillStyle = 'rgba(150,28,24,.85)'; ctx.beginPath(); ctx.ellipse(x, y, 13, 6, 0, 0, 6.3); ctx.fill();          // 원판 (원작 화면의 붉은 원판)
+      ctx.strokeStyle = 'rgba(255,120,100,.7)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.drawImage(figs, it.m.r.t.pid * 36, 0, 36, 43, x - 11, y - 25, 22, 26); });   // 유닛 실루엣 22×26 (27×32로 키웠다가 되돌림 — 8명이 겹쳐 보였다)                                    // 유닛 실루엣 (원작의 작은 유닛 그림, 초록)
   };
   /* 성 위의 건물 무기 (원본 FUN_004f4950의 그림 고르기 그대로):
        등급 0(마법사·장로, barm00 30장): 전개 중 = 0~9, 가동 = 10~19 위에 20~29를 겹침.  자리 = BuildingData +0x56/+0x58
@@ -1590,6 +1612,8 @@
     ctx.beginPath(); ctx.moveTo(tx - 4, b.y + b.h - 2); ctx.lineTo(tx + 4, b.y + b.h - 2); ctx.lineTo(tx, b.y + b.h + 3); ctx.closePath(); ctx.fillStyle = '#0c0e15'; ctx.fill();   // 쐐기 속
     ctx.fillStyle = '#f3dc9a'; [[b.x + 5, b.y + 5], [b.x + b.w - 7, b.y + 5], [b.x + 5, b.y + b.h - 7], [b.x + b.w - 7, b.y + b.h - 7]].forEach(function (q) { ctx.fillRect(q[0], q[1], 2, 2); });   // 징
     // 내용: 왼쪽에 원작 리콜(넨 소환) 아이콘, 오른쪽에 "회수"와 돌려받는 마나
+    if (b.small) { ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.9)'; ctx.font = 'bold 12px sans-serif'; var st0 = '퇴각 ' + this.garrison.length + '기';   // 건물의 [퇴각]: 한 줄짜리 작은 팻말
+      ctx.strokeText(st0, b.x + b.w / 2, b.y + b.h / 2 + 0.5); ctx.fillStyle = '#ffe9b0'; ctx.fillText(st0, b.x + b.w / 2, b.y + b.h / 2 + 0.5); ctx.textAlign = 'left'; ctx.restore(); return; }
     var D = this.data.fx.icon, ic = this.recallIcon, ih = b.h - 12, iw = Math.round(ih * D.w / D.h), ix = b.x + 7, cx = ix + iw + (b.x + b.w - 6 - ix - iw) / 2;
     if (ic >= 0) { var fi = ic * 2; ctx.drawImage(this.assets.get('acticons'), (fi % D.cols) * D.w, Math.floor(fi / D.cols) * D.h, D.w, D.h, ix, b.y + 6, iw, ih); } else cx = b.x + b.w / 2;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.9)';
@@ -1697,9 +1721,6 @@
     ctx.textAlign = 'left'; ctx.font = 'bold 10px sans-serif'; ctx.fillStyle = '#ffd36e'; ctx.fillText('Lv ' + this.plv, T.x + 8, T.y + 49);
     this._bar(bx, T.y + 46, bw, 6, this.xp / this._xpNeed(), '#e6c476'); ctx.font = 'bold 12px sans-serif';
     // 성 안의 유닛(수비대): 작은 그림을 자리 순서대로
-    var GA = this._garAll(); if (GA.length) { var gf = this.assets.get('figs'), gi, gs = Math.min(16, Math.floor((bw + 6) / this._capAll())); ctx.textAlign = 'left'; ctx.fillStyle = '#ffe9b0'; ctx.fillText('수비', T.x + 8, T.y + 67);   // 성과 벙커 안의 유닛 전부
-      for (gi = 0; gi < GA.length; gi++) ctx.drawImage(gf, GA[gi].r.t.pid * 36, 0, 36, 43, bx - 2 + gi * gs, T.y + 57, 16, 19);
-      ctx.textAlign = 'right'; ctx.fillStyle = '#fff'; ctx.fillText(GA.length + '/' + this._capAll(), rx, T.y + 67); }
     // 웨이브
     var wb = this.waveBox, wv = Math.min(this.wave + 1, C.WAVES.length), left = this._alive(1).length + this.queue.length;
     ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(wb.x, wb.y, wb.w, wb.h);
@@ -1711,7 +1732,10 @@
     var ab = this.affBtn; ctx.fillStyle = this.modal === 'aff' ? 'rgba(122,74,18,.9)' : 'rgba(0,0,0,.5)'; ctx.fillRect(ab.x, ab.y, ab.w, ab.h); ctx.fillStyle = '#ffd36e'; ctx.fillText('상성', ab.x + ab.w / 2, ab.y + ab.h / 2);   // 유닛 상성 모달 열기
 
     // 아래 바탕
-    var y0 = H - this.hudH; ctx.fillStyle = '#12151d'; ctx.fillRect(0, y0, W, this.hudH); ctx.fillStyle = '#2a3040'; ctx.fillRect(0, y0, W, 2);
+    var y0 = H - this.hudH, hi = this.assets.get('hud0'), K = SKIN; ctx.fillStyle = '#12151d'; ctx.fillRect(0, y0, W, this.hudH);
+    if (hi) { ctx.drawImage(hi, K.stripe[0], K.stripe[1], K.stripe[2], K.stripe[3], 0, y0, W, this.hudH);      // 원작 정보 창의 어두운 줄무늬 바탕
+      ctx.drawImage(hi, K.rail[0], K.rail[1], K.rail[2], K.rail[3], 0, y0 - 1, W, K.rail[3]); }                  // 위쪽 가장자리: 원작의 은색 테
+    else { ctx.fillStyle = '#2a3040'; ctx.fillRect(0, y0, W, 2); }
     this._drawSummonPanel();
     this._drawSkillPanel();
     ctx.textAlign = 'left';
@@ -1729,24 +1753,46 @@
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(Math.round(m.x + this.cam.x * k) + 0.5, m.y + 0.5, Math.round(this.W * k), m.h - 1);
   };
 
+  /* 원작 HUD 스킨 (2026-11-13, 1단계: 아래 패널): 해방부대 HUD 그림(hud0.png = liber.img, 800×152)에서 부품을 잘라 지금 배치에 입힌다.
+     가로 화면용 한 장이라 통째로 쓸 수 없어 조각으로 — 명령 칸(어두운 바탕 + 은색 테), 정보 창의 줄무늬 바탕, 이름표(청록 막대), 아래 은색 테.
+     좌표는 hud0.png 안의 [x, y, w, h]. 그림이 아직 없으면 false 를 돌려주고 부르는 쪽이 예전 색으로 그린다 */
+  var SKIN = { tex: [594, 8, 33, 38], barV: [629, 8, 4, 38], barH: [594, 48, 33, 5], corner: [629, 48, 4, 5], stripe: [150, 50, 140, 84], plate: [148, 20, 152, 18], rail: [160, 143, 120, 6] };
+  /* 원작 명령 칸 하나: 안쪽은 바탕 무늬를 늘이고, 네 변은 은색 테 조각을 늘이고, 네 귀는 교차 조각 */
+  P._cell = function (x, y, w, h) {
+    var im = this.assets.get('hud0'), ctx = this.ctx, K = SKIN, t = 4; if (!im) return false;
+    var d = function (q, dx, dy, dw, dh) { ctx.drawImage(im, q[0], q[1], q[2], q[3], dx, dy, dw, dh); };
+    d(K.tex, x + t, y + t, w - t * 2, h - t * 2);
+    d(K.barV, x, y + t, t, h - t * 2); d(K.barV, x + w - t, y + t, t, h - t * 2);
+    d(K.barH, x + t, y, w - t * 2, t); d(K.barH, x + t, y + h - t, w - t * 2, t);
+    d(K.corner, x, y, t, t); d(K.corner, x + w - t, y, t, t); d(K.corner, x, y + h - t, t, t); d(K.corner, x + w - t, y + h - t, t, t);
+    return true;
+  };
+  /* 원작 이름표(청록 막대): 양 끝 8px 은 그대로, 가운데만 늘인다 */
+  P._plateBar = function (x, y, w, h, alpha) {
+    var im = this.assets.get('hud0'), ctx = this.ctx, q = SKIN.plate, e = 8; if (!im) return false;
+    ctx.globalAlpha = alpha == null ? 1 : alpha;
+    ctx.drawImage(im, q[0], q[1], e, q[3], x, y, e, h); ctx.drawImage(im, q[0] + q[2] - e, q[1], e, q[3], x + w - e, y, e, h);
+    ctx.drawImage(im, q[0] + e, q[1], q[2] - e * 2, q[3], x + e, y, w - e * 2, h);
+    ctx.globalAlpha = 1; return true;
+  };
+
   /* 소환 패널: 탭 + [성 배치] 토글 + 지금 탭의 유닛 버튼. 버튼 = 원본 유닛 작은 그림(figs.png, 유닛 번호 × 36px) + 이름 + 마나 값.
      버튼 안의 그림·글자 자리는 상자 크기에서 계산한다 (가로·세로 모드, 납작한 배치에서 상자 크기가 다르다) */
   P._drawSummonPanel = function () {
     var ctx = this.ctx, C = CONFIG, i, figs = this.assets.get('figs'), list = this.roster[this.tab], full = C.MAX_MAGIC > 0 && this.magicCount() >= C.MAX_MAGIC;
     ctx.textBaseline = 'middle';
     for (i = 0; i < this.tabBoxes.length; i++) { var tb = this.tabBoxes[i], on = i === this.tab;
-      ctx.fillStyle = on ? '#2c3550' : '#181c27'; ctx.fillRect(tb.x, tb.y, tb.w, tb.h);
-      if (on) { ctx.fillStyle = '#c9a35a'; ctx.fillRect(tb.x, tb.y + tb.h - 2, tb.w, 2); }
-      ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = on ? '#ffe9b0' : '#8a93a8'; ctx.fillText(this._fit(C.TABS[i].name, tb.w - 4), tb.x + tb.w / 2, tb.y + tb.h / 2); }
+      if (!this._plateBar(tb.x, tb.y + 2, tb.w, tb.h - 4, on ? 1 : 0.32)) { ctx.fillStyle = on ? '#2c3550' : '#181c27'; ctx.fillRect(tb.x, tb.y, tb.w, tb.h); }   // 원작 이름표(청록 막대): 고른 탭은 밝게, 나머지는 흐리게
+      ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = on ? '#f4ffff' : '#8fa3ad'; ctx.fillText(this._fit(C.TABS[i].name, tb.w - 4), tb.x + tb.w / 2, tb.y + tb.h / 2); }
     // 세로 모드 캐러셀 화살표: 넘길 칸이 있는 쪽만 밝게
     var first = this.btnFirst || 0, vis = this.btnVis || this.btnBoxes.length;
     if (this.btnPrev) { var bar = [[this.btnPrev, '◀', first > 0], [this.btnNext, '▶', first < list.length - vis]];
-      for (i = 0; i < 2; i++) { var ab2 = bar[i][0], on2 = bar[i][2]; ctx.fillStyle = on2 ? '#2c3550' : '#181c27'; ctx.fillRect(ab2.x, ab2.y, ab2.w, ab2.h);
+      for (i = 0; i < 2; i++) { var ab2 = bar[i][0], on2 = bar[i][2]; if (!this._cell(ab2.x, ab2.y, ab2.w, ab2.h)) { ctx.fillStyle = on2 ? '#2c3550' : '#181c27'; ctx.fillRect(ab2.x, ab2.y, ab2.w, ab2.h); }
         ctx.textAlign = 'center'; ctx.font = '12px sans-serif'; ctx.fillStyle = on2 ? '#ffe9b0' : '#3f465a'; ctx.fillText(bar[i][1], ab2.x + ab2.w / 2, ab2.y + ab2.h / 2 + 1); } }
     for (var k = 0; k < vis && k < this.btnBoxes.length; k++) { i = first + k; if (i >= list.length) break;
       var b = this.btnBoxes[k], r = list[i], why = this.canSummon(r), ok = !why, cx = b.x + b.w / 2, fh = Math.min(43, b.h - 24), fw = Math.round(fh * 36 / 43);
-      ctx.fillStyle = ok ? '#232a3a' : '#191d27'; ctx.fillRect(b.x, b.y, b.w, b.h);
-      ctx.strokeStyle = ok ? (r.magic ? '#7fb6ff' : '#c9a35a') : '#3a4152'; ctx.lineWidth = 2; ctx.strokeRect(b.x + 1, b.y + 1, b.w - 2, b.h - 2);
+      if (this._cell(b.x, b.y, b.w, b.h)) { if (ok) { ctx.strokeStyle = r.magic ? 'rgba(127,182,255,.9)' : 'rgba(230,196,118,.9)'; ctx.lineWidth = 1; ctx.strokeRect(b.x + 4.5, b.y + 4.5, b.w - 9, b.h - 9); } }   // 원작 명령 칸 + 뽑을 수 있으면 안쪽 가는 선(마법 유닛 파랑, 그 외 금색)
+      else { ctx.fillStyle = ok ? '#232a3a' : '#191d27'; ctx.fillRect(b.x, b.y, b.w, b.h); ctx.strokeStyle = ok ? (r.magic ? '#7fb6ff' : '#c9a35a') : '#3a4152'; ctx.lineWidth = 2; ctx.strokeRect(b.x + 1, b.y + 1, b.w - 2, b.h - 2); }
       ctx.globalAlpha = ok ? 1 : why === 'max' || why === 'nogar' || why === 'castle' ? 0.2 : 0.5; ctx.drawImage(figs, r.t.pid * 36, 0, 36, 43, Math.round(cx - fw / 2), b.y + 2, fw, fh); ctx.globalAlpha = 1;
       if (r.wait > 0) { ctx.fillStyle = 'rgba(0,0,0,.6)'; var ch = b.h * r.wait / r.cd; ctx.fillRect(b.x, b.y + b.h - ch, b.w, ch); }
       ctx.textAlign = 'center';
@@ -1772,10 +1818,10 @@
     // ◀ ▶ : 넘길 칸이 있는 쪽만 밝게
     var arrows = [[this.slotPrev, '◀', this.slotFirst > 0], [this.slotNext, '▶', this.slotFirst < n - vis]];
     for (i = 0; i < 2; i++) { var ab = arrows[i][0], on = arrows[i][2];
-      ctx.fillStyle = on ? '#2c3550' : '#181c27'; ctx.fillRect(ab.x, ab.y, ab.w, ab.h);
+      if (!this._cell(ab.x, ab.y, ab.w, ab.h)) { ctx.fillStyle = on ? '#2c3550' : '#181c27'; ctx.fillRect(ab.x, ab.y, ab.w, ab.h); }
       ctx.textAlign = 'center'; ctx.font = '11px sans-serif'; ctx.fillStyle = on ? '#ffe9b0' : '#3f465a'; ctx.fillText(arrows[i][1], ab.x + ab.w / 2, ab.y + ab.h / 2 + 1); }
     // 빈 창: 점선 칸
-    if (!n) { for (i = 0; i < vis; i++) { var e = this.slotBoxes[i]; ctx.strokeStyle = '#2f3647'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.strokeRect(e.x + 1.5, e.y + 1.5, e.w - 3, e.h - 3); ctx.setLineDash([]);
+    if (!n) { for (i = 0; i < vis; i++) { var e = this.slotBoxes[i]; ctx.globalAlpha = 0.55; var drew = this._cell(e.x, e.y, e.w, e.h); ctx.globalAlpha = 1; if (!drew) { ctx.strokeStyle = '#2f3647'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.strokeRect(e.x + 1.5, e.y + 1.5, e.w - 3, e.h - 3); ctx.setLineDash([]); }
       ctx.textAlign = 'center'; ctx.font = '9px sans-serif'; ctx.fillStyle = '#4a5268'; ctx.fillText('빈 칸', e.x + e.w / 2, e.y + e.h / 2); } return; }
     // 칸 = 마법 종류 하나 (그 마법을 가진 유닛 수 ×N). 창 밖으로 나간 부분은 잘라낸다
     ctx.save(); ctx.beginPath(); ctx.rect(A.x, A.y, A.w, A.h); ctx.clip();
@@ -1784,8 +1830,9 @@
       var bx = Math.round(A.x + vp * this.slotStep), cx = bx + B.w / 2, a = g.act, fi = a.icon * 2, vk = i - this.slotFirst, R = this._readyOf(g), s0 = g.slots[0];
       var cd = R.length ? 0 : Math.min.apply(null, g.slots.map(function (q) { return q.cd > 0 ? q.cd : 99; })), stunned = !R.length && cd >= 99;   // 전원 멈춤
       var far = R.length > 0 && !R.some(function (q) { return self.skillTarget(q.unit, q); }), poor = this.mana < g.cost, ok = R.length > 0 && !far && !poor, aiming = this.aim && this.aim.group === g;
-      ctx.fillStyle = ok ? '#3a2a12' : '#191d27'; ctx.fillRect(bx, B.y, B.w, B.h);
-      ctx.strokeStyle = aiming ? '#7fd6ff' : ok ? '#ffd36e' : '#3a4152'; ctx.lineWidth = aiming ? 3 : 2; ctx.strokeRect(bx + 1, B.y + 1, B.w - 2, B.h - 2);   // 조준 중인 칸은 하늘색 굵은 테두리
+      if (this._cell(bx, B.y, B.w, B.h)) { if (ok) { ctx.fillStyle = 'rgba(255,190,80,.10)'; ctx.fillRect(bx + 4, B.y + 4, B.w - 8, B.h - 8); }
+        if (aiming || ok) { ctx.strokeStyle = aiming ? '#7fd6ff' : 'rgba(255,211,110,.95)'; ctx.lineWidth = aiming ? 3 : 1; ctx.strokeRect(bx + (aiming ? 2.5 : 4.5), B.y + (aiming ? 2.5 : 4.5), B.w - (aiming ? 5 : 9), B.h - (aiming ? 5 : 9)); } }   // 원작 명령 칸. 쓸 수 있으면 금색 가는 선, 조준 중이면 하늘색 굵은 선
+      else { ctx.fillStyle = ok ? '#3a2a12' : '#191d27'; ctx.fillRect(bx, B.y, B.w, B.h); ctx.strokeStyle = aiming ? '#7fd6ff' : ok ? '#ffd36e' : '#3a4152'; ctx.lineWidth = aiming ? 3 : 2; ctx.strokeRect(bx + 1, B.y + 1, B.w - 2, B.h - 2); }   // 조준 중인 칸은 하늘색 굵은 테두리
       ctx.globalAlpha = ok ? 1 : 0.4; ctx.drawImage(icons, (fi % D.cols) * D.w, Math.floor(fi / D.cols) * D.h, D.w, D.h, Math.round(cx - iw / 2), B.y + 1, iw, ih); ctx.globalAlpha = 1;
       if (cd > 0 && cd < 99) {                               // 준비된 유닛이 없다: 가장 빨리 끝나는 유닛의 남은 시간
         ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(bx, B.y, B.w, B.h * cd / s0.cdMax);
@@ -1910,7 +1957,8 @@
     if (weak.length) L.push('약함: ' + weak.join('·'));
     var sk = skillsOf(t).map(function (a) { return a.name + (C.TECH[a.name] || a.self ? '(자동)' : ''); });
     if (sk.length) L.push('마법: ' + sk.join(', '));
-    if (r.gar) { var gp = []; if (r.gar.cls >= 0) gp.push('성·벙커에 넣으면 사격'); else if (r.gar.bonus > 0) gp.push('성·벙커 사격 +' + r.gar.bonus); if (r.gar.def > 0) gp.push('성·벙커에 넣으면 건물 방어 +' + r.gar.def); L.push(gp.join(' · ')); }
+    // 사격 보너스 유닛(정령사·연금술사·마법전사·마법기사)은 혼자 넣으면 효과가 없다 — 쏘는 유닛(궁수·명궁·창검사·마법사·장로)과 함께여야 한다
+    if (r.gar) { var gp = []; if (r.gar.cls >= 0) gp.push('성·벙커에 넣으면 사격'); else if (r.gar.bonus > 0) gp.push('쏘는 유닛과 함께 넣으면 사격 +' + r.gar.bonus); if (r.gar.def > 0) gp.push('성·벙커에 넣으면 건물 방어 +' + r.gar.def); L.push(gp.join(' · ')); }
     return { name: t.name, cost: r.cost, stat: '체력 ' + t.maxHpAt(1 + (this.allyLv || 0)) + ' · 공격 ' + t.atk + ' · 방어 ' + t.def, desc: (MWE.UNIT_DESC && MWE.UNIT_DESC[t.id]) || '', lines: L };
   };
   P._drawInfo = function () {
