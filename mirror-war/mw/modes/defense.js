@@ -108,7 +108,7 @@
        max = 한 번에 걸리는 수, sec = 지속(초), cost = 마나, pick = 'strong' 이면 주변에서 공격력이 가장 높은 유닛부터(주력에게), 아니면 앞에 선 유닛부터.
        파이어 웨폰(마법사): 싸고 여럿에게 짧게 — 초반 전선 유지.  매직 웨폰(연금술사): 비싸고 한 기에게 길게, 공격력 2배 — 주력 한 기의 화력.
        더 센 웨폰이 걸려 있는 유닛에게는 약한 웨폰을 덮어쓰지 않는다 */
-    WEAPON: { '파이어 웨폰': { mul: 1.5, max: 2, sec: 7, cost: 20 }, '매직 웨폰': { mul: 2, max: 1, sec: 14, cost: 45, pick: 'strong' }, '아이스 웨폰': { mul: 1.75 }, '다크웨폰': { mul: 1.75 } },
+    WEAPON: { '파이어 웨폰': { mul: 1.5, max: 2, sec: 7, cost: 20 }, '매직 웨폰': { mul: 2, max: 1, sec: 14, cost: 45, pick: 'strong' }, '아이스 웨폰': { mul: 1.75 }, '다크웨폰': { mul: 1.75 }, '파운틴 베리어': { cost: 35 } },   // 파운틴 베리어는 마나만 따로: 25 → 35 (2026-11-14 사용자 요청 — 대상 지정이 되면서 소폭 올림)
     /* 적 기지 출격 (2026-11-14 사용자 요청): 적 기지가 맞으면 발사체를 쓰지 않는 수비대(둘레 광역 등급 3·5와 사격 보너스 유닛)가 모두 밖으로 나와 기지 앞(ahead px)을 지킨다.
        나와 있는 동안 그 유닛은 건물 사격에서 빠진다. 기지가 calm 초 동안 맞지 않고 기지 앞 GUARD.leash 안에 아군이 없으면 문(door px 안쪽)으로 걸어 들어가 다시 수비대가 된다 — 체력은 나갔을 때 그대로.
        밖에서 죽으면 수비대에서 빠진다. 발사체 유닛(등급 1·2)은 안에 남아 계속 쏜다 */
@@ -130,12 +130,12 @@
       // 마나: 최대, 시작, 초당 회복. 처치 보상은 없앴다(2026-11-12) — 적을 잡으면 마나 대신 경험치를 얻는다. 그만큼 회복을 9 → 11
     /* 성장: 적을 쓰러뜨리면 전체 경험치(원작 유닛의 경험치 값, unitdata +0x2AE)가 쌓이고, 차면 게임이 멈추고 카드 3장 중 하나를 고른다.
          need(L) = base × grow^(L−1)  → 4, 6, 10, 16, 26, 42, 67, 107, 172 … (웨이브 전체 경험치 499로 9번쯤 오른다)
-         lvStep = "전군 단련" 한 장에 오르는 유닛 레벨, hero = 영웅으로 나올 수 있는 유닛(원작에 영웅 지정 유닛은 없어 목업이 고름), heroLv·heroHp = 영웅의 추가 레벨·체력 배수 */
+         lvStep = "전군 단련" 한 장에 오르는 유닛 레벨, hero = 영웅으로 나올 수 있는 유닛(원작에 영웅 지정 유닛은 없어 목업이 고름), heroLv = 영웅의 추가 레벨(공격·방어 식에만 — 체력은 같은 레벨의 일반 유닛과 같다) */
     /*   heroes = 영웅 카드로 나올 수 있는 원작 영웅(이름으로 data.heroes 에서 찾는다 — 미션 파일에서 뽑은 것, tools/herobuild.js, 분석 8-40).
-           영웅 = 기본 유닛의 그림·행동 + 원작 영웅 기록의 이름·초상화·체력·공격·방어. 체력은 최소 기본 유닛의 heroHp배, 한도 heroCap (네메시스는 원작이 체력 10000·공격 1000이라 자른다).
+           영웅 = 기본 유닛의 그림·행동 + 원작 영웅 기록의 이름·초상화·공격·방어. 체력은 기본 유닛과 똑같다(2026-11-14 사용자 요청 — 영웅이 너무 안 죽어 전선이 고였다). 공격·방어는 원작 기록과 기본 유닛 중 큰 쪽, 한도 heroCap (네메시스는 원작이 공격 1000이라 자른다).
            영웅의 마법은 패널에 올라오지 않고 영웅이 스스로 쓴다 — 마나 없이 heroCool(초)마다 */
-    GROW: { heroFromWave: 5,   /* 영웅 카드는 이 웨이브(1부터)부터 나온다 — 초반에 영웅이 나오면 그 뒤가 너무 쉬워진다 (2026-11-13 사용자 요청: 중후반부터) */ xpFall: 0.08, xpMin: 0.3,   /* 웨이브가 진행될수록 같은 적을 잡아도 경험치를 덜 준다: 배수 = max(xpMin, 1 - xpFall × 지난 웨이브 수) → 1웨이브 100%, 5웨이브 68%, 10웨이브 30% (2026-11-12 사용자 요청) */ base: 4, grow: 1.6, lvStep: 2, heroes: ['파인트 롤', '레디쉬 앤', '벨리프 쇼링', '다인 바운터', '가웬 포라튼', '스카이 러너', '크리스 리디아', '폴로운', '네메시스 인트루더'],
-            heroLv: 5, heroHp: 2, heroCap: { hp: 2500, atk: 80, def: 30 }, heroCool: 10, manaRegen: 2, manaMax: 40, dmg: 0.3, radius: 0.2, repair: 0.4 },
+    GROW: { heroFromWave: 5,   /* 영웅 카드는 이 웨이브(1부터)부터 나온다 — 초반에 영웅이 나오면 그 뒤가 너무 쉬워진다 (2026-11-13 사용자 요청: 중후반부터) */ xpFall: 0.08, xpMin: 0.3,   /* 웨이브가 진행될수록 같은 적을 잡아도 경험치를 덜 준다: 배수 = max(xpMin, 1 - xpFall × 지난 웨이브 수) → 1웨이브 100%, 5웨이브 68%, 10웨이브 30% (2026-11-12 사용자 요청) */ base: 4, grow: 1.6, lvStep: 1,   /* 전군 단련 한 장에 +1 레벨 (2026-11-14 사용자 요청, 전에는 +2) */ heroes: ['파인트 롤', '레디쉬 앤', '벨리프 쇼링', '다인 바운터', '가웬 포라튼', '스카이 러너', '크리스 리디아', '폴로운', '네메시스 인트루더'],
+            heroLv: 5, heroCap: { atk: 80, def: 30 }, heroAtk: 1.3, heroDef: 1.5,   /* 영웅 공격·방어는 최소 기본 유닛의 heroAtk·heroDef배 — 원작 기록이 기본 유닛과 같은 영웅(파인트 롤 등)도 일반 유닛보다 세게 (2026-11-14, 체력을 일반 유닛과 같게 하면서) */ heroCool: 10, xpGain: 0.25, xpSec: 60, cardW: { lv: 0.35 },   /* 2026-11-14 사용자 요청(유닛 레벨이 너무 빨리 오른다): xpGain = "배움의 기운" 카드 한 장에 xpSec(60)초 동안 경험치 +25% (같은 날 영구 → 60초로). cardW = 카드 종류별 뽑힐 무게(없으면 1) — 전군 단련은 0.35 */ manaRegen: 2, manaMax: 40, dmg: 0.3, radius: 0.2, repair: 0.4 },
     ALLY_MOVE_MUL: 0.85,         // 아군만 걷는 속도를 한 단계 느리게 (적 기지에 너무 빨리 닿아서, 2026-11-12). 적은 그대로
     MOVE_SCALE: 0.45,            // 원본 걷기 속도(px/틱)를 이 게임 속도로 줄이는 배수
     RANGE_SCALE: 0.07,           // 원본 사거리 → 화면 px (근접 700 → 49px, 원거리 3000 → 210px)
@@ -194,11 +194,11 @@
     /* friendlyFire: 범위 안의 아군(시전자 포함)도 같은 피해를 입는 마법 (2026-11-13 사용자 요청 — 가장 센 범위 마법이라 쓸 자리를 가려야 한다) */
     /* 스킬은 전체 마나를 쓴다 (소환과 같은 마나) + 짧은 재사용 대기 cool(초). 값 = 원본 행동 마나 × costMul 을 5 단위로, 종류별 [최소, 최대] 안으로 자른다 (COST)
        — 원본은 유닛마다 마나통이 따로라 값을 그대로 쓸 수 없어 비율만 가져온다. 2026-11-12: 쿨타임만 돌던 방식에서 바꿈 (공짜라 강화를 상시 돌리던 문제) */
-    SKILL: { charmMax: 3, cool: 3, costMul: 0.4, COST: { blast: [40, 100], buff: [20, 30], heal: [40, 70], haste: [60, 60], dispel: [30, 40], weaken: [20, 25], stun: [35, 50], recall: [40, 40], charm: [50, 60], assassin: [40, 40], morph: [20, 20] }, radius: 95, buffRadius: 170, dmgMul: 2, healRatio: 0.35, healMax: 3, stunSec: 6, stunBase: 112, firstWait: 2, hasteMul: 1.5, hasteSec: 12,   /* 아군 가속(케멘 소환)의 지속(초). 원본 640틱 = 53초를 그대로 썼더니 너무 길었다 — 가속은 공격 대기가 없어져 매우 세다 (2026-11-13 사용자) */ maxCast: 320, walkSec: 45, buffSec: 7, buffMax: 2, summonRadius: 140, undeadDmg: { '턴 언데드': 80, '디스트로이 언홀리': 140 }, friendlyFire: { '12 리플렉터스 소환': 1 }, tierBase: 100, tierPer: 0.004 },   // maxCast = 시전 거리 한도(px). 원본 사거리가 무제한(65535)인 마법도 이 안에 대상이 있어야 한다   // 스킬 공통 수치 (목업 값)
+    SKILL: { charmMax: 3, cool: 3, costMul: 0.4, COST: { blast: [40, 100], buff: [20, 30], heal: [40, 70], haste: [60, 60], dispel: [30, 40], weaken: [20, 25], stun: [35, 50], recall: [40, 40], charm: [50, 60], assassin: [40, 40], morph: [20, 20] }, radius: 95, buffRadius: 170, dmgMul: 2, healRatio: 0.15, healMax: 3, massHeal: 0.5, holyHeal: 0.5, allyPick: 70, allyNear: 70,   /* 대상 지정 강화(allyAimed): 찍은 곳에서 allyPick px 안의 가장 가까운 아군 공격 유닛, 나머지 자리는 그 둘레 allyNear px */   /* 2026-11-14 모든 치유 절반(사용자 요청 — 유닛이 쌓이면 서로 못 잡아 지루했다): 힐링 35% → 17.5% → 15%(같은 날 추가 너프), 말다 소환 완전 회복 → 최대 체력의 50%, 홀리 크로스 아군 회복 × 0.5 */ stunSec: 6, stunBase: 112, firstWait: 2, hasteMul: 1.5, hasteSec: 12,   /* 아군 가속(케멘 소환)의 지속(초). 원본 640틱 = 53초를 그대로 썼더니 너무 길었다 — 가속은 공격 대기가 없어져 매우 세다 (2026-11-13 사용자) */ maxCast: 320, walkSec: 45, buffSec: 7, buffMax: 2, summonRadius: 140, undeadDmg: { '턴 언데드': 80, '디스트로이 언홀리': 140 }, friendlyFire: { '12 리플렉터스 소환': 1 }, tierBase: 100, tierPer: 0.004 },   // maxCast = 시전 거리 한도(px). 원본 사거리가 무제한(65535)인 마법도 이 안에 대상이 있어야 한다   // 스킬 공통 수치 (목업 값)
     /* 소환 패널의 탭: 해방부대 전체(원본 유닛 번호 0~24)를 네 묶음으로 나눈다 */
     TABS: [
-      { name: '근접', ids: [0, 1, 2, 3, 6, 7, 8] },          // 전사 기사 창기사 성기사 창검사 격투가 무도가
-      { name: '원거리', ids: [4, 5, 9, 10, 22, 23] },        // 궁수 명궁 도사 의적 엔젤 나이트 엔트
+      { name: '근접', ids: [0, 1, 2, 3, 6, 7, 8, 10] },      // 전사 기사 창기사 성기사 창검사 격투가 무도가 의적 (의적은 쌍칼 근접 — 2026-11-14 원거리 탭에서 옮김, 사용자 요청)
+      { name: '원거리', ids: [4, 5, 9, 22, 23] },            // 궁수 명궁 도사 엔젤 나이트 엔트
       { name: '마법', ids: [11, 12, 13, 14, 15, 16] },       // 정령사 마법사 장로 연금술사 마법전사 마법기사
       { name: '신성·소환', ids: [17, 18, 19, 20, 21, 24] }   // 성령사 사제 주교 소환사 신수사 공주
     ],
@@ -206,9 +206,9 @@
        그 유닛의 마법이고(skillsOf), 마법이 하나라도 있으면 마법 유닛이다. 아이콘·이펙트·소리·수치는 원본 행동 데이터 그대로. */
     MORPH: { 23: 77, 77: 23 },   // 오가는 유닛 번호 (엔트 ↔ 지상 엔트)
     /* 엔트 (2026-11-13 사용자 요청 — 변형을 손으로 누르는 것이 번거롭다): 변형 스킬 칸을 없애고 전부 알아서 한다 (_entAuto).
-       적이 뿌리 공격 사거리(× rootRange) 안에 들면 뿌리내려(지상 엔트) 뿌리 공격을 하고, healCool 초마다 주변의 다친 아군 healMax 기를 최대 체력의 healRatio(5%)씩 치료한다 — 양은 적고 자주.
+       적이 뿌리 공격 사거리(× rootRange) 안에 들면 뿌리내려(지상 엔트) 뿌리 공격을 하고, healCool 초마다 주변의 다친 아군 healMax 기를 최대 체력의 healRatio(1.5%)씩 치료한다 — 양은 적고 자주.
        사거리(+ unrootPad px) 안에 적이 없는 채 unrootSec 초가 지나면 다시 걷는 형태가 되어 대열을 따라간다. 마나는 들지 않는다 */
-    ENT: { rootRange: 0.95, unrootSec: 4, unrootPad: 60, healCool: 5, healRatio: 0.05, healMax: 2 },   // 2026-11-13: 치료를 4초·3기 → 5초·2기로 줄임(사용자 결정) — 엔트 2~3기가 아군이 받는 피해의 13~16%를 채워 악령군에서 한 웨이브쯤 쉬워졌다 (README 133)
+    ENT: { rootRange: 0.95, unrootSec: 4, unrootPad: 60, healCool: 5, healRatio: 0.015, healMax: 2 },   // 2026-11-14: 5% → 1.5% (사용자 요청 — 유닛이 쌓이면 서로 못 잡아 지루했다)   // 2026-11-13: 치료를 4초·3기 → 5초·2기로 줄임(사용자 결정) — 엔트 2~3기가 아군이 받는 피해의 13~16%를 채워 악령군에서 한 웨이브쯤 쉬워졌다 (README 133)
     /* 웨이브: list = [유닛 번호, 수] 묶음들(순서대로 나온다), gap = 한 기씩 나오는 간격(초), rest = 다음 웨이브까지 쉬는 시간(초)
        28 해골전사, 29 해골기사 */
     /* 적 마법: 적 마법 유닛(리치·다크로드·사탄·메두사·서큐버스·술사류)도 자기 마법을 스스로 쓴다 — 마나 없이 재사용 대기만.
@@ -250,19 +250,24 @@
          lv = 적 레벨 { start, perWave }, hpMul = 적 체력 배수, lair = 마굴 체력, efort = 적 벙커 { hp, lv(수비대 레벨) }, note = 시작 화면에 쓰는 난이도,
          restMul = 웨이브 사이 쉬는 시간 배수, loopRest = 마지막 줄을 되풀이할 때의 쉬는 시간(초), loopLv = 되풀이 한 번마다 오르는 적 레벨,
          lairLv = 적 기지 수비대 레벨(LAIR_GAR), traps·trapEvery·trapLv = 덫(TRAPS), guards = 주둔 적군(GUARD) */
+    SURGE: { from: 14, ratio: 2, fill: 0.6, min: 6, max: 16, gap: 0.25, cool: 70, first: 60, siege: 400, times: 6 },   // times = 한 판에 반격하는 횟수 상한 (끝없이 막히지 않게)   // 적의 반격 (_updateSurge, 2026-11-14 사용자 요청). 처음 값(1.8·0.75·24·50초)은 1단계가 900초 안에 안 끝났다 — 반격 12번, 첫 벙커 앞에서 고였다
+    ALLY_CAP: 0,   // (적 웨이브 상한은 스테이지 ecap: 28·32·36·40 — 전장에 동시에 있는 웨이브 적 수, waveFoes)
+    // 아군 수 상한 기본값(0 = 없음). 스테이지마다 cap 으로 정한다: 1단계 40, 2단계 45, 3단계 50, 4단계 60 (2026-11-14 사용자 요청)
+    FLANK: { after: 1, ratio: 1.3, from: 12, recheck: 3, first: 6, every: 16, n: 3, out: 50, enter: 45, spots: [[1, 160, 'top'], [6, 0, 'bottom'], [5, 140, 'bottom'], [11, -80, 'top']] },   // 측면 리젠 (_updateFlank, 2026-11-14 사용자 요청)
+    WAVE_SCALE: { per: 20, mulMax: 1.6 },   // 비례 증원 (2026-11-14 사용자 요청): 웨이브가 나올 때 살아 있는 아군이 per 기를 넘으면 그 비율만큼 적 수를 늘린다(최대 mulMax 배). 나오는 간격은 그대로라 웨이브가 길어진다
     STAGES: [
-      { name: '해골 들판', enemy: 'evil', note: '쉬움', waves: [0, 5], mul: 0.7, restMul: 1.7, loopRest: 28, loopLv: 0.25, lv: { start: 1, perWave: 0.3 }, hpMul: 0.9, lair: 3000, efort: { hp: 750, lv: 1 }, lairLv: 1, lairCast: 10, lairCastMul: 0.65, heroPosts: 1, traps: 3, trapEvery: 50, trapLv: 1,
+      { name: '해골 들판', cap: 40, ecap: 28, enemy: 'evil', note: '쉬움', waves: [0, 5], mul: 0.7, restMul: 1.7, loopRest: 28, loopLv: 0.25, lv: { start: 1, perWave: 0.3 }, hpMul: 0.9, lair: 3000, efort: { hp: 750, lv: 1 }, lairLv: 1, lairCast: 10, lairCastMul: 0.65, heroPosts: 1, traps: 3, trapEvery: 50, trapLv: 1, surge: { from: 14, ratio: 2, fill: 0.6, min: 6, max: 14, gap: 0.25, cool: 70, first: 60, siege: 400, times: 4 }, flank: { after: 1, ratio: 1.3, from: 12, recheck: 3, first: 6, every: 20, n: 2, out: 50, enter: 45, spots: [[1, 160, 'top'], [6, 0, 'bottom'], [5, 140, 'bottom'], [11, -80, 'top']] },
         guards: [{ at: 'bottom', list: [[29, 2]] }, { at: 'top', list: [[29, 2]] }, { at: 'lair', list: [[30, 1], [29, 2]] }] },
-      { name: '흑마술파의 길', enemy: 'dark', note: '보통', waves: [0, 6], mul: 1, restMul: 1.8, loopRest: 30, loopLv: 0.34, lv: { start: 1, perWave: 0.4 }, hpMul: 1, lair: 4200, efort: { hp: 1000, lv: 2 }, lairLv: 2, lairMul: 0.7, lairCast: 9, lairCastMul: 0.7, heroPosts: 3, traps: 9, trapEvery: 25, trapLv: 2,
+      { name: '흑마술파의 길', cap: 45, ecap: 32, enemy: 'dark', note: '보통', waves: [0, 6], mul: 1, restMul: 1.8, loopRest: 30, loopLv: 0.34, lv: { start: 1, perWave: 0.4 }, hpMul: 1, lair: 4200, efort: { hp: 1000, lv: 2 }, lairLv: 2, lairMul: 0.7, lairCast: 9, lairCastMul: 0.7, heroPosts: 3, traps: 9, trapEvery: 25, trapLv: 2,
         guards: [{ at: 'bottom', list: [[53, 2], [55, 1]] }, { at: 'top', list: [[53, 2], [57, 1]] }, { at: 'lair', list: [[54, 1], [53, 2], [61, 1]] }] },
-      { name: '악령의 성채', enemy: 'evil', note: '어려움', waves: [0, 8], mul: 0.95, restMul: 1.5, loopRest: 22, loopLv: 0.5, lv: { start: 1, perWave: 0.4 }, hpMul: 1, lair: 7800, efort: { hp: 1300, lv: 4 }, lairLv: 4, lairCast: 6, heroPosts: 3, traps: 12, trapEvery: 18, trapLv: 3,
+      { name: '악령의 성채', cap: 50, ecap: 36, enemy: 'evil', note: '어려움', waves: [0, 8], mul: 0.95, restMul: 1.5, loopRest: 22, loopLv: 0.5, lv: { start: 1, perWave: 0.4 }, hpMul: 1, lair: 7800, efort: { hp: 1300, lv: 4 }, lairLv: 4, lairCast: 6, heroPosts: 3, traps: 12, trapEvery: 18, trapLv: 3,
         /* 기습 (2026-11-14 사용자 요청): 아군이 둘째 적 벙커(EFORTS[fort])를 지나면, 텔레포테이션 이펙트·소리와 함께 적 병력이 아군의 뒤(rear)와 옆(flank — 맨 윗줄·맨 아랫줄)에 나타난다.
            처음 지난 순간 한 번, 그 뒤 every 초마다 max 번까지. back = 아군 맨 앞에서 뒤쪽 병력까지의 거리(px). 나타난 적은 hold 초 뒤부터 움직인다 */
         ambush: { fort: 1, every: 40, max: 3, back: 170, hold: 0.7, per: 30, mulMax: 3, rear: [[29, 3], [30, 1]], flank: [[44, 2], [29, 2]] },
         guards: [{ at: 'bottom', list: [[30, 2], [44, 1]] }, { at: 'top', list: [[30, 2], [45, 1]] }, { at: 'lair', list: [[34, 1], [44, 2], [41, 1], [30, 2]] }] },
       /* 4단계 (2026-11-14 사용자 요청): 악령군과 흑마술파가 함께 나온다 (ENEMIES.both — 두 종족의 같은 번호 웨이브를 BOTH_MUL 씩 섞은 표).
          벙커는 아래 = 납골당(악령군), 위 = 흉가(흑마술파). 기지 수비대는 두 종족 영웅 4명씩, 덫은 네 종류 전부 */
-      { name: '거울의 끝', enemy: 'both', note: '매우 어려움', waves: [0, 10], mul: 1, restMul: 1.3, loopRest: 20, loopLv: 0.5, lv: { start: 2, perWave: 0.5 }, hpMul: 1, lair: 9600, efort: { hp: 1500, lv: 5 }, lairLv: 5, lairCast: 5, heroPosts: 8, traps: 14, trapEvery: 15, trapLv: 4,
+      { name: '거울의 끝', cap: 60, ecap: 40, enemy: 'both', note: '매우 어려움', waves: [0, 10], mul: 1, restMul: 1.3, loopRest: 20, loopLv: 0.5, lv: { start: 2, perWave: 0.5 }, hpMul: 1, lair: 9600, efort: { hp: 1500, lv: 5 }, lairLv: 5, lairCast: 5, heroPosts: 8, traps: 14, trapEvery: 15, trapLv: 4,
         guards: [{ at: 'bottom', list: [[30, 2], [44, 1]] }, { at: 'top', list: [[54, 1], [53, 2]] }, { at: 'lair', list: [[34, 1], [54, 1], [44, 1], [57, 1], [41, 1], [61, 1]] }] }
     ],
     ENEMY_DEFAULT: 'evil',
@@ -343,8 +348,8 @@
     this.heroDefs = [];
     (data.heroes || []).forEach(function (h) { if (CONFIG.GROW.heroes.indexOf(h.name) < 0) return; var base = self.types[h.type]; if (!base) return;
       var G = CONFIG.GROW, t = Object.create(base); t.name = h.name; t.job = base.name; t.pid = h.pid;
-      t.hp = Math.min(G.heroCap.hp, Math.max(h.hp, base.hp * G.heroHp)); t.atk = Math.min(G.heroCap.atk, Math.max(h.atk, base.atk)); t.def = Math.min(G.heroCap.def, Math.max(h.def, base.def));
-      t.lv = { max: base.lv.max, exp: base.lv.exp, hpGrow: Math.min(40, Math.max(h.hpGrow, base.lv.hpGrow)), mpGrow: base.lv.mpGrow, tbl: base.lv.tbl };
+      t.hp = base.hp; t.atk = Math.min(G.heroCap.atk, Math.max(h.atk, Math.round(base.atk * G.heroAtk))); t.def = Math.min(G.heroCap.def, Math.max(h.def, Math.round(base.def * G.heroDef)));
+      t.maxHpAt = function (L) { return base.maxHpAt(Math.max(1, L - G.heroLv)); };   // 체력 = 같은 레벨(추가 heroLv 빼고)의 일반 유닛과 같다. 추가 레벨은 공격·방어 식에만 (2026-11-14 사용자 요청)
       self.heroDefs.push({ name: h.name, t: t, base: base, rec: h }); });
     this.recallIcon = -1;                                    // 회수 팻말에 그릴 원작 리콜 아이콘 (넨 소환의 아이콘 번호)
     data.units.forEach(function (d) { (d.acts || []).forEach(function (a) { if (a && a.sup === 'recall' && a.icon >= 0 && self.recallIcon < 0) self.recallIcon = a.icon; }); });
@@ -478,6 +483,7 @@
       lf.garrison.forEach(function (m) { if (C.EGARRISON[m.cls]) lf.weapons[m.cls] = { phase: 2, c: 0 }; });
       this.lairFort = lf; this.lairAlarm = -99; }
     this.ambN = 0; this.ambT = 0; this.ambOn = false;
+    this.surgeQ = []; this.surgeT = 0; this.surgeCd = 0; this.surgeN = 0; this.flankT = null; this.flankK = 0;
     this.traps = []; this.trapT = 0; if (C.PUSH && this.st) for (var tn = 0; tn < (this.st.traps || 0); tn++) this._plantTrap();
     this.selFort = null; this.modal = null; this.modalT = 0;
     this.garTick = 0;            // 마지막으로 처리한 사격 틱
@@ -487,7 +493,7 @@
     this.texts = [];             // 떠오르는 숫자·글자 (피해량 등)
     this.baseHp = C.BASE.hp; this.baseHit = 0; this.baseHurtT = null;
     this.mana = C.MANA.start; this.manaMax = C.MANA.max; this.manaRegen = C.MANA.regen;
-    this.xp = 0; this.plv = 1; this.allyLv = 0; this.dmgUp = 0; this.radiusUp = 0; this.cards = null; this.cardT = 0; this.pendingLv = 0;   // 성장: 경험치·플레이어 레벨·아군 추가 레벨·마법 강화, 고르는 중인 카드
+    this.xp = 0; this.plv = 1; this.allyLv = 0; this.xpBuffs = []; this.dmgUp = 0; this.radiusUp = 0; this.cards = null; this.cardT = 0; this.pendingLv = 0;   // 성장: 경험치·플레이어 레벨·아군 추가 레벨·마법 강화, 고르는 중인 카드
     this.roster.forEach(function (list) { list.forEach(function (r) { r.wait = 0; }); });   // 소환 버튼별 남은 대기 시간
     this.flash = 0;
     this.cam.x = 0; this.manualUntil = 0; this.drag = null; this.camGoal = null;
@@ -596,6 +602,7 @@
       return this.mana < r.cost ? 'mana' : r.wait > 0 ? 'wait' : '';
     }
     if (CONFIG.MAX_MAGIC > 0 && r.magic && this.magicCount() >= CONFIG.MAX_MAGIC) return 'max';   // MAX_MAGIC = 0: 한도 없음 (2026-11-12 폐지)
+    var cap = this.allyCap(); if (cap && this.allyCount() >= cap) return 'cap';
     if (this.mana < r.cost) return 'mana';
     if (r.wait > 0) return 'wait';
     return '';
@@ -603,12 +610,16 @@
 
   /* 전장에 살아 있는 마법 유닛 수 (쓰러지면 바로 목록에서 빠진다) */
   P.magicCount = function () { return this.magicUnits.length; };
+  /* 아군 수 상한 (2026-11-14 사용자 요청 — 아군이 50~100기 덩어리가 되어 반격·측면이 묻혔다): 스테이지 st.cap, 없으면 CONFIG.ALLY_CAP(0 = 없음).
+     세는 것 = 전장에 살아 있는 아군. 영웅(카드로 나온 아군 영웅)은 세지 않는다. 성 안 수비대는 전장 유닛이 아니라 들어가지 않는다 */
+  P.allyCap = function () { return (this.st && this.st.cap != null ? this.st.cap : CONFIG.ALLY_CAP) || 0; };
+  P.allyCount = function () { var n = 0, L = this.units; for (var i = 0; i < L.length; i++) { var u = L[i]; if (u.side === 0 && u.state !== 'dead' && !u.hero) n++; } return n; };
 
   /* 지금 탭의 i번째 소환 버튼을 누름 */
   P.summon = function (i) {
     var r = this.roster[this.tab][i]; if (!r || this.screen !== 'play') return false;
     var why = this.canSummon(r);
-    if (why) { var msg = why === 'max' ? '마법 유닛은 ' + CONFIG.MAX_MAGIC + '기까지' : why === 'nogar' ? '건물에 배치할 수 없는 유닛' : why === 'castle' ? '방어 보너스 유닛은 성에만 배치' : why === 'full' ? '성이 가득 찼습니다' : '';
+    if (why) { var msg = why === 'cap' ? '아군은 ' + this.allyCap() + '기까지' : why === 'max' ? '마법 유닛은 ' + CONFIG.MAX_MAGIC + '기까지' : why === 'nogar' ? '건물에 배치할 수 없는 유닛' : why === 'castle' ? '방어 보너스 유닛은 성에만 배치' : why === 'full' ? '성이 가득 찼습니다' : '';
       if (msg) this._say(this.cam.x + this.W / 2, this.laneY - 120, msg, '#ffb36a'); return false; }
     this.mana -= r.cost; r.wait = r.cd;
     if (this.selBase) { this._garrison(r); return true; }
@@ -676,7 +687,7 @@
     this.readyAt = 0;                                        // 쿨타임이 끝난 시각 (패널에서 앞에 설 순서를 정한다)
     this.vi = null;                                          // 패널에서 지금 그려지는 자리 (순서가 바뀌면 그 자리로 미끄러져 간다)
     this.kind = skillKind(act);
-    this.aimed = this.needsFoe() || this.kind === 'recall' || this.kind === 'haste' || this.kind === 'dispel' || act.sup === 'massheal';   // 지점을 찍는 마법: 적에게 쓰는 것, 리콜, 그리고 넓은 범위의 소환 마법(말다 소환 = 범위 회복, 케멘 소환 = 범위 가속 — 2026-11-13 사용자 요청, 원본도 땅을 찍는 마법). 강화·힐링은 누르면 바로   // 리콜도 불러올 곳을 찍는다                            // 적에게 쓰는 마법은 누르면 바로 나가지 않고 전장에서 지점을 찍는다 (아군·자기에게 쓰는 마법은 즉시)
+    this.aimed = this.needsFoe() || this.kind === 'recall' || this.kind === 'haste' || this.kind === 'dispel' || act.sup === 'massheal' || this.allyAimed();   // 지점을 찍는 마법: 적에게 쓰는 것, 리콜, 그리고 넓은 범위의 소환 마법(말다 소환 = 범위 회복, 케멘 소환 = 범위 가속 — 2026-11-13 사용자 요청, 원본도 땅을 찍는 마법). 강화·힐링은 누르면 바로   // 리콜도 불러올 곳을 찍는다                            // 적에게 쓰는 마법은 누르면 바로 나가지 않고 전장에서 지점을 찍는다 (아군·자기에게 쓰는 마법은 즉시)
     var lim = CONFIG.SKILL.COST[this.kind] || [20, 60];
     this.cost = Math.max(lim[0], Math.min(lim[1], Math.round(act.mana * CONFIG.SKILL.costMul / 5) * 5));   // 쓸 때 드는 마나
     var wk = CONFIG.WEAPON[act.name]; if (wk && wk.cost) this.cost = wk.cost;   // 웨폰 계열은 종류마다 따로
@@ -684,6 +695,9 @@
   SkillSlot.prototype.ready = function () { return this.cd <= 0 && this.unit.state !== 'dead'; };
   /* 적이 있어야 쓰는 마법인가 (범위 공격·약화·멈춤·매혹·암살). 아니면 아군에게 쓰는 마법(회복·강화·가속)이거나 자기에게 쓰는 것(변형) */
   SkillSlot.prototype.needsFoe = function () { return { blast: 1, weaken: 1, stun: 1, charm: 1, assassin: 1 }[this.kind] === 1; };
+  /* 아군 한 기를 찍어 거는 강화 (2026-11-14 사용자 요청): 웨폰류(파이어·매직 — 자기 전용인 아이스 웨폰은 빼고)와 파운틴 베리어.
+     찍은 곳에서 가장 가까운 아군 공격 유닛(CONFIG.SKILL.allyPick px 안)이 대상이고, 남는 자리(웨폰 max·buffMax)는 그 대상 둘레(allyNear px)의 공격 유닛이 받는다 */
+  SkillSlot.prototype.allyAimed = function () { return this.kind === 'buff' && !this.act.self && /웨폰|파운틴/.test(this.act.name); };
   SkillSlot.prototype.needsAlly = function () { return { heal: 1, buff: 1, haste: 1 }[this.kind] === 1; };
 
   /* 원본 행동 → 이 게임에서의 스킬 종류 (null = 아직 구현하지 않은 행동: 텔레포테이션·천리안·숨기·술 소환 등) */
@@ -815,6 +829,15 @@
     var g = this.aim.group, self = this, R = this._readyOf(g); if (!g.slots.length) { this.aim = null; return false; }
     var Rw = this.rows, y = Math.max(this.laneY + Rw[0] - 30, Math.min(this.laneY + Rw[Rw.length - 1] + 10, wy));
     if (!R.length) { this._say(wx, y - 12, '쿨타임', '#e08a6a'); return false; }
+    if (R[0].allyAimed()) {                                  // 아군을 찍는 강화: 찍은 곳에서 가장 가까운 아군 공격 유닛 → 그 유닛에게 가장 가까운 시전자가 (닿지 않으면 걸어가서) 건다
+      var ally = null, ad = CONFIG.SKILL.allyPick; this.units.forEach(function (o) { if (o.side !== 0 || o.state === 'dead' || !o.act) return; var d = Math.hypot(o.x - wx, o.y - wy); if (d < ad) { ad = d; ally = o; } });
+      if (!ally) { this._say(wx, y - 12, '강화할 아군을 찍으세요', '#c9d1e3'); return false; }   // 조준은 그대로 — 다시 찍으면 된다
+      var sa = R.slice().sort(function (a, b) { return Math.abs(ally.x - a.unit.x) - Math.abs(ally.x - b.unit.x); })[0], ua = sa.unit;
+      if (Math.abs(ally.x - ua.x) <= this.aimReach(sa)) { var oka = this.castUnitSkill(ua, ua.slots.indexOf(sa), { x: ally.x, y: ally.y, ally: ally }); if (oka) { this.aim = null; this.aimPt = null; } return oka; }
+      ua.castOrder = { slot: sa, x: ally.x, y: ally.y, foe: ally, until: this.time + CONFIG.SKILL.walkSec };
+      this._say(ua.x, ua.y - ua.headY - 10, g.act.name + ' 쓰러 이동', '#7fd6ff');
+      this.aim = null; this.aimPt = null; return true;
+    }
     var s = R.slice().sort(function (a, b) { return Math.abs(wx - a.unit.x) - Math.abs(wx - b.unit.x); })[0], u = s.unit;
     if (g.act.races && !this._raceFoes(g.act, { x: wx, y: y }, this.aimRadius(s)).length) { this._say(wx, y - 12, '대상 없음 — ' + raceLabel(g.act) + '에게만 통합니다', '#c9d1e3'); this.aim = null; this.aimPt = null; return false; }   // 걸릴 적이 없는 곳: 조준을 푼다 (마나·대기 그대로)
     if (wx > this.frontX + this.aimReach(s)) { this._say(wx, y - 12, '적 진영 안쪽 — 닿지 않음', '#e08a6a'); return false; }
@@ -830,7 +853,7 @@
     if (k < 0 || s.cd > 0 || this.time > o.until || (o.foe && o.foe.state === 'dead')) { u.castOrder = null; return false; }
     if (o.foe) { o.x = Math.min(o.foe.x, this.frontX + this.aimReach(s)); o.y = o.foe.y - (s.kind === 'buff' ? o.foe.headY * 0.5 : 0); }   // 강화는 아군 몸통을 찍은 것으로
     var reach = this.aimReach(s), dx = o.x - u.x;
-    if (Math.abs(dx) <= reach) { u.castOrder = null; this.castUnitSkill(u, k, { x: o.x, y: o.y }); return true; }
+    if (Math.abs(dx) <= reach) { u.castOrder = null; this.castUnitSkill(u, k, { x: o.x, y: o.y, ally: s.allyAimed() ? o.foe : null }); return true; }
     var dest = Math.min(this.frontX, o.x - (dx > 0 ? 1 : -1) * (reach - 6)), mv = dest - u.x, step = Math.min(Math.abs(mv), this._speed(u) * dt);
     if (step < 0.01) { u.castOrder = null; return false; }
     u.x += (mv > 0 ? 1 : -1) * step; u.state = 'move'; u.walkT += dt; this._faceVec(u, mv, 0);
@@ -993,16 +1016,16 @@
         this.units.forEach(function (o) { if (o.side === u.side && o.state !== 'dead' && Math.hypot(o.x - foe.x, o.y - foe.y) <= fr) self._damage(o, self.rules.damage(u, o, self.rng) * fm); }); }
       var HO = MWE.OriginalRules.HOLY;
       if (HO && a.arm === HO.arm) {                          // 홀리 크로스 (원본 case 0x10, 분석 8-43): 범위 안의 아군은 회복 + 상태 이상 해제, 언데드 적은 석화
-        var hr = S.radius * (u.side === 0 ? 1 + this.radiusUp : 1), hv = this.rules.attackValue(u) + HO.heal;
+        var hr = S.radius * (u.side === 0 ? 1 + this.radiusUp : 1), hv = Math.round((this.rules.attackValue(u) + HO.heal) * S.holyHeal);
         this.units.forEach(function (o) { if (o.state === 'dead' || Math.hypot(o.x - foe.x, o.y - foe.y) > hr) return;
           if (o.side === u.side) { var got = Math.min(o.maxHp - o.hp, hv); o.hp += got; if (got > 0) self._say(o.x, o.y - o.t.h - 6, '+' + got, '#8fe89a'); o.stunUntil = 0; delete o.buffs.meltw; delete o.buffs.melta; delete o.buffs.poison; delete o.buffs.slow; }   /* 아군 상태 이상 해제 (원본 case 0x10, 8-43): 석화·멜팅 웨폰·멜팅 아머·중독·감속 */
           else if (o.t.race === HO.race && !o.t.immune) { o.stunUntil = Math.max(o.stunUntil || 0, self.time + HO.stoneTicks / tps); o.state = 'idle'; delete o.buffs.weapon; delete o.buffs.shield; delete o.buffs.haste; } }); }
       u.act = keep; this._addEffect(foe.x, foe.y, a.arm, 0); this.flash = 0.2; ok = true;
     } else if (s.kind === 'heal') {                          // 주변 아군 회복. 말다 소환(massheal)은 더 넓게, 전부 회복
       var mass = a.sup === 'massheal', HL = mass && pt ? this.units.filter(function (o) { return o.side === u.side && o.state !== 'dead' && Math.hypot(o.x - pt.x, o.y - pt.y) <= S.summonRadius; }) : allies(mass ? S.buffRadius * 1.5 : S.buffRadius);   // 말다 소환은 찍은 곳 둘레
-      // 힐링(2026-11-13 너프 — 마나 15로 주변 전원을 50%씩 채워 너무 셌다): 주변에서 체력 비율이 가장 낮은 healMax(3)기만, 최대 체력의 healRatio(35%)씩. 말다 소환은 그대로(범위 안 전원 완전 회복)
+      // 힐링(2026-11-13 너프 — 마나 15로 주변 전원을 50%씩 채워 너무 셌다): 주변에서 체력 비율이 가장 낮은 healMax(3)기만, 최대 체력의 healRatio(15%)씩. 말다 소환은 범위 안 전원을 최대 체력의 massHeal(50%)씩 (2026-11-14 전부 절반으로)
       if (!mass) HL = HL.filter(function (o) { return o.hp < o.maxHp; }).sort(function (p, q) { return p.hp / p.maxHp - q.hp / q.maxHp; }).slice(0, S.healMax);
-      HL.forEach(function (o) { var h = mass ? o.maxHp : Math.round(o.maxHp * S.healRatio), got = Math.min(o.maxHp - o.hp, h);
+      HL.forEach(function (o) { var h = Math.round(o.maxHp * (mass ? S.massHeal : S.healRatio)), got = Math.min(o.maxHp - o.hp, h);
         o.hp += got; if (got > 0) self._say(o.x, o.y - o.t.h - 6, '+' + got, '#8fe89a'); if (mass) { o.stunUntil = 0; delete o.buffs.meltw; delete o.buffs.melta; delete o.buffs.poison; delete o.buffs.slow; }   /* 말다 소환은 상태 이상도 푼다 (원본 case 0x38) */ if (!mass) self._addEffect(o.x, o.y - o.t.h * 0.5, a.arm, 0); });
       if (mass) this._addEffect(pt ? pt.x : u.x, pt ? pt.y : this.laneY, a.arm, 0);
       ok = true;
@@ -1015,7 +1038,12 @@
       var wpn = /웨폰/.test(a.name), WK = CONFIG.WEAPON[a.name] || {}, mine = u.side === 0, wMax = mine && WK.max || S.buffMax, wSec = mine && WK.sec || S.buffSec, wMul = WK.mul || 0;
       var weaker = function (o) { var b = o.buffs[a.sup]; return !(b && b.until > self.time && (b.mul || 0) > wMul); };   // 더 센 강화가 걸려 있지 않다
       if (a.self && !wpn) BT = [u];
-      else { BT = allies(S.buffRadius).filter(function (o) { return o !== u && o.act; }).filter(weaker).sort(function (p, q) { return (hasB(p) - hasB(q)) || (mine && WK.pick === 'strong' ? q.t.atk - p.t.atk : 0) || (u.side === 0 ? q.x - p.x : p.x - q.x); }).slice(0, wMax); if ((!BT.length || (a.self && BT.length < wMax)) && weaker(u)) BT.push(u); }
+      else if (pt && pt.ally) {                              // 대상 지정(2026-11-14): 찍은 아군 + 그 둘레(allyNear)의 공격 유닛으로 남은 자리를 채운다
+        var c = pt.ally; if (c.state === 'dead') return false;
+        if (!weaker(c)) { this._say(c.x, c.y - c.headY - 10, '더 센 강화가 걸려 있음', '#c9d1e3'); return false; }
+        BT = [c].concat(this.units.filter(function (o) { return o !== c && o.side === u.side && o.state !== 'dead' && o.act && Math.hypot(o.x - c.x, o.y - c.y) <= S.allyNear; }).filter(weaker)
+          .sort(function (p, q) { return (hasB(p) - hasB(q)) || (Math.hypot(p.x - c.x, p.y - c.y) - Math.hypot(q.x - c.x, q.y - c.y)); }).slice(0, wMax - 1));
+      } else { BT = allies(S.buffRadius).filter(function (o) { return o !== u && o.act; }).filter(weaker).sort(function (p, q) { return (hasB(p) - hasB(q)) || (mine && WK.pick === 'strong' ? q.t.atk - p.t.atk : 0) || (u.side === 0 ? q.x - p.x : p.x - q.x); }).slice(0, wMax); if ((!BT.length || (a.self && BT.length < wMax)) && weaker(u)) BT.push(u); }
       BT.forEach(function (o) { o.buffs[a.sup] = { k1: a.k1, k2: a.k2, arm: a.arm, mul: wMul, until: self.time + wSec }; });
       ok = true;
     } else if (s.kind === 'haste') {                         // 주변 아군이 빨리 걷는다 (케멘 소환). 걸린 유닛 머리 위에 원본 가속 이펙트(칸 44)
@@ -1106,6 +1134,8 @@
     this._updateSortie();
     this._updateLairHero(dt);
     this._updateAmbush(dt);
+    this._updateSurge(dt);
+    this._updateFlank(dt);
     this._enemyMagic(dt);
     this._selfMagic();
     this._holdSlot(); this._holdBtn();
@@ -1139,11 +1169,13 @@
   P._topH = function () { return 56; };   // 2026-11-13: 수비대 현황 줄을 뺐다(사용자 요청) — 수비대는 건물 가장자리의 실루엣으로 보인다   // 위 왼쪽 상자(기지·마나·경험치 [+ 수비대])의 높이
   P._xpNeed = function () { var G = CONFIG.GROW; return Math.round(G.base * Math.pow(G.grow, this.plv - 1)); };
   P._gainXp = function (n) {
+    var T = this.time; this.xpBuffs = (this.xpBuffs || []).filter(function (u) { return u > T; });
+    n *= 1 + this.xpBuffs.length * CONFIG.GROW.xpGain;        // "배움의 기운" 카드: 걸려 있는 장 수만큼 (한 장에 xpSec 초)
     this.xp += n;
     while (this.xp >= this._xpNeed()) { this.xp -= this._xpNeed(); this.plv++; this.pendingLv++; }
     if (this.pendingLv && !this.cards) this._offerCards();
   };
-  /* 유닛 레벨을 바꾼다: 최대 체력이 원작 식(종류 체력 + 레벨당 성장 × 레벨, 영웅은 heroHp배)으로 오르고 오른 만큼 지금 체력도 는다.
+  /* 유닛 레벨을 바꾼다: 최대 체력이 원작 식(종류 체력 + 레벨당 성장 × 레벨, 영웅은 추가 레벨을 뺀 일반 유닛과 같다)으로 오르고 오른 만큼 지금 체력도 는다.
      공격·방어는 원작 피해 식이 레벨을 본다 (공격 = k1 × 레벨 ÷ 8 + …, 방어 = 방어력 + 성장 × 레벨 ÷ 4) */
   P._setLevel = function (u, L) {
     var mh = Math.round(u.t.maxHpAt(L));
@@ -1158,17 +1190,21 @@
     this._addEffect(u.x, u.y, CONFIG.RECALL.fxArm, 0); this._say(u.x, u.y - u.headY - 14, '영웅 ' + h.name, '#ffd36e'); this._play(u.t.snd.ready, 0.9);
     return u;
   };
-  /* 카드 3장을 낸다 (서로 다른 종류, 무작위). 게임은 멈춘다 */
+  /* 카드 3장을 낸다 (서로 다른 종류, 무작위 — 종류마다 무게 GROW.cardW, 없으면 1). 게임은 멈춘다 */
   P._offerCards = function () {
-    var G = CONFIG.GROW, self = this, pool = ['lv', 'mana', 'magic', 'radius'], out = [];
+    var G = CONFIG.GROW, self = this, pool = ['lv', 'mana', 'magic', 'radius', 'xp'], out = [];
     var free = this.heroDefs.filter(function (h) { return !self.units.some(function (u) { return u.hero === h && u.state !== 'dead'; }); }); if (free.length && this.wave + 1 >= G.heroFromWave) pool.push('hero');   // 영웅은 한 명씩만 — 전장에 없는 영웅 중에서 무작위
     if (this.baseHp < CONFIG.BASE.hp * 0.9) pool.push('repair');
-    for (var i = pool.length - 1; i > 0; i--) { var r = Math.floor(this.rng.next() * (i + 1)), t = pool[i]; pool[i] = pool[r]; pool[r] = t; }
-    pool.slice(0, 3).forEach(function (k) {
+    var W8 = G.cardW || {}, pick = [];                       // 무게대로 겹치지 않게 3장 (전군 단련은 덜 나온다)
+    while (pick.length < 3 && pool.length) { var tw = 0, j; for (j = 0; j < pool.length; j++) tw += W8[pool[j]] != null ? W8[pool[j]] : 1;
+      var rr = this.rng.next() * tw; for (j = 0; j < pool.length - 1; j++) { rr -= W8[pool[j]] != null ? W8[pool[j]] : 1; if (rr < 0) break; }
+      pick.push(pool.splice(j, 1)[0]); }
+    pick.forEach(function (k) {
       var c = { kind: k };
       if (k === 'lv') { c.name = '전군 단련'; c.desc = '모든 아군의 레벨 +' + G.lvStep + ' — 지금 있는 유닛과 앞으로 소환할 유닛 모두'; c.tag = '유닛 Lv ' + (1 + self.allyLv) + ' → ' + (1 + self.allyLv + G.lvStep); }
       else if (k === 'hero') { var h = free[Math.floor(self.rng.next() * free.length)]; c.hero = h; c.unit = h.t; c.name = h.name; c.desc = '영웅 ' + h.name + '(' + h.t.job + ')이 마나 없이 나옵니다. 마법은 스스로 씁니다'; c.tag = 'Lv ' + (1 + self.allyLv + G.heroLv) + ' · 체력 ' + Math.round(h.t.maxHpAt(1 + self.allyLv + G.heroLv)); }
       else if (k === 'mana') { c.name = '마나의 샘'; c.desc = '마나 회복 +' + G.manaRegen + '/초, 최대 마나 +' + G.manaMax; c.tag = '회복 ' + (+self.regenNow().toFixed(1)) + ' → ' + (+(self.regenNow() + G.manaRegen).toFixed(1)); }
+      else if (k === 'xp') { c.name = '배움의 기운'; c.desc = G.xpSec + '초 동안 경험치 +' + Math.round(G.xpGain * 100) + '%'; c.tag = G.xpSec + '초 · 경험치 +' + Math.round(G.xpGain * 100) + '%'; }
       else if (k === 'magic') { c.name = '마법 증폭'; c.desc = '범위 공격 마법의 피해 +' + Math.round(G.dmg * 100) + '%'; c.tag = '피해 +' + Math.round((self.dmgUp + G.dmg) * 100) + '%'; }
       else if (k === 'radius') { c.name = '마법 확산'; c.desc = '적에게 쓰는 마법의 범위 +' + Math.round(G.radius * 100) + '%'; c.tag = '범위 +' + Math.round((self.radiusUp + G.radius) * 100) + '%'; }
       else { c.name = '성 수리'; c.desc = '기지 체력을 ' + Math.round(G.repair * 100) + '% 회복합니다'; c.tag = '기지 ' + Math.ceil(self.baseHp) + ' → ' + Math.min(CONFIG.BASE.hp, Math.ceil(self.baseHp + CONFIG.BASE.hp * G.repair)); }
@@ -1184,6 +1220,7 @@
     if (c.kind === 'lv') { this.allyLv += G.lvStep; this.units.forEach(function (u) { if (u.side === 0 && u.state !== 'dead') { self._setLevel(u, u.level + G.lvStep); self._say(u.x, u.y - u.headY - 10, 'Lv ' + u.level, '#ffd36e'); } }); }
     else if (c.kind === 'hero') this.spawnHero(c.hero);
     else if (c.kind === 'mana') { this.manaRegen += G.manaRegen; this.manaMax += G.manaMax; }
+    else if (c.kind === 'xp') this.xpBuffs.push(this.time + G.xpSec);   // 60초 동안 (여러 장이면 겹친다)
     else if (c.kind === 'magic') this.dmgUp += G.dmg;
     else if (c.kind === 'radius') this.radiusUp += G.radius;
     else if (c.kind === 'repair') { this.baseHp = Math.min(CONFIG.BASE.hp, this.baseHp + CONFIG.BASE.hp * G.repair); this.forts.forEach(function (f) { if (f.isFort && !f.dead) f.hp = Math.min(f.maxHp, f.hp + f.maxHp * G.repair); }); }   // 살아 있는 벙커도 같은 비율로
@@ -1196,13 +1233,14 @@
   P._updateWave = function (dt) {
     var C = CONFIG, w = C.WAVES[this.wave]; if (!w) return;
     if (this.queue.length) {
+      var ec = this.st && this.st.ecap; if (ec && this.waveFoes() >= ec) return;   // 적 웨이브 상한: 전장의 웨이브 적이 ecap 기면 다음 적은 기다린다 (쉬는 시간도 큐가 빈 뒤에야 돈다)
       this.spawnT -= dt;
       if (this.spawnT <= 0) { this.spawn(this.queue.shift(), 1); this.spawnT = w.gap; if (!this.queue.length) this.restT = C.PUSH && this.st ? this._pushRest(w) : w.rest; }
     } else {
       if (C.PUSH && this.st) {                               // 스테이지(진격) 방식: 시간으로만 넘어간다 — 다 나온 뒤 쉬는 시간이 지나면 다음 웨이브.
         // 막는 방식처럼 "남은 적이 적으면 다음"으로 두면 빨리 잡을수록 적이 바로 다시 나와 밀고 들어갈 틈이 없다 (2026-11-14 계측: 900초 동안 전선이 x 1300~1400 에 멈춤)
         this.restT -= dt;
-        if (this.restT <= 0) { if (this.wave >= C.WAVES.length - 1) this.loopN++; else this.wave++; this.queue = this._waveQueue(this.wave); this.spawnT = 1.5; this._announce(this.wave); }
+        if (this.restT <= 0) { if (this.wave >= C.WAVES.length - 1) this.loopN++; else this.wave++; this.queue = this._scaleQueue(this._waveQueue(this.wave)); this.spawnT = 1.5; this._announce(this.wave); }
         return; }
       // 이 웨이브가 다 나왔다 → 쉬는 시간이 지나거나 적이 전멸하면 다음 웨이브
       // restT 는 쉬는 시간에서 시작해 줄어든다 → 다 나온 뒤 maxWait 초가 지나면 −(maxWait − rest)
@@ -1214,6 +1252,16 @@
   };
 
   /* 스테이지 방식의 쉬는 시간: 웨이브 표의 rest × 스테이지 restMul. 마지막 줄(되풀이)은 스테이지 loopRest */
+  /* 비례 증원 (CONFIG.WAVE_SCALE): 살아 있는 아군 수 ÷ per 배(1 ~ mulMax)로 웨이브 적 수를 늘린다. 늘어난 몫은 그 웨이브 구성에서 무작위로 뽑는다. 스테이지 st.waveScale 로 덮어쓴다(null 이면 끈다) */
+  P._scaleQueue = function (q) {
+    var W = this.st && this.st.waveScale !== undefined ? this.st.waveScale : CONFIG.WAVE_SCALE; if (!W || !q.length) return q;
+    var nA = this._alive(0).length, mul = Math.max(1, Math.min(W.mulMax, nA / W.per)), extra = Math.round(q.length * (mul - 1));
+    for (var k = 0; k < extra; k++) q.splice(Math.floor(this.rng.next() * (q.length + 1)), 0, q[Math.floor(this.rng.next() * q.length)]);
+    this.waveMul = mul; return q;
+  };
+  /* 전장의 웨이브 적 수 (적 웨이브 상한 st.ecap 이 센다, 2026-11-14 사용자 요청 — 2~4단계 초반에 못 잡은 적이 쌓여 아군의 3~10배가 됐다).
+     주둔·길목(guard·heroPost)·측면(flank)·반격(surge)·기습(ambush)·기지 출격(sortie)은 세지 않는다 — 그쪽은 저마다 조건이 있다 */
+  P.waveFoes = function () { var n = 0, L = this.units; for (var i = 0; i < L.length; i++) { var u = L[i]; if (u.side === 1 && u.state !== 'dead' && !u.guard && !u.heroPost && !u.flank && !u.surge && !u.ambush && !u.sortie) n++; } return n; };
   P._pushRest = function (w) { var S = this.st; return this.wave >= CONFIG.WAVES.length - 1 && S.loopRest != null ? S.loopRest : w.rest * (S.restMul || 1); };
   P._alive = function (side) { return this.units.filter(function (u) { return u.side === side && u.state !== 'dead'; }); };
 
@@ -1444,7 +1492,7 @@
   /* 엔트의 자동 변형·자동 치료 (CONFIG.ENT). 걷는 형태 = 원본 엔트(공격 없음), 뿌리내린 형태 = 지상 엔트(뿌리 공격). 영웅 폴로운도 같다 — 영웅은 이름·수치를 지킨 채 그림과 행동만 바뀐다 */
   P._entForm = function (u, rooted) {
     var base = this.types[rooted ? 77 : 23], to = base, h = u.hero; if (!base) return;
-    if (h) { if (!h.forms) h.forms = {}; to = h.forms[base.id]; if (!to) { to = h.forms[base.id] = Object.create(base); ['name', 'job', 'pid', 'hp', 'atk', 'def', 'lv'].forEach(function (k) { to[k] = h.t[k]; }); } }
+    if (h) { if (!h.forms) h.forms = {}; to = h.forms[base.id]; if (!to) { to = h.forms[base.id] = Object.create(base); ['name', 'job', 'pid', 'hp', 'atk', 'def', 'lv', 'maxHpAt'].forEach(function (k) { to[k] = h.t[k]; }); } }
     var ratio = u.hp / u.maxHp; u.setType(to); u.hp = Math.max(1, Math.round(u.maxHp * ratio)); this._applyType(u); u.face(u.dir, -u.dir);
     u.rooted = rooted; u.rootIdle = 0; u.tgt = null; u.slotOf = null; u.slotA = null; u.slotAt = null; if (u.state !== 'dead') u.state = 'idle';
   };
@@ -1741,6 +1789,42 @@
       if (u.retire && Math.hypot(u.x - u.post.x, u.y - u.post.y) <= 6) { m.hp = u.hp; m.out = null; u.sortie = null; u.entered = true; u.state = 'dead'; u.fade = 1; } });   // 안으로: 전장에서 바로 지운다 (처치 수에 들지 않는다)
   };
   /* 기습 (스테이지 ambush): 아군 맨 앞이 그 벙커를 지나면 시작. 병력은 아군 맨 앞을 기준으로 뒤(rear)와 위·아래 가장자리 줄(flank)에 텔레포테이션(원작 행동 18)의 이펙트·소리와 함께 나타난다 */
+  /* 적의 반격 (CONFIG.SURGE, 2026-11-14 사용자 요청 — 쉬움에서도 아군이 쌓이면 적이 한꺼번에 무너져 너무 쉽게 끝났다. 서로 한 번씩 밀고 밀리게):
+       살아 있는 아군이 from 기 이상이고 아군 ÷ 적 ≥ ratio 이면, 적 기지에서 지금 웨이브 구성의 병력이 몰려나와 적 수를 아군의 fill 배까지 채운다(한 번에 max 기까지).
+       나오는 간격 gap 초, 다음 반격까지 cool 초, 시작 first 초 전에는 없다. 스테이지마다 st.surge 로 덮어쓴다(값이 null 이면 끈다) */
+  P._updateSurge = function (dt) {
+    var C = CONFIG, S = this.st && this.st.surge !== undefined ? this.st.surge : C.SURGE; if (!C.PUSH || !S || !(this.lairHp > 0)) return;
+    if (this.surgeQ.length) { this.surgeT -= dt; if (this.surgeT <= 0) { var u = this.spawn(this.surgeQ.shift(), 1); u.surge = true; this.surgeT = S.gap; } return; }
+    this.surgeCd -= dt; if (this.surgeCd > 0 || this.time < S.first || (S.times && this.surgeN >= S.times)) return;
+    var nA = 0, nE = 0, front = -Infinity, L = this.units; for (var i = 0; i < L.length; i++) { var o = L[i]; if (o.state === 'dead') continue; if (o.side === 0) { nA++; if (!o.air && o.x > front) front = o.x; } else nE++; }
+    if (nA < S.from || nA < S.ratio * Math.max(1, nE)) return;
+    if (S.siege && this.lairX != null && front > this.lairX - S.siege) return;   // 적 기지를 포위하는 동안은 반격하지 않는다 (2026-11-14 — 기지 문 앞에 새 병력이 쏟아져 아군 41 → 14기 붕괴의 25%가 반격이었다, README 184)
+    var n = Math.min(S.max, Math.round(nA * S.fill) - nE); if (n < S.min) return;
+    var pool = this._waveQueue(Math.min(this.wave, C.WAVES.length - 1)); if (!pool.length) return;
+    for (var k = 0; k < n; k++) this.surgeQ.push(pool[k % pool.length]);
+    this.surgeT = 0; this.surgeCd = S.cool; this.surgeN++;
+    this._say(Math.min(front + 80, this.spawnX - 60), this.laneY - 150, '적의 반격!', '#ff8a7a');
+  };
+  /* 측면 리젠 (CONFIG.FLANK, 2026-11-14 사용자 요청 — "벙커 하나를 깨면 측면에서도 계속, 1시·6시 방향 등"):
+       적 벙커가 after 개 이상 무너지면, every 초마다 아군 지상 맨 앞(front)을 시계 중심으로 spots 를 차례로 돌며 n 기가 전장 가장자리 밖(out px)에서 걸어 들어온다.
+       spots = [시, dx, 'top'|'bottom'] — dx = 맨 앞에서 가로로 떨어진 거리(+ 적 쪽). 병력은 지금 웨이브 구성에서 뽑는다. 스테이지마다 st.flank 로 덮어쓴다(null 이면 끈다) */
+  P._updateFlank = function (dt) {
+    var C = CONFIG, F = this.st && this.st.flank !== undefined ? this.st.flank : C.FLANK; if (!C.PUSH || !F || !(this.lairHp > 0)) return;
+    for (var e0 = 0; e0 < this.units.length; e0++) { var fu = this.units[e0]; if (fu.enterY == null) continue;   // 가장자리 밖에서 전장 줄까지 걸어 들어온다 (줄 밖에 멈춰 서지 않게)
+      if (fu.state === 'dead') { fu.enterY = null; continue; } var dy = fu.enterY - fu.y, st = F.enter * dt; if (Math.abs(dy) <= st) { fu.y = fu.enterY; fu.enterY = null; } else { fu.y += dy > 0 ? st : -st; fu.walkT = (fu.walkT || 0) + dt; } }
+    var down = (this.eforts || []).filter(function (e) { return e.dead; }).length; if (down < F.after) return;
+    if (this.flankT == null) { this.flankT = F.first; this.flankK = 0; }
+    this.flankT -= dt; if (this.flankT > 0) return; this.flankT = F.every;
+    var front = -Infinity, L = this.units, i; for (i = 0; i < L.length; i++) { var o = L[i]; if (o.side === 0 && o.state !== 'dead' && !o.air && o.x > front) front = o.x; }
+    if (front === -Infinity) return;
+    if (F.ratio) { var nA = 0, nE = 0; for (i = 0; i < L.length; i++) { var q = L[i]; if (q.state === 'dead') continue; if (q.side === 0) nA++; else if (!q.guard) nE++; }   // 조건부 (2026-11-14 사용자 요청): 아군이 우세할 때만 — 밀리고 있을 때는 쉰다
+      if (nA < (F.from || 0) || nA < F.ratio * Math.max(1, nE)) { this.flankT = F.recheck || 3; return; } }
+    var pool = this._waveQueue(Math.min(this.wave, C.WAVES.length - 1)); if (!pool.length) return;
+    var sp = F.spots[this.flankK++ % F.spots.length], R = this.rows, top = sp[2] === 'top', lo = C.BASE.front + 90, self = this;
+    var x0 = Math.max(lo, Math.min(this.spawnX - 40, front + sp[1])), yEdge = this.laneY + (top ? R[0] - F.out : R[R.length - 1] + F.out);
+    for (var k = 0; k < F.n; k++) { var u = this.spawn(pool[k % pool.length], 1); u.x = x0 + (k - (F.n - 1) / 2) * 30; u.y = yEdge + (top ? -1 : 1) * (k % 2) * 14; u.enterY = this.laneY + (top ? R[k % 2] : R[R.length - 1 - (k % 2)]); u.state = 'move'; u.flank = true; }
+    this._say(x0, this.laneY + (top ? R[0] - 26 : R[R.length - 1] + 30), sp[0] + '시 방향 적', '#ff8a7a');
+  };
   P._updateAmbush = function (dt) {
     var A = this.st && this.st.ambush, C = CONFIG; if (!A || !C.PUSH || this.ambN >= A.max) return;
     var EF = C.EFORTS[A.fort], front = -Infinity, L = this.units, self = this, i; if (!EF) return;
@@ -1778,7 +1862,7 @@
   /* 원작 영웅 기록 → 종류: 기본 유닛을 물려받고 이름·초상화·체력·공격·방어만 영웅 기록의 것 (아군 영웅 카드와 같은 규칙, 한도 GROW.heroCap) */
   P._heroType = function (rec, base) {
     var G = CONFIG.GROW, t = Object.create(base); t.name = rec.name; t.job = base.name; t.pid = rec.pid;
-    t.hp = Math.min(G.heroCap.hp, Math.max(rec.hp, base.hp * G.heroHp)); t.atk = Math.min(G.heroCap.atk, Math.max(rec.atk, base.atk)); t.def = Math.min(G.heroCap.def, Math.max(rec.def, base.def));
+    t.hp = base.hp; t.atk = Math.min(G.heroCap.atk, Math.max(rec.atk, Math.round(base.atk * G.heroAtk))); t.def = Math.min(G.heroCap.def, Math.max(rec.def, Math.round(base.def * G.heroDef)));
     return t;
   };
   /* 매 틱(초당 12): 적 벙커의 무기 그림을 넘기고, 자리 번호에 맞는 틱에 쏜다 (아군 성·벙커의 _updateGarrison 과 같은 원본 규칙).
@@ -2263,7 +2347,7 @@
       if (c.kind === 'hero' && por && por.naturalWidth) { var id = c.unit.pid, pw = aw - 2, ph = Math.round(pw * 160 / 120); ctx.drawImage(por, (id % 12) * 120, Math.floor(id / 12) * 160, 120, 160, b.x + 13, ay + 1 - Math.round((ph - ah) * 0.18), pw, ph); }
       else if (c.kind === 'lv') { [0, 1, 4].forEach(function (pid, k) { ctx.drawImage(figs, pid * 36, 0, 36, 43, Math.round(cx - 46 + k * 30), ay + 18, 34, 41); }); }
       else if (c.kind === 'repair') { var bp = self.bld.pics && self.bld.base ? self.bld.pics[self.bld.base.pic] : null; if (bp) { var k2 = Math.min((aw - 6) / bp[2], (ah - 6) / bp[3]); ctx.drawImage(self.assets.get('defense'), bp[0], bp[1], bp[2], bp[3], Math.round(cx - bp[2] * k2 / 2), Math.round(ay + ah / 2 - bp[3] * k2 / 2), Math.round(bp[2] * k2), Math.round(bp[3] * k2)); } }
-      else { var ic = icoOf(c.kind === 'mana' ? '말다 소환' : c.kind === 'magic' ? '라이트닝 썬더' : '나르 소환'), fi = ic * 2 + 1, s2 = 1.5; if (ic >= 0) ctx.drawImage(icons, (fi % D.cols) * D.w, Math.floor(fi / D.cols) * D.h, D.w, D.h, Math.round(cx - D.w * s2 / 2), Math.round(ay + ah / 2 - D.h * s2 / 2), Math.round(D.w * s2), Math.round(D.h * s2)); }
+      else { var ic = icoOf(c.kind === 'mana' ? '말다 소환' : c.kind === 'magic' ? '라이트닝 썬더' : c.kind === 'xp' ? '천리안' : '나르 소환'), fi = ic * 2 + 1, s2 = 1.5; if (ic >= 0) ctx.drawImage(icons, (fi % D.cols) * D.w, Math.floor(fi / D.cols) * D.h, D.w, D.h, Math.round(cx - D.w * s2 / 2), Math.round(ay + ah / 2 - D.h * s2 / 2), Math.round(D.w * s2), Math.round(D.h * s2)); }
       ctx.restore();
       if (c.kind === 'hero') { var HB = root.MW && root.MW.hpbar, st = HB && HB.frames[7]; if (st) ctx.drawImage(self.assets.get('hpbar'), st[0], st[1], st[2], st[3], b.x + 15, ay + 3, st[2], st[3]); }   // 영웅 별
       ctx.textAlign = 'center'; ctx.font = 'bold 13px sans-serif'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.9)'; var nm = self._fit(c.name, b.w - 12); ctx.strokeText(nm, cx, ay + ah + 16); ctx.fillStyle = '#ffe9b0'; ctx.fillText(nm, cx, ay + ah + 16);
@@ -2502,7 +2586,7 @@
       var b = this.btnBoxes[k], r = list[i], why = this.canSummon(r), ok = !why, cx = b.x + b.w / 2, fh = Math.min(43, b.h - 24), fw = Math.round(fh * 36 / 43);
       if (this._cell(b.x, b.y, b.w, b.h)) { if (ok) { ctx.strokeStyle = r.magic ? 'rgba(127,182,255,.9)' : 'rgba(230,196,118,.9)'; ctx.lineWidth = 1; ctx.strokeRect(b.x + 4.5, b.y + 4.5, b.w - 9, b.h - 9); } }   // 원작 명령 칸 + 뽑을 수 있으면 안쪽 가는 선(마법 유닛 파랑, 그 외 금색)
       else { ctx.fillStyle = ok ? '#232a3a' : '#191d27'; ctx.fillRect(b.x, b.y, b.w, b.h); ctx.strokeStyle = ok ? (r.magic ? '#7fb6ff' : '#c9a35a') : '#3a4152'; ctx.lineWidth = 2; ctx.strokeRect(b.x + 1, b.y + 1, b.w - 2, b.h - 2); }
-      ctx.globalAlpha = ok ? 1 : why === 'max' || why === 'nogar' || why === 'castle' ? 0.2 : 0.5; ctx.drawImage(figs, r.t.pid * 36, 0, 36, 43, Math.round(cx - fw / 2), b.y + 2, fw, fh); ctx.globalAlpha = 1;
+      ctx.globalAlpha = ok ? 1 : why === 'max' || why === 'cap' || why === 'nogar' || why === 'castle' ? 0.2 : 0.5; ctx.drawImage(figs, r.t.pid * 36, 0, 36, 43, Math.round(cx - fw / 2), b.y + 2, fw, fh); ctx.globalAlpha = 1;
       if (r.wait > 0) { ctx.fillStyle = 'rgba(0,0,0,.6)'; var ch = b.h * r.wait / r.cd; ctx.fillRect(b.x, b.y + b.h - ch, b.w, ch); }
       ctx.textAlign = 'center';
       ctx.font = '9px sans-serif'; ctx.fillStyle = ok ? '#dfe6f5' : '#7b8397'; ctx.fillText(this._fit(r.t.name, b.w - 4), cx, b.y + b.h - 18);
@@ -2523,7 +2607,7 @@
     var G = this.groups, n = G.length, vis = this.slotsVis, B = this.slotBoxes[0], i, ih = Math.min(D.h, B.h - 22), iw = Math.round(ih * D.w / D.h), T = this.time;
     ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
     // 머리줄: 마법 유닛 수와 마법 종류 수
-    ctx.font = '10px sans-serif'; ctx.fillStyle = '#7b8397'; ctx.fillText('아군 ' + this._alive(0).length + '기' + (n ? ' · 마법 유닛 ' + this.magicUnits.length + '기 · 마법 ' + n + '종' : ''), p.x + 2, p.y + p.h / 2);   // 지금 전장에 있는 아군 수 (2026-11-12)
+    ctx.font = '10px sans-serif'; ctx.fillStyle = '#7b8397'; ctx.fillText('아군 ' + (this.allyCap() ? this.allyCount() + '/' + this.allyCap() : this._alive(0).length) + '기' + (n ? ' · 마법 유닛 ' + this.magicUnits.length + '기 · 마법 ' + n + '종' : ''), p.x + 2, p.y + p.h / 2);   // 지금 전장에 있는 아군 수 (2026-11-12)
     // ◀ ▶ : 넘길 칸이 있는 쪽만 밝게
     var arrows = [[this.slotPrev, '◀', this.slotFirst > 0], [this.slotNext, '▶', this.slotFirst < n - vis]];
     for (i = 0; i < 2; i++) { var ab = arrows[i][0], on = arrows[i][2];
@@ -2751,7 +2835,8 @@
     var WKI = CONFIG.WEAPON[a.name] || {}; var V = { wMul: WKI.mul, wMax: WKI.max || S.buffMax, wSec: WKI.sec || S.buffSec, healMax: S.healMax, healPct: Math.round(S.healRatio * 100), buffMax: S.buffMax, buffSec: S.buffSec, stun: stunSecOf(a), charmMax: S.charmMax, dur: Math.round(a.sup === 'masshaste' ? S.hasteSec : (a.dur || 600) / tps), undead: S.undeadDmg[a.name] || 0 };
     var desc = ((MWE.DEF_SKILL_DESC && MWE.DEF_SKILL_DESC[a.name]) || '').replace(/\{(\w+)\}/g, function (m, k) { return V[k] != null ? V[k] : m; });
     var L = [], n = g.slots.filter(function (q) { return q.unit && q.unit.state !== 'dead'; }).length;
-    if (s.aimed) L.push('칸을 누른 뒤 전장을 찍어 씁니다 · 효과 반경 ' + Math.round(this.aimRadius(s)) + ' · 시전 거리 ' + (s.kind === 'recall' ? '제한 없음' : Math.round(this.aimReach(s))));
+    if (s.allyAimed()) L.push('칸을 누른 뒤 강화할 아군을 찍습니다 · 닿지 않으면 시전 유닛이 걸어갑니다');
+    else if (s.aimed) L.push('칸을 누른 뒤 전장을 찍어 씁니다 · 효과 반경 ' + Math.round(this.aimRadius(s)) + ' · 시전 거리 ' + (s.kind === 'recall' ? '제한 없음' : Math.round(this.aimReach(s))));
     else L.push(a.self || CONFIG.TECH[a.name] ? '유닛이 알아서 씁니다' : '칸을 누르면 바로 씁니다' + (s.kind === 'morph' ? '' : ' · 시전 유닛 주변 ' + S.buffRadius));
     L.push('재사용 ' + S.cool + '초 · 가진 유닛 ' + n + '기' + (s.kind === 'blast' && blastTier(a) > 1 ? ' · 피해 ×' + blastTier(a).toFixed(2).replace(/0$/, '') : ''));
     return { name: a.name, cost: s.cost, kind: KIND_NAME[s.kind] || '', desc: desc, lines: L };
